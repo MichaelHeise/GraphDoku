@@ -190,3 +190,68 @@
   über die headless gerenderten Bilder belegt.
 - Der Abbruch einer laufenden Suche wirkt über `StopSearch` von CP-SAT; bei sehr großen Modellen kann der Modellaufbau
   vor dem Start der Suche selbst nicht unterbrochen werden (bei den Beispielrätseln wenige Millisekunden).
+
+## Paket 6 – Erklär-Modus (Bibliotheksteil)
+
+Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danach zusammengeführt.
+
+**Erledigt**
+
+- `CandidateSet` (Core, neu): unveränderliche Bitmenge pro Knoten über dessen eigenen Wertebereich (beliebiger Versatz,
+  auch negative Werte, bis 4096 Werte), aufsteigende Aufzählung ohne Zwischenspeicher, `MinValue`/`MaxValue`/
+  `SingleValue`, `Without`, `Only`, `NextAbove`/`NextBelow`, Wertgleichheit, implementiert `IReadOnlySet<int>`.
+- `CandidateState` überarbeitet: hält pro Knoten eine `CandidateSet` (Knotenreihenfolge des Rätsels in `NodeIds`);
+  `Clone()` kopiert nur ein Feld von Verweisen; `HasSameCandidates` für Vergleiche; `Apply` meldet, ob sich etwas
+  geändert hat. Startzustand aus globalem bzw. eigenem Wertebereich und Givens wie bisher.
+- `Reason.Constraint` ist jetzt `ConstraintRef?` (für Schlüsse ohne Regel: einziger Kandidat, Verzweigung).
+- `Propagate` aller acht Regeln überprüft und verbessert (Einzelheiten unter „Entscheidungen“): Kantenregeln mit
+  vollständiger Kantenkonsistenz in linearer Zeit, `Thermometer` vollständig konsistent auch bei Lücken in den
+  Kandidaten, `Sum` mit vollständiger Prüfung jedes Kandidaten (mit Suchbudget), sprechendere deutsche Begründungen.
+- `GraphDoku.Explainer`: `ExplanationEngine` (nimmt `ISolver`, optional `RuleRegistry` und `SolverOptions`) mit
+  `Explain(puzzle, token)` und `ExplainAsync(puzzle, token)`; Ergebnis `ExplanationResult` mit `Status`
+  (`Solved`, `SolvedAmbiguous`, `SolvedUnverified`, `Unsolvable`, `Stuck`, `Invalid`, `Cancelled`), deutscher
+  `Message`, geordneten `Steps`, `Solution`, `SolverSolution`, `Contradiction`, `Errors` und
+  `GetSnapshot(n)` (Zustand nach n Schritten, 0 = Start) für Vor/Zurück/Schieberegler.
+- `ExplanationStep`: `Kind` (gesetzter Wert / gestrichene Kandidaten / Verzweigung), `Technique`, `Changes`
+  (Knoten + Werte), `Reason` (Constraint, beteiligte Knoten, Text), dazu `NodeId`, `Value`, `NodeIds`,
+  `Summary` („Knoten 3, 4, 6: streiche 5“), `Description`; deutsche Namen über `ToGermanText()`.
+- `ExplanationSnapshot`: Kandidaten (eigene Kopie) und gesetzte Knoten (Givens + gesetzte Werte), `GetSetValue`.
+- Tests: Core 175 (vorher 144; neu u. a. `CandidateSetTests`, `RulePropagationReasonTests` mit Abgleich gegen
+  vollständiges Durchprobieren für alle Regeln), Explainer 59 (vorher 2). Gesamt 335 Tests, alle grün in Release.
+- Akzeptanz: `puzzles/klassisch-leicht.json` wird ohne Verzweigung vollständig erklärt (200 Schritte: 149 Streichungen
+  feststehender Werte, 51 einzige Kandidaten; der Solver wird dabei gar nicht aufgerufen). Konsistenztest für leicht/mittel/schwer und zehn kleine Rätsel (je eine Regel, dazu ein
+  4×4-Killer ohne Givens): jeder gesetzte Wert ist der Lösungswert, kein gestrichener Kandidat ist der Lösungswert,
+  jeder Zwischenzustand enthält die Lösung. Verzweigungstest (mittel braucht 3 Verzweigungen, schwer ebenfalls mehrere; Knotenwahl und „festgefahren“ geprüft), mehrdeutiges
+  Rätsel, Widerspruch durch Logik, Unlösbarkeit nur über den Solver, Zeitlimit des Solvers, ungültiges Rätsel, Abbruch.
+
+- Review-Befunde (zweite Runde) behoben, siehe Nr. 95–100: Stufe 0 „feststehende Werte streichen“ vor den
+  Singles (behebt auch Singles, die einen schon vorhandenen Wert ein zweites Mal setzten), Widerspruch statt Ausnahme
+  bei einer eigenen Regel, die einen gestrichenen Wert setzt, Solver-Bestätigung bei eigenen Regeln ohne Verzweigung,
+  kürzere Texte für hidden singles und Verzweigungen, Zwischenspeicher für `Propagate`, Abbruchprüfung zwischen den
+  Constraints.
+
+**Offen**
+
+- UI des Erklär-Modus (Schrittleiste mit Vor/Zurück, Anfang/Ende, Schieberegler, Hervorhebung, Kandidatenanzeige
+  ein/aus) – kommt nach dem Zusammenführen mit dem Editor. Die Bibliothek liefert dafür alles Nötige:
+  `GetSnapshot(n)`, `step.NodeIds` (aktuelle Zellen), `step.InvolvedNodeIds` und `step.Constraint` (Regel zum
+  Hervorheben), `step.Text`/`Summary`, `snapshot.IsSet` (Wert oder Kandidaten anzeigen).
+- Weitere Techniken (naked/hidden pairs, Pointing usw.) sind nicht Teil der Spezifikation; „mittel“ braucht deshalb
+  drei Verzweigungen.
+
+**Bekannte Probleme**
+
+- `Sum` prüft in einem `Propagate`-Aufruf jeden Kandidaten per Tiefensuche (Budget 200 000 Suchschritte pro Aufruf);
+  ist das Budget erschöpft, werden die restlichen Kandidaten nicht geprüft (weiterhin nur sichere Schlüsse, aber
+  unvollständig). Seit dem Zwischenspeicher (Nr. 99) wird die Suche nur wiederholt, wenn sich Kandidaten der
+  Gruppe geändert haben. Gemessen (Release, warm): drei Summengruppen mit je 20 Knoten (Werte 1..64, Ziel 500) und einer
+  Ungleich-Kette, 206 Schritte und 54 Verzweigungen: 1,03 s ohne, 0,36 s mit Zwischenspeicher. Innerhalb eines
+  einzelnen `Propagate`-Aufrufs wird das Abbruch-Token nicht geprüft.
+- Weil die Folgen jedes gesetzten Werts jetzt sofort eingetragen werden (Stufe 0), hat der Lösungsweg mehr Schritte
+  (leicht 200 statt 120, mittel 202, schwer 209): pro gesetztem Wert meist ein Streichschritt je Gruppe. Dafür zeigt die
+  Kandidatenanzeige nie veraltete Kandidaten, und naked singles erscheinen, wo ein Mensch sie sieht (leicht: 51 naked,
+  0 hidden statt vorher 2 naked, 49 hidden; mittel 41/13, schwer 38/12).
+- Eine eigene, nicht korrekte Regel (Registry-Erweiterung) kann zu einem Widerspruch nach einer Verzweigung, zu einem
+  gestrichenen Lösungswert oder zu einer Solver-Lösung abweichend von der hergeleiteten Belegung führen; die Engine
+  wirft dann eine `InvalidOperationException` mit deutscher Meldung („Interner Fehler …“), statt ein falsches Ergebnis
+  zu melden. Die Oberfläche sollte diese Ausnahme abfangen.
