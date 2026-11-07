@@ -105,8 +105,9 @@ public static class PuzzleSerializer
     /// <summary>
     /// Speichert ein Rätsel als UTF-8-Datei (ohne BOM). Geschrieben wird zuerst in eine temporäre Datei im selben
     /// Verzeichnis, die dann das Ziel ersetzt: Scheitert das Schreiben (z. B. volle Platte), bleibt die bisherige
-    /// Datei unverändert. Ein symbolischer Link wird aufgelöst (ersetzt wird die Datei, auf die er zeigt), und unter
-    /// Unix übernimmt die neue Datei die Zugriffsrechte der bisherigen. Lässt sich im Verzeichnis keine Datei anlegen,
+    /// Datei unverändert. Unter Unix übernimmt die neue Datei die Zugriffsrechte der bisherigen. Ist das Ziel selbst ein
+    /// symbolischer Link, wird wie früher direkt (nicht atomar) durch den Link geschrieben; das Betriebssystem folgt
+    /// ihm dann, und der Link bleibt erhalten. Lässt sich im Verzeichnis keine Datei anlegen,
     /// die bestehende Datei aber beschreiben, wird sie wie früher direkt (nicht atomar) überschrieben.
     /// </summary>
     public static void Save(Puzzle puzzle, string path) => Save(puzzle, path, OpenTemporaryFile);
@@ -116,7 +117,15 @@ public static class PuzzleSerializer
     {
         ArgumentNullException.ThrowIfNull(path);
         var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(Serialize(puzzle));
-        var fullPath = ResolveLinks(Path.GetFullPath(path));
+        var fullPath = Path.GetFullPath(path);
+        if (new FileInfo(fullPath).LinkTarget is not null)
+        {
+            // Links nicht selbst auflösen: .NET hängt relative Ziele textuell an den Pfad an, das Betriebssystem löst
+            // „..“ aber vom echten Verzeichnis des Links aus auf. Das Betriebssystem folgt dem Link beim Schreiben.
+            File.WriteAllBytes(fullPath, bytes);
+            return;
+        }
+
         var exists = File.Exists(fullPath);
         if (exists && File.GetAttributes(fullPath).HasFlag(FileAttributes.ReadOnly))
         {
@@ -125,7 +134,8 @@ public static class PuzzleSerializer
         }
 
         UnixFileMode? mode = exists && !OperatingSystem.IsWindows() ? File.GetUnixFileMode(fullPath) : null;
-        var tempPath = Path.Combine(Path.GetDirectoryName(fullPath)!, $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
+        // Kurzer Name unabhängig vom Ziel, damit auch lange Dateinamen die Grenze des Dateisystems nicht überschreiten.
+        var tempPath = Path.Combine(Path.GetDirectoryName(fullPath)!, $".graphdoku-{Guid.NewGuid():N}.tmp");
         Stream stream;
         try
         {
@@ -169,13 +179,6 @@ public static class PuzzleSerializer
 
     private static FileStream OpenTemporaryFile(string path) =>
         new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-
-    /// <summary>Löst symbolische Links auf, damit das Ersetzen die Zieldatei trifft und nicht den Link.</summary>
-    private static string ResolveLinks(string fullPath)
-    {
-        var info = new FileInfo(fullPath);
-        return info.LinkTarget is null ? fullPath : info.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? fullPath;
-    }
 
     /// <summary>Löscht eine temporäre Datei, ohne den eigentlichen Fehler zu überdecken.</summary>
     private static void TryDelete(string path)
