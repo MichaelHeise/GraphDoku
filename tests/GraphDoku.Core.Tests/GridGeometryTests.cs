@@ -7,6 +7,28 @@ public class GridGeometryTests
 {
     private const double Tolerance = 1e-9;
 
+    [Theory]
+    [InlineData(GridType.Square)]
+    [InlineData(GridType.Hex)]
+    [InlineData(GridType.Triangle)]
+    public void Neighbors_at_int_limits_drop_targets_outside_the_int_range(GridType grid)
+    {
+        foreach (var (x, y) in new[] { (int.MaxValue, 0), (int.MinValue, 0), (0, int.MaxValue), (0, int.MinValue), (int.MaxValue, int.MinValue) })
+        {
+            var neighbors = GridGeometry.GetOrthogonalNeighbors(grid, x, y)
+                .Concat(GridGeometry.GetDiagonalNeighbors(grid, x, y))
+                .Concat(GridGeometry.SupportsKnightMove(grid) ? GridGeometry.GetKnightMoves(grid, x, y) : []);
+            foreach (var n in neighbors)
+            {
+                Math.Abs((long)n.X - x).Should().BeLessThanOrEqualTo(2, $"Nachbar {n} von ({x}, {y}) darf nicht überlaufen");
+                Math.Abs((long)n.Y - y).Should().BeLessThanOrEqualTo(2, $"Nachbar {n} von ({x}, {y}) darf nicht überlaufen");
+            }
+        }
+
+        GridGeometry.GetOrthogonalNeighbors(grid, 0, 0).Should().HaveCount(grid switch { GridType.Square => 4, GridType.Hex => 6, _ => 3 });
+        GridGeometry.GetOrthogonalNeighbors(grid, int.MaxValue, 0).Should().HaveCountLessThan(GridGeometry.GetOrthogonalNeighbors(grid, 0, 0).Count);
+    }
+
     [Fact]
     public void Square_world_coordinates_equal_grid_coordinates()
     {

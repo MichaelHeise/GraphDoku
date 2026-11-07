@@ -48,6 +48,15 @@ public static class PuzzleSerializer
 
         using (document)
         {
+            // JsonDocument nimmt maskierte einzelne UTF-16-Surrogate (z. B. "\uD800") an, GetString() und
+            // JsonProperty.Name werfen dann aber InvalidOperationException. Deshalb vor dem Lesen alle Texte prüfen.
+            var textErrors = new List<string>();
+            FindInvalidText(document.RootElement, string.Empty, textErrors);
+            if (textErrors.Count > 0)
+            {
+                throw new PuzzleFormatException(textErrors);
+            }
+
             var reader = new Reader();
             var puzzle = reader.ReadPuzzle(document.RootElement);
             if (reader.Errors.Count > 0)
@@ -89,6 +98,54 @@ public static class PuzzleSerializer
     /// <summary>Speichert ein Rätsel als UTF-8-Datei (ohne BOM).</summary>
     public static void Save(Puzzle puzzle, string path) =>
         File.WriteAllText(path, Serialize(puzzle), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+    /// <summary>Sammelt alle Feldnamen und Zeichenketten, die sich nicht als gültiger UTF-16-Text lesen lassen.</summary>
+    private static void FindInvalidText(JsonElement element, string path, List<string> errors)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var property in element.EnumerateObject())
+                {
+                    string name;
+                    try
+                    {
+                        name = property.Name;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        errors.Add($"{Describe(path)} enthält einen Feldnamen mit einer ungültigen Zeichenfolge (einzelnes UTF-16-Surrogat, z. B. \\uD800). Die Datei ist keine gültige Rätseldatei.");
+                        continue;
+                    }
+
+                    FindInvalidText(property.Value, path.Length == 0 ? name : $"{path}.{name}", errors);
+                }
+
+                break;
+            case JsonValueKind.Array:
+                var index = 0;
+                foreach (var item in element.EnumerateArray())
+                {
+                    FindInvalidText(item, $"{path}[{index}]", errors);
+                    index++;
+                }
+
+                break;
+            case JsonValueKind.String:
+                try
+                {
+                    _ = element.GetString();
+                }
+                catch (InvalidOperationException)
+                {
+                    errors.Add($"{Describe(path)} enthält eine ungültige Zeichenfolge (einzelnes UTF-16-Surrogat, z. B. \\uD800). Die Datei ist keine gültige Rätseldatei.");
+                }
+
+                break;
+        }
+
+        static string Describe(string path) => path.Length == 0 ? "Das Rätselobjekt" : $"Das Feld „{path}“";
+    }
 
     private static void Write(Utf8JsonWriter writer, Puzzle puzzle)
     {

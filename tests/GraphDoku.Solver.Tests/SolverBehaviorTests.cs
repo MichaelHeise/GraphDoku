@@ -18,6 +18,28 @@ public class SolverBehaviorTests
     private readonly OrToolsSolver _solver = new();
 
     [Fact]
+    public void Count_result_factories_require_the_found_solutions()
+    {
+        // Regression (Abschluss-Review): Ein Solver, der nur zählt, ließ den Erklär-Modus beim Verzweigen abstürzen.
+        IReadOnlyDictionary<int, int> one = new Dictionary<int, int> { [1] = 1 };
+        IReadOnlyDictionary<int, int> two = new Dictionary<int, int> { [1] = 2 };
+        IReadOnlyDictionary<int, int> three = new Dictionary<int, int> { [1] = 3 };
+
+        var countOnly = () => SolutionCountResult.Completed(2, 2, [], TimeSpan.Zero);
+        countOnly.Should().Throw<ArgumentException>().WithParameterName("solutions").WithMessage("*genau 2 Lösungen*");
+        var tooFew = () => SolutionCountResult.Timeout(1, 2, [], TimeSpan.Zero);
+        tooFew.Should().Throw<ArgumentException>().WithParameterName("solutions");
+        var tooMany = () => SolutionCountResult.Cancelled(3, 5, [one, two, three], TimeSpan.Zero);
+        tooMany.Should().Throw<ArgumentException>().WithParameterName("solutions");
+        var negative = () => SolutionCountResult.Completed(-1, 2, [], TimeSpan.Zero);
+        negative.Should().Throw<ArgumentOutOfRangeException>();
+
+        SolutionCountResult.Completed(0, 2, [], TimeSpan.Zero).IsUnsolvable.Should().BeTrue();
+        SolutionCountResult.Timeout(1, 2, [one], TimeSpan.Zero).Solutions.Should().ContainSingle();
+        SolutionCountResult.Completed(5, 10, [one, two], TimeSpan.Zero).Solutions.Should().HaveCount(SolutionCountResult.MaxStoredSolutions);
+    }
+
+    [Fact]
     public void Solver_implements_ISolver_with_a_name()
     {
         ISolver solver = _solver;

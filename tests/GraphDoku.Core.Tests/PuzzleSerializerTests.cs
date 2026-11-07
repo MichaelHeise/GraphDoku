@@ -275,4 +275,25 @@ public class PuzzleSerializerTests
         ShouldFail(Wrap("\"nodes\": [ { \"id\": 1, \"x\": null, \"y\": 0 } ]"), "nodes[0]: Das Feld „x“ muss eine ganze Zahl sein");
         ShouldFail(Wrap("\"nodes\": [ { \"id\": 1, \"x\": 0, \"y\": 0 } ], \"groups\": [ { \"id\": 1, \"nodes\": null, \"rule\": \"Sum\" } ]"), "groups[0]: Das Feld „nodes“ muss eine Liste von Knoten-Ids sein");
     }
+
+    [Theory]
+    [InlineData("{ \"formatVersion\": 1, \"name\": \"\\uD800\", \"grid\": \"square\", \"domain\": { \"min\": 1, \"max\": 3 } }", "Das Feld „name“ enthält eine ungültige Zeichenfolge")]
+    [InlineData("{ \"formatVersion\": 1, \"name\": \"T\", \"grid\": \"square\", \"domain\": { \"min\": 1, \"max\": 3 }, \"nodes\": [ { \"id\": 1, \"x\": 0, \"y\": 0 }, { \"id\": 2, \"x\": 1, \"y\": 0 } ], \"edges\": [ { \"id\": 1, \"from\": 1, \"to\": 2, \"rule\": \"\\uDC00\" } ] }", "Das Feld „edges[0].rule“ enthält eine ungültige Zeichenfolge")]
+    [InlineData("{ \"formatVersion\": 1, \"name\": \"T\", \"grid\": \"square\", \"domain\": { \"min\": 1, \"max\": 3 }, \"nodes\": [ { \"id\": 1, \"x\": 0, \"y\": 0 }, { \"id\": 2, \"x\": 1, \"y\": 0 } ], \"edges\": [ { \"id\": 1, \"from\": 1, \"to\": 2, \"rule\": \"Difference\", \"params\": { \"k\": 1, \"mode\": \"\\uD800x\" } } ] }", "Das Feld „edges[0].params.mode“ enthält eine ungültige Zeichenfolge")]
+    [InlineData("{ \"formatVersion\": 1, \"name\": \"T\", \"grid\": \"square\", \"domain\": { \"min\": 1, \"max\": 3 }, \"nodes\": [ { \"id\": 1, \"x\": 0, \"y\": 0 }, { \"id\": 2, \"x\": 1, \"y\": 0 } ], \"edges\": [ { \"id\": 1, \"from\": 1, \"to\": 2, \"rule\": \"Difference\", \"params\": { \"\\uDC00\": 1 } } ] }", "Das Feld „edges[0].params“ enthält einen Feldnamen mit einer ungültigen Zeichenfolge")]
+    [InlineData("{ \"\\uD800\": 1, \"formatVersion\": 1, \"grid\": \"square\", \"domain\": { \"min\": 1, \"max\": 3 } }", "Das Rätselobjekt enthält einen Feldnamen mit einer ungültigen Zeichenfolge")]
+    public void Lone_utf16_surrogate_escape_is_a_format_error_not_a_crash(string json, string expected)
+    {
+        // Regression (Abschluss-Review): JsonDocument akzeptiert "\uD800", GetString() warf dann InvalidOperationException.
+        ShouldFail(json, expected);
+        var unvalidated = () => PuzzleSerializer.Deserialize(json, validate: false);
+        unvalidated.Should().Throw<PuzzleFormatException>();
+    }
+
+    [Fact]
+    public void Paired_surrogate_escape_is_read_normally()
+    {
+        var puzzle = PuzzleSerializer.Deserialize("{ \"formatVersion\": 1, \"name\": \"\\uD83D\\uDE00\", \"grid\": \"square\", \"domain\": { \"min\": 1, \"max\": 3 } }");
+        puzzle.Name.Should().Be("\U0001F600");
+    }
 }

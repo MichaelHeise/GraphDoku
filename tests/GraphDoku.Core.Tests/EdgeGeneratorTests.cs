@@ -155,6 +155,30 @@ public class EdgeGeneratorTests
         orthogonal.Edges.Should().HaveCount(3 * 4 * 3 / 2, "ein Dreieck der Seitenlänge n hat 3n(n−1)/2 innere Kanten");
     }
 
+    [Theory]
+    [InlineData(GridType.Square)]
+    [InlineData(GridType.Hex)]
+    [InlineData(GridType.Triangle)]
+    public void Cells_at_opposite_int_limits_are_never_neighbors(GridType grid)
+    {
+        // Regression (Abschluss-Review): int.MaxValue + 1 lief auf int.MinValue über, das Muster „direkt benachbart“
+        // verband dann Zellen an entgegengesetzten Enden des Gitters.
+        var puzzle = new Puzzle("Grenzen", grid, new ValueDomain(1, 2));
+        puzzle.Nodes.Add(new Node(1, int.MaxValue, 0));
+        puzzle.Nodes.Add(new Node(2, int.MinValue, 0));
+        puzzle.Nodes.Add(new Node(3, 0, int.MaxValue));
+        puzzle.Nodes.Add(new Node(4, 0, int.MinValue));
+        puzzle.Nodes.Add(new Node(5, int.MaxValue, int.MaxValue));
+        puzzle.Nodes.Add(new Node(6, int.MinValue, int.MinValue));
+
+        Generate(puzzle, DistanceRule.Orthogonal).Edges.Should().BeEmpty();
+        Generate(puzzle, DistanceRule.WithDiagonals).Edges.Should().BeEmpty();
+        if (GridGeometry.SupportsKnightMove(grid))
+        {
+            Generate(puzzle, DistanceRule.KnightMove).Edges.Should().BeEmpty();
+        }
+    }
+
     [Fact]
     public void Small_square_counts_are_as_expected()
     {

@@ -25,6 +25,12 @@ public interface ISolver
     /// <summary>
     /// Zählt Lösungen, höchstens bis <paramref name="limit"/>. Für die Eindeutigkeitsprüfung reicht <c>limit</c> = 2.
     /// </summary>
+    /// <remarks>
+    /// Das Ergebnis muss die gefundenen Lösungen selbst enthalten: <see cref="SolutionCountResult.Solutions"/> sind die
+    /// ersten min(Count, <see cref="SolutionCountResult.MaxStoredSolutions"/>) Lösungen, jede eine vollständige
+    /// Belegung aller Knoten-Ids des Rätsels. Der Erklär-Modus übernimmt daraus den Wert beim Verzweigen, die
+    /// Oberfläche zeigt sie an. Die Fabrikmethoden von <see cref="SolutionCountResult"/> prüfen die Anzahl.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="limit"/> ist kleiner als 1.</exception>
     SolutionCountResult CountSolutions(Puzzle puzzle, int limit = 2, SolverOptions? options = null, CancellationToken cancellationToken = default);
 }

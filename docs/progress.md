@@ -560,3 +560,15 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 - Die Rahmenauswahl über Zellen braucht Strg/Cmd; ohne Taste verschiebt Ziehen wie bisher (Nr. 159).
 - Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel- und
   headless-Fenstertests, Aussehen über die gerenderten Bilder.
+
+## Abschluss-Review – Core, Solver, Explainer
+
+- `PuzzleSerializer`: Einzelne UTF-16-Surrogate (`"\uD800"`) in Texten oder Feldnamen ergeben eine
+  `PuzzleFormatException` mit Pfad statt einer unbehandelten `InvalidOperationException` (Nr. 161).
+- `GridGeometry`: Nachbarn, Eckennachbarn und Springerzüge laufen an den int-Grenzen nicht mehr über; der
+  Kanten-Generator verbindet dort keine weit entfernten Zellen mehr (Nr. 162).
+- `ISolver.CountSolutions`: Vertrag „Lösungen werden mitgeliefert“ dokumentiert und in den Fabrikmethoden von
+  `SolutionCountResult` geprüft; der Erklär-Modus meldet eine unvollständige Solver-Lösung als „Stuck“ statt
+  abzustürzen (Nr. 163).
+- `puzzles/klassisch-leer.json` als bewusst mehrdeutige Vorlage begründet (Nr. 160), Datei unverändert.
+- Tests (+14: Core 244, Solver 105, Explainer 82, App 318 = 749), alle grün in Release.

@@ -67,19 +67,47 @@ public sealed class SolutionCountResult
     /// <summary>Mindestens zwei verschiedene Lösungen gefunden (gilt auch nach Zeitlimit oder Abbruch).</summary>
     public bool IsAmbiguous => Count >= 2;
 
+    /// <summary>Zählung vollständig oder Limit erreicht.</summary>
+    /// <param name="solutions">Genau die ersten min(<paramref name="count"/>, <see cref="MaxStoredSolutions"/>) gefundenen Lösungen.</param>
+    /// <exception cref="ArgumentException">Die Anzahl der mitgelieferten Lösungen passt nicht zu <paramref name="count"/>.</exception>
     public static SolutionCountResult Completed(int count, int limit, IReadOnlyList<IReadOnlyDictionary<int, int>> solutions, TimeSpan elapsed) =>
-        new(CountStatus.Completed, count, limit, solutions, [], elapsed);
+        new(CountStatus.Completed, count, limit, CheckSolutions(count, solutions), [], elapsed);
 
+    /// <summary>Zeitlimit erreicht; <paramref name="count"/> ist eine Untergrenze.</summary>
+    /// <param name="solutions">Genau die ersten min(<paramref name="count"/>, <see cref="MaxStoredSolutions"/>) gefundenen Lösungen.</param>
+    /// <exception cref="ArgumentException">Die Anzahl der mitgelieferten Lösungen passt nicht zu <paramref name="count"/>.</exception>
     public static SolutionCountResult Timeout(int count, int limit, IReadOnlyList<IReadOnlyDictionary<int, int>> solutions, TimeSpan elapsed) =>
-        new(CountStatus.Timeout, count, limit, solutions, [], elapsed);
+        new(CountStatus.Timeout, count, limit, CheckSolutions(count, solutions), [], elapsed);
 
+    /// <summary>Abgebrochen; <paramref name="count"/> ist eine Untergrenze.</summary>
+    /// <param name="solutions">Genau die ersten min(<paramref name="count"/>, <see cref="MaxStoredSolutions"/>) gefundenen Lösungen.</param>
+    /// <exception cref="ArgumentException">Die Anzahl der mitgelieferten Lösungen passt nicht zu <paramref name="count"/>.</exception>
     public static SolutionCountResult Cancelled(int count, int limit, IReadOnlyList<IReadOnlyDictionary<int, int>> solutions, TimeSpan elapsed) =>
-        new(CountStatus.Cancelled, count, limit, solutions, [], elapsed);
+        new(CountStatus.Cancelled, count, limit, CheckSolutions(count, solutions), [], elapsed);
 
     public static SolutionCountResult Invalid(int limit, IReadOnlyList<string> errors, TimeSpan elapsed) =>
         new(CountStatus.Invalid, 0, limit, [], errors, elapsed);
 
     public override string ToString() => $"{Status} ({Count}): {Message}";
+
+    /// <summary>
+    /// Der Erklär-Modus übernimmt beim Verzweigen einen Wert aus <see cref="Solutions"/>; ein Solver, der nur zählt,
+    /// soll deshalb schon hier scheitern und nicht erst dort.
+    /// </summary>
+    private static IReadOnlyList<IReadOnlyDictionary<int, int>> CheckSolutions(int count, IReadOnlyList<IReadOnlyDictionary<int, int>> solutions)
+    {
+        ArgumentNullException.ThrowIfNull(solutions);
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        var expected = Math.Min(count, MaxStoredSolutions);
+        if (solutions.Count != expected)
+        {
+            throw new ArgumentException(
+                $"Bei {count} gefundenen Lösungen müssen genau {expected} Lösungen mitgeliefert werden (höchstens {MaxStoredSolutions}), es sind aber {solutions.Count}.",
+                nameof(solutions));
+        }
+
+        return solutions;
+    }
 
     private string BuildMessage()
     {

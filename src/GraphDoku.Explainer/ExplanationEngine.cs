@@ -522,14 +522,21 @@ public sealed class ExplanationEngine
                 return null;
             }
 
-            var solution = result.Solutions[0];
             var nodeId = Candidates.NodeIds
                 .Where(id => !_state.IsSet(id))
                 .OrderBy(id => Candidates.GetCandidates(id).Count)
                 .ThenBy(id => id)
                 .First();
             var candidates = Candidates.GetCandidates(nodeId);
-            var value = solution[nodeId];
+            if (result.Solutions.Count == 0 || !result.Solutions[0].TryGetValue(nodeId, out var value))
+            {
+                // Vertrag von ISolver.CountSolutions verletzt (Lösung fehlt oder ist unvollständig): klar melden statt abstürzen.
+                stop = Finish(
+                    ExplanationStatus.Stuck,
+                    $"Ohne Raten geht es nicht weiter, und der Solver „{_engine.Solver.Name}“ hat keine vollständige Lösung mitgeliefert (für Knoten {nodeId} fehlt ein Wert), aus der sich ein Wert übernehmen ließe. Die Erklärung ist unvollständig.");
+                return null;
+            }
+
             if (!candidates.Contains(value))
             {
                 throw new InvalidOperationException(

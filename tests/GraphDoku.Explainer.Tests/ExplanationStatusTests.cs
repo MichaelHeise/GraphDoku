@@ -120,6 +120,22 @@ public class ExplanationStatusTests
     }
 
     [Fact]
+    public void Solver_with_incomplete_solution_leaves_the_explanation_stuck_instead_of_crashing()
+    {
+        // Regression (Abschluss-Review): TryBranch indizierte blind in die Lösung des Solvers.
+        var puzzle = ExplainerPuzzles.WithNodes(2, 1, 2).Edge(1, 2, NotEqualRule.Name);
+        IReadOnlyDictionary<int, int> partial = new Dictionary<int, int> { [2] = 1 };
+        var solver = new FixedCountSolver(_ => SolutionCountResult.Completed(1, 2, [partial], TimeSpan.Zero));
+
+        var result = new ExplanationEngine(solver).Explain(puzzle);
+
+        result.Status.Should().Be(ExplanationStatus.Stuck);
+        result.Message.Should().Contain("keine vollständige Lösung").And.Contain("Knoten 1").And.Contain("„Fest“");
+        result.IsComplete.Should().BeFalse();
+        result.UsedBranching.Should().BeFalse();
+    }
+
+    [Fact]
     public void Solver_timeout_with_one_solution_is_solved_but_unverified()
     {
         var real = Solver.Solve(ExplainerPuzzles.Load("klassisch-schwer.json")).Values!;

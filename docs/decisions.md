@@ -998,3 +998,32 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      Knoten schon beim Drücken umschaltet (Thermometer-Reihenfolge) und Ziehen ohne Taste weiterhin verschiebt. Der
      Werkzeughinweis nennt in der Zelldarstellung „Strg/Cmd + Ziehen wählt per Rahmen“ (gleich lang wie bisher, bleibt bei
      1280 px einzeilig).
+160. **`puzzles/klassisch-leer.json` bleibt als absichtlich mehrdeutige Vorlage** (Abschluss-Review, Abweichung von der
+     Paket-5-Akzeptanz „Jedes Beispielrätsel ist lösbar und eindeutig“): Die Datei stammt aus Paket 1 (leeres
+     klassisches 9 × 9 ohne Givens) und ist bewusst keine Rätselaufgabe, sondern eine Vorlage zum Selbstausfüllen
+     (README). Sie bleibt in `puzzles/`, weil sie dort mehrfach als Testdatei dient: als mehrdeutiges Rätsel für die
+     Paket-2-Akzeptanz (Solver erkennt Mehrdeutigkeit), für den Erklär-Modus (Status „mehrdeutig“ mit Verzweigungen)
+     und in den App-Tests für Rahmenauswahl und Rendering. Die Akzeptanz gilt für alle übrigen Dateien; die Tests
+     (`ExamplePuzzleTests`, `SolveIntegrationTests`, `ExamplePuzzleExplanationTests`) nehmen genau diese eine Datei aus
+     und erwarten für sie ausdrücklich „mehrdeutig“, sodass eine versehentlich mehrdeutige weitere Datei auffiele.
+161. **Einzelne UTF-16-Surrogate in JSON-Texten sind ein Formatfehler** (Abschluss-Review): `JsonDocument` nimmt
+     maskierte einzelne Surrogate wie `"\uD800"` an, `GetString()` bzw. `JsonProperty.Name` warfen dann aber
+     `InvalidOperationException` – an der dokumentierten `PuzzleFormatException` vorbei, in der App unbehandelt beim
+     Öffnen. `PuzzleSerializer.Deserialize` prüft jetzt vor dem Lesen alle Feldnamen und Zeichenketten des Dokuments
+     und meldet jede ungültige Stelle mit Pfad (z. B. „Das Feld „edges[0].params.mode“ enthält eine ungültige
+     Zeichenfolge (einzelnes UTF-16-Surrogat, z. B. \uD800)“). Gilt auch mit `validate: false`. Korrekt gepaarte
+     Surrogate (Emoji) werden normal gelesen.
+162. **Gitternachbarn ohne int-Überlauf** (Abschluss-Review): `GridGeometry` rechnet Nachbarn, Eckennachbarn und
+     Springerzüge in `long` und lässt Ziele außerhalb des int-Bereichs weg. Vorher lief z. B. `int.MaxValue + 1` auf
+     `int.MinValue` über, und der Kanten-Generator verband mit „direkt benachbart“ Zellen an entgegengesetzten Enden
+     (der freie Abstand fand korrekt nichts). Keine Begrenzung der Koordinaten im Validator: Der Editor erzeugt solche
+     Werte nie, und mit der Korrektur rechnen beide Generator-Modi auch an den Grenzen übereinstimmend; eine neue
+     Grenze hätte bisher gültige Dateien abgelehnt.
+163. **`ISolver.CountSolutions` muss die gefundenen Lösungen mitliefern** (Abschluss-Review, Präzisierung von Nr. 36):
+     `SolutionCountResult.Solutions` enthält genau die ersten min(`Count`, `MaxStoredSolutions`) Lösungen, jede eine
+     vollständige Belegung aller Knoten-Ids. Das steht jetzt an der Schnittstelle, und die Fabrikmethoden
+     `Completed`/`Timeout`/`Cancelled` werfen `ArgumentException`, wenn die Anzahl nicht passt (negatives `Count`:
+     `ArgumentOutOfRangeException`) – ein späterer eigener Solver, der nur zählt, scheitert so sofort und nicht erst im
+     Erklär-Modus. Fehlt in der mitgelieferten Lösung der Wert für den Verzweigungsknoten, endet die Erklärung mit
+     „Ohne Raten geht es nicht weiter“ (Status `Stuck`, Solvername in der Meldung) statt mit einer
+     Indexausnahme. OR-Tools-Solver und alle Test-Solver erfüllen den Vertrag bereits.

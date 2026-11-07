@@ -32,6 +32,10 @@ public static class GridGeometry
     private static readonly GridPoint[] SquareDiagonal =
         [new(1, 0), new(-1, 0), new(0, 1), new(0, -1), new(1, 1), new(1, -1), new(-1, 1), new(-1, -1)];
 
+    private static readonly GridPoint[] TriangleUpOrthogonal = [new(-1, 0), new(1, 0), new(0, 1)];
+
+    private static readonly GridPoint[] TriangleDownOrthogonal = [new(-1, 0), new(1, 0), new(0, -1)];
+
     private static readonly GridPoint[] HexNeighbors = [new(1, 0), new(-1, 0), new(0, 1), new(0, -1), new(1, -1), new(-1, 1)];
 
     private static readonly GridPoint[] KnightMoves =
@@ -90,9 +94,7 @@ public static class GridGeometry
     {
         GridType.Square => Offset(x, y, SquareOrthogonal),
         GridType.Hex => Offset(x, y, HexNeighbors),
-        GridType.Triangle => IsUpTriangle(x, y)
-            ? [new(x - 1, y), new(x + 1, y), new(x, y + 1)]
-            : [new(x - 1, y), new(x + 1, y), new(x, y - 1)],
+        GridType.Triangle => Offset(x, y, IsUpTriangle(x, y) ? TriangleUpOrthogonal : TriangleDownOrthogonal),
         _ => throw new ArgumentOutOfRangeException(nameof(grid), grid, "Unbekannter Gittertyp."),
     };
 
@@ -111,25 +113,24 @@ public static class GridGeometry
             case GridType.Triangle:
                 // Die Zeile an der Spitze hat 3 Eckennachbarn, die eigene Zeile 4, die Zeile an der Grundseite 5.
                 var up = IsUpTriangle(x, y);
-                var apexRow = up ? y - 1 : y + 1;
-                var baseRow = up ? y + 1 : y - 1;
+                var apexDy = up ? -1 : 1;
                 var result = new List<GridPoint>(12);
                 for (var dx = -1; dx <= 1; dx++)
                 {
-                    result.Add(new GridPoint(x + dx, apexRow));
+                    AddIfInRange(result, (long)x + dx, (long)y + apexDy);
                 }
 
                 for (var dx = -2; dx <= 2; dx++)
                 {
                     if (dx != 0)
                     {
-                        result.Add(new GridPoint(x + dx, y));
+                        AddIfInRange(result, (long)x + dx, y);
                     }
                 }
 
                 for (var dx = -2; dx <= 2; dx++)
                 {
-                    result.Add(new GridPoint(x + dx, baseRow));
+                    AddIfInRange(result, (long)x + dx, (long)y - apexDy);
                 }
 
                 return result;
@@ -192,6 +193,26 @@ public static class GridGeometry
         return new GridPoint((int)Math.Round(q), (int)Math.Round(r));
     }
 
-    private static GridPoint[] Offset(int x, int y, GridPoint[] offsets) =>
-        [.. offsets.Select(o => new GridPoint(x + o.X, y + o.Y))];
+    /// <summary>
+    /// Verschiebt (x, y) um jeden Versatz. Ziele außerhalb des int-Bereichs gibt es nicht und fallen weg – sonst
+    /// würde z. B. int.MaxValue + 1 auf int.MinValue überlaufen und Zellen an entgegengesetzten Enden verbinden.
+    /// </summary>
+    private static GridPoint[] Offset(int x, int y, GridPoint[] offsets)
+    {
+        var result = new List<GridPoint>(offsets.Length);
+        foreach (var o in offsets)
+        {
+            AddIfInRange(result, (long)x + o.X, (long)y + o.Y);
+        }
+
+        return [.. result];
+    }
+
+    private static void AddIfInRange(List<GridPoint> result, long x, long y)
+    {
+        if (x is >= int.MinValue and <= int.MaxValue && y is >= int.MinValue and <= int.MaxValue)
+        {
+            result.Add(new GridPoint((int)x, (int)y));
+        }
+    }
 }
