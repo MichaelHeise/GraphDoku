@@ -27,7 +27,6 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     private static readonly IPen RasterPen = new Pen(new ImmutableSolidColorBrush(Color.Parse("#dcdcd6")), 1);
     private static readonly IBrush NodeFill = new ImmutableSolidColorBrush(Colors.White);
     private static readonly IBrush NodeSelectedFill = new ImmutableSolidColorBrush(Color.Parse("#d6e6ff"));
-    private static readonly IBrush NodeStrokeBrush = new ImmutableSolidColorBrush(Color.Parse("#3a3a3a"));
     private static readonly IBrush AccentBrush = new ImmutableSolidColorBrush(Color.Parse("#1d64d8"));
     private static readonly IBrush TextBrush = new ImmutableSolidColorBrush(Color.Parse("#111111"));
     private static readonly IBrush EdgeBrush = new ImmutableSolidColorBrush(Color.Parse("#4a4a4a"));
@@ -86,6 +85,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     private readonly Dictionary<(string Text, double Size, IBrush Brush), FormattedText> _candidateTexts = [];
 
     private EditorViewModel? _editor;
+    private WindowBase? _window;
 
     static GraphCanvas()
     {
@@ -245,10 +245,51 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         base.OnKeyUp(e);
         if (e.Key == Key.Space && _editor is not null)
         {
-            _editor.SetSpaceHeld(false);
-            UpdateCursor();
+            ReleaseSpace();
             e.Handled = true;
         }
+    }
+
+    // Loslassen der Leertaste erreicht die Zeichenfläche nicht mehr, wenn vorher der Fokus wechselt (Klick auf eine
+    // Schaltfläche, Tab) oder das Fenster in den Hintergrund geht. Ohne Zurücksetzen bliebe „Leertaste + Ziehen
+    // verschiebt“ hängen und jeder spätere Linksklick würde verschieben statt auswählen (Nr. 168).
+    protected override void OnLostFocus(FocusChangedEventArgs e)
+    {
+        base.OnLostFocus(e);
+        ReleaseSpace();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _window = TopLevel.GetTopLevel(this) as WindowBase;
+        if (_window is not null)
+        {
+            _window.Deactivated += OnWindowDeactivated;
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (_window is not null)
+        {
+            _window.Deactivated -= OnWindowDeactivated;
+            _window = null;
+        }
+    }
+
+    private void OnWindowDeactivated(object? sender, EventArgs e) => ReleaseSpace();
+
+    private void ReleaseSpace()
+    {
+        if (_editor is null)
+        {
+            return;
+        }
+
+        _editor.SetSpaceHeld(false);
+        UpdateCursor();
     }
 
     public override void Render(DrawingContext context)

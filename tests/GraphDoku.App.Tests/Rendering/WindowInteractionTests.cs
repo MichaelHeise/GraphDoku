@@ -1,12 +1,16 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using GraphDoku.App.Controls;
+using GraphDoku.App.Services;
 using GraphDoku.App.Tests.Helpers;
 using GraphDoku.App.ViewModels;
 using GraphDoku.App.Views;
+using GraphDoku.Core.Geometry;
 using GraphDoku.Core.Model;
 using GraphDoku.Core.Templates;
 using GraphDoku.Solver.OrTools;
@@ -158,6 +162,66 @@ public sealed class WindowInteractionTests(HeadlessSessionFixture fixture)
         viewModel.Editor.History.UndoCount.Should().Be(3);
         window.Close();
     }, CancellationToken.None);
+
+    [Fact]
+    public Task Space_released_after_focus_left_the_canvas_does_not_keep_panning() => fixture.Session.Dispatch(() =>
+    {
+        // Review-Befund (Nr. 168): Das Loslassen der Leertaste ging an die fokussierte Schaltfläche, danach verschob
+        // jeder Linksklick auf der Zeichenfläche die Ansicht, statt auszuwählen.
+        var (window, viewModel) = OpenWindow(ClassicSudoku.Create());
+        var editor = viewModel.Editor;
+        var canvas = window.FindControl<GraphCanvas>("Canvas")!;
+        canvas.Focus();
+        Dispatcher.UIThread.RunJobs();
+        window.KeyPress(Key.Space, RawInputModifiers.None, PhysicalKey.Space, " ");
+        Dispatcher.UIThread.RunJobs();
+
+        window.GetVisualDescendants().OfType<Button>().First(b => Equals(b.Content, "Einpassen")).Focus().Should().BeTrue();
+        window.KeyRelease(Key.Space, RawInputModifiers.None, PhysicalKey.Space, " ");
+        Dispatcher.UIThread.RunJobs();
+
+        var screen = editor.Viewport.ToScreen(GridGeometry.ToWorld(GridType.Square, 0, 0));
+        var point = canvas.TranslatePoint(new Point(screen.X, screen.Y), window)!.Value;
+        window.MouseDown(point, MouseButton.Left);
+        editor.IsPanning.Should().BeFalse();
+        window.MouseUp(point, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        editor.SelectedNodeIds.Should().Equal(ClassicSudoku.NodeId(0, 0));
+        window.Close();
+    }, CancellationToken.None);
+
+    [Theory]
+    [InlineData(0, UnsavedChangesChoice.Save)]
+    [InlineData(1, UnsavedChangesChoice.Discard)]
+    [InlineData(2, UnsavedChangesChoice.Cancel)]
+    [InlineData(-1, UnsavedChangesChoice.Cancel)]
+    public Task Unsaved_changes_dialog_maps_buttons_and_closing_without_a_button_cancels(int button, UnsavedChangesChoice expected) =>
+        fixture.Session.Dispatch(async () =>
+        {
+            // Review-Befund (Nr. 165): Schließen über die Titelleiste (Cmd+W, Alt+F4) lieferte default(int) = 0 und
+            // galt damit als „Speichern“ – die Datei wurde überschrieben und Neu/Öffnen/Beenden ging weiter.
+            var owner = new Window { Width = 400, Height = 300 };
+            owner.Show();
+            Dispatcher.UIThread.RunJobs();
+            var choiceTask = new AvaloniaDialogService(owner).AskUnsavedChangesAsync("x.json");
+            Dispatcher.UIThread.RunJobs();
+            var dialog = owner.OwnedWindows.OfType<MessageWindow>().Single();
+            if (button < 0)
+            {
+                dialog.Close();
+            }
+            else
+            {
+                dialog.GetVisualDescendants().OfType<Button>().ElementAt(button).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            }
+
+            Dispatcher.UIThread.RunJobs();
+            choiceTask.IsCompleted.Should().BeTrue();
+            (await choiceTask).Should().Be(expected);
+            owner.Close();
+            return true;
+        }, CancellationToken.None);
 
     private static (MainWindow Window, MainWindowViewModel ViewModel) OpenWindow(Puzzle puzzle)
     {

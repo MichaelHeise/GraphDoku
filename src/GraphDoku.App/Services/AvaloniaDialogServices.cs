@@ -62,7 +62,8 @@ public sealed class AvaloniaDialogService(Window owner) : IDialogService
             ["Speichern", "Verwerfen", "Abbrechen"],
             defaultIndex: 0,
             cancelIndex: 2);
-        var choice = await window.ShowDialog<int>(owner).ConfigureAwait(true);
+        // Schließen ohne Schaltfläche (Titelleiste, Cmd+W, Alt+F4) liefert ClosedResult und zählt wie „Abbrechen“.
+        var choice = await window.ShowAsync(owner).ConfigureAwait(true);
         return choice switch
         {
             0 => UnsavedChangesChoice.Save,
@@ -72,7 +73,7 @@ public sealed class AvaloniaDialogService(Window owner) : IDialogService
     }
 
     public Task ShowErrorAsync(string title, string message) =>
-        new MessageWindow(title, message, ["OK"]).ShowDialog<int>(owner);
+        new MessageWindow(title, message, ["OK"]).ShowAsync(owner);
 
     public Task<bool> ShowEdgeGeneratorAsync(EdgeGeneratorViewModel generator) =>
         new EdgeGeneratorWindow { DataContext = generator }.ShowDialog<bool>(owner);

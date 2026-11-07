@@ -377,12 +377,44 @@ public sealed partial class EditorViewModel
         _entryMarker = _history.LastCommand;
     }
 
-    private static bool IsPrefixOfDomainValue(string text, List<ValueDomain> domains) =>
-        domains[0].Values.Any(v =>
+    /// <summary>
+    /// Ob ein Wert, der in allen Bereichen liegt, mit <paramref name="text"/> beginnt und länger ist (die Eingabe also
+    /// weitergehen kann). Rechnerisch statt durch Aufzählen der Werte: Ein ungeprüft geöffneter Bereich kann bis zu
+    /// 2³² Werte haben, das Aufzählen blockierte dann die Oberfläche (Nr. 167). Die Werte mit dem Präfix P und k weiteren
+    /// Ziffern bilden den Bereich [P·10^k, P·10^k + 10^k − 1] (negativ gespiegelt); „0“ und „-0“ haben keine Fortsetzung.
+    /// </summary>
+    internal static bool IsPrefixOfDomainValue(string text, List<ValueDomain> domains)
+    {
+        long low = domains.Max(d => (long)d.Min);
+        long high = domains.Min(d => (long)d.Max);
+        if (low > high)
         {
-            var s = v.ToString(CultureInfo.InvariantCulture);
-            return s.Length > text.Length && s.StartsWith(text, StringComparison.Ordinal) && domains.All(d => d.Contains(v));
-        });
+            return false;
+        }
+
+        var negative = text.StartsWith('-');
+        var digits = negative ? text[1..] : text;
+        if (digits.StartsWith('0') || !digits.All(char.IsAsciiDigit) || digits.Length >= 10)
+        {
+            // Führende Null: keine längere Zahl beginnt so. Ab 10 Ziffern gibt es im int-Bereich keine längere Zahl.
+            return false;
+        }
+
+        var prefix = digits.Length == 0 ? 0L : long.Parse(digits, CultureInfo.InvariantCulture);
+        for (var k = 1; digits.Length + k <= 10; k++)
+        {
+            var scale = (long)Math.Pow(10, k);
+            var from = digits.Length == 0 ? 1L : prefix * scale;
+            var to = (prefix * scale) + scale - 1;
+            var (rangeLow, rangeHigh) = negative ? (-to, -from) : (from, to);
+            if (rangeLow <= high && rangeHigh >= low)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private void ApplyGiven(List<Node> nodes, int value, object key)
     {
@@ -523,7 +555,13 @@ public sealed partial class EditorViewModel
             return;
         }
 
-        var node = new Node(Puzzle.NextNodeId(), point.X, point.Y);
+        if (NextFreeId(Puzzle.Nodes.Select(n => n.Id)) is not int nodeId)
+        {
+            StatusMessage = NoFreeIdMessage("Knoten", Puzzle.Nodes.Select(n => n.Id));
+            return;
+        }
+
+        var node = new Node(nodeId, point.X, point.Y);
         _history.Execute(new AddNodesCommand([node], _gestureKey));
         StatusMessage = $"Knoten {node.Id} an ({point.X}, {point.Y}) gesetzt.";
         SelectNodes([node.Id]);
@@ -585,7 +623,13 @@ public sealed partial class EditorViewModel
             return;
         }
 
-        var edge = new Edge(Puzzle.NextEdgeId(), p.FromNodeId, target.Id, rule.TypeName, rule.CreateDefaultParams());
+        if (NextFreeId(Puzzle.Edges.Select(e => e.Id)) is not int edgeId)
+        {
+            StatusMessage = NoFreeIdMessage("Kanten", Puzzle.Edges.Select(e => e.Id));
+            return;
+        }
+
+        var edge = new Edge(edgeId, p.FromNodeId, target.Id, rule.TypeName, rule.CreateDefaultParams());
         Execute(new AddEdgeCommand(edge));
         SelectEdge(edge.Id);
         StatusMessage = $"Kante {edge.Id} ({rule.DisplayName}) von Knoten {edge.From} nach {edge.To} erstellt.";

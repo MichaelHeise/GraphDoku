@@ -1027,3 +1027,41 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      Erklär-Modus. Fehlt in der mitgelieferten Lösung der Wert für den Verzweigungsknoten, endet die Erklärung mit
      „Ohne Raten geht es nicht weiter“ (Status `Stuck`, Solvername in der Meldung) statt mit einer
      Indexausnahme. OR-Tools-Solver und alle Test-Solver erfüllen den Vertrag bereits.
+164. **Rendering-Tests mit Graustufen-Textglättung** (Abschluss-Review, App): Auf Linux glättet Skia Text mit
+     Subpixel-Farbsäumen (LCD). In einem linux/amd64- und einem linux/arm64-Container (`mcr.microsoft.com/dotnet/sdk:10.0`,
+     Schritte wie `.gitea/workflows/ci.yml`) waren dadurch zwei Rendering-Tests rot: Der schwarze Given hatte blaue
+     Ränder, die als Lösungsblau zählten, und kleine Käfigsummen („6“) hatten zu wenige ganz dunkle Pixel. Die
+     Headless-Testumgebung setzt deshalb für jedes Fenster `TextOptions.TextRenderingMode = Antialias` (Graustufen, wie
+     macOS ohnehin rendert), und zwar beim Anwenden der Fenstervorlage, also vor dem ersten Zeichnen – ein später gesetzter
+     Wert (z. B. bei `Loaded`) galt erst nach dem nächsten Neuzeichnen und verfälschte Vorher/Nachher-Vergleiche. Die App
+     selbst bleibt unverändert (Systemvorgabe). Die Käfigsummen-Prüfung vergleicht zusätzlich die Dunkelheitssumme
+     (`Darkness`) mit einer anderen Zelle desselben Käfigs statt einer festen Zahl dunkler Pixel. Danach liefen
+     alle CI-Schritte im linux/amd64-Container grün (779 Tests); der echte Ubuntu-Runner steht noch aus.
+165. **Meldungsfenster ohne Schaltfläche geschlossen = Abbrechen** (Abschluss-Review, Präzisierung von Nr. 58):
+     `ShowDialog<int>` liefert beim Schließen über die Titelleiste, Cmd+W oder Alt+F4 `default(int)` = 0; die Frage nach
+     ungespeicherten Änderungen wertete das als „Speichern“ – die Datei wurde überschrieben, und Neu/Öffnen/Beenden ging
+     weiter. `MessageWindow.ShowAsync` wartet jetzt auf `ShowDialog<int?>` und liefert ohne Schaltfläche
+     `MessageWindow.ClosedResult` (−1, wie im Klassenkommentar schon beschrieben); der Dialogdienst behandelt das wie
+     „Abbrechen“. Escape wirkte schon vorher als „Abbrechen“ (`IsCancel`).
+166. **Neue Ids im Editor ohne int-Überlauf und mindestens 1** (Abschluss-Review, wie Nr. 149 für den Generator):
+     Knoten setzen, Kante ziehen und Gruppe erstellen nehmen die Id aus `EditorViewModel.NextFreeId` („größte Id + 1“ in
+     `long`, mindestens 1). Ist die größte Id schon `int.MaxValue` (gültig, Nr. 15), entsteht kein Element; die
+     Statuszeile meldet „Keine freie Knoten-Id mehr (die größte vorhandene Id ist 2147483647); bitte die Knoten-Ids in
+     der Datei verkleinern.“ (Kanten/Gruppen entsprechend). Vorher liefen `Puzzle.Next…Id()` auf `int.MinValue` über,
+     zwei neue Elemente bekamen dieselbe negative Id, und ein Rückgängig entfernte beide. Freie Lücken unterhalb der
+     größten Id werden bewusst nicht gesucht (Ids sollen nicht in der Mitte wieder auftauchen). Damit ist auch der offene
+     Punkt „Ids ≤ 0“ für den Editor erledigt: Neben ungültigen Ids ≤ 0 beginnt der Editor bei 1. `Puzzle.Next…Id()`
+     selbst bleibt unverändert (Core).
+167. **Mehrstellige Werteingabe rechnet statt aufzuzählen** (Abschluss-Review): Ob die bisherige Eingabe der Anfang
+     eines längeren erlaubten Werts ist, prüfte die App durch Aufzählen aller Werte des Bereichs. Ein ungeprüft
+     geöffneter Bereich (Nr. 57) wie 1000000000..2147483647 blockierte so beim Tippen einer „0“ die Oberfläche. Jetzt
+     wird geprüft, ob einer der Zahlenbereiche „Präfix + k Ziffern“ ([P·10^k, P·10^k + 10^k − 1], negativ gespiegelt;
+     „0“ und „−0“ ohne Fortsetzung) den Schnitt aller beteiligten Bereiche trifft – höchstens 10 Vergleiche. Ein Test
+     vergleicht das Ergebnis mit dem Aufzählen über mehrere kleine Bereiche.
+168. **Leertaste-Verschieben endet auch bei Fokusverlust** (Abschluss-Review): Ging der Fokus bei gedrückter
+     Leertaste an ein anderes Element (Klick auf eine Schaltfläche, Tab) oder das Fenster in den Hintergrund, kam das
+     Loslassen nie bei der Zeichenfläche an, und jeder spätere Linksklick verschob die Ansicht. `GraphCanvas` setzt den
+     Zustand jetzt auch bei `LostFocus` und beim Deaktivieren des Fensters zurück. Außerdem entfernt: die seit Paket 7
+     ungenutzten `EditorGeometry.FreeSegments` und `GraphCanvas.NodeStrokeBrush` (die Code-Stil-Analyse im Build,
+     `EnforceCodeStyleInBuild`, bleibt aus – sie wäre eine Änderung an den Build-Regeln aller Projekte und gehört nicht
+     zu diesem Review).

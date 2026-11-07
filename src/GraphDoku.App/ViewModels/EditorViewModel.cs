@@ -271,11 +271,31 @@ public sealed partial class EditorViewModel : ViewModelBase
             return;
         }
 
-        var group = new Group(Puzzle.NextGroupId(), _selectedNodes, rule.TypeName, rule.CreateDefaultParams());
+        if (NextFreeId(Puzzle.Groups.Select(g => g.Id)) is not int groupId)
+        {
+            StatusMessage = NoFreeIdMessage("Gruppen", Puzzle.Groups.Select(g => g.Id));
+            return;
+        }
+
+        var group = new Group(groupId, _selectedNodes, rule.TypeName, rule.CreateDefaultParams());
         Execute(new AddGroupCommand(group));
         SelectGroup(group.Id);
         StatusMessage = $"Gruppe {group.Id} ({rule.DisplayName}) mit {group.Nodes.Count} Knoten erstellt.";
     }
+
+    /// <summary>
+    /// Id für ein neues Element: größte vorhandene Id + 1, mindestens 1, in <c>long</c> gerechnet. <c>null</c>, wenn die
+    /// größte Id schon <see cref="int.MaxValue"/> ist – <c>Puzzle.Next…Id()</c> liefe dort auf <see cref="int.MinValue"/>
+    /// über und vergäbe doppelte negative Ids (Nr. 166, wie der Kanten-Generator Nr. 149).
+    /// </summary>
+    internal static int? NextFreeId(IEnumerable<int> ids)
+    {
+        var next = ids.Aggregate(0L, (max, id) => Math.Max(max, id)) + 1;
+        return next > int.MaxValue ? null : (int)next;
+    }
+
+    private static string NoFreeIdMessage(string kind, IEnumerable<int> ids) =>
+        $"Keine freie {kind}-Id mehr (die größte vorhandene Id ist {ids.Max()}); bitte die {kind}-Ids in der Datei verkleinern.";
 
     [RelayCommand]
     public void SelectAll() => SelectNodes(Puzzle.Nodes.Select(n => n.Id));

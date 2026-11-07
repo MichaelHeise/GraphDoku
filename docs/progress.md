@@ -39,7 +39,8 @@
 **Bekannte Probleme**
 
 - Die Gitea-CI konnte lokal nicht ausgeführt werden; die Schritte wurden lokal mit denselben Befehlen nachgestellt.
-  Der erste Lauf auf dem Ubuntu-Runner steht noch aus.
+  Der erste Lauf auf dem Ubuntu-Runner steht noch aus. (Abschluss-Review: inzwischen in Linux-Containern nachgestellt,
+  siehe „Abschluss-Review – App“.)
 - ~~Keine Headless-UI-Tests: Avalonia.Headless.XUnit 12 benötigt xUnit v3 (siehe `docs/decisions.md`, Nr. 7).~~
   Seit Paket 3 gibt es Rendering-Rauchtests mit Avalonia.Headless ohne das xUnit-Paket (Nr. 47).
 - Der OR-Tools-Rauchtest braucht beim ersten Laden der nativen Bibliothek einige Sekunden.
@@ -137,7 +138,8 @@
 - Die Bedienung am echten Desktop wurde nur kurz geprüft (App startet auf macOS und läuft); Maus- und Tastaturlogik
   ist über ViewModel-Tests abgedeckt, das Aussehen über die headless gerenderten Bilder.
 - Der Rendering-Rauchtest braucht auf Linux `libfontconfig.so.1`; die CI installiert es bei Bedarf (Nr. 48). Der
-  erste Lauf auf dem Ubuntu-Runner steht noch aus.
+  erste Lauf auf dem Ubuntu-Runner steht noch aus. (Abschluss-Review: Auf Linux waren zwei Rendering-Tests wegen
+  Subpixel-Textglättung rot; behoben, Nr. 164.)
 - Auf dem Mac ist die Taste ⌫ Backspace: Sie löscht Givens, nicht Knoten; Knoten löscht fn+⌫ (Entf), das Menü oder
   das Panel (Nr. 52).
 
@@ -314,7 +316,8 @@ Beispiele zusammen dauert etwa eine Sekunde. Erzeugung (einmalig): Killer ≈ 25
 - Knoten mit eigenem Wertebereich sind auf der Zeichenfläche nicht markiert (nur im Panel sichtbar).
 - Die Reihenfolge einer bestehenden Gruppe lässt sich nur umkehren; für eine andere Reihenfolge wird die Gruppe aus einer
   neuen Auswahl erstellt.
-- `Puzzle.NextEdgeId()`/`NextNodeId`/`NextGroupId` bei Ids ≤ 0 (siehe Core-Teil) – unverändert offen.
+- ~~`Puzzle.NextEdgeId()`/`NextNodeId`/`NextGroupId` bei Ids ≤ 0 (siehe Core-Teil) – unverändert offen.~~ Im Editor
+  erledigt im Abschluss-Review (Nr. 166): neue Ids mindestens 1 und ohne Überlauf.
 
 **Bekannte Probleme**
 
@@ -572,3 +575,21 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
   abzustürzen (Nr. 163).
 - `puzzles/klassisch-leer.json` als bewusst mehrdeutige Vorlage begründet (Nr. 160), Datei unverändert.
 - Tests (+14: Core 244, Solver 105, Explainer 82, App 318 = 749), alle grün in Release.
+
+## Abschluss-Review – App
+
+- Linux-CI: Zwei Rendering-Tests waren auf Linux rot (blaue Subpixel-Säume am schwarzen Given, zu wenige dunkle
+  Pixel bei kleinen Käfigsummen). Die Headless-Tests rendern Text jetzt in Graustufen, die Käfigsummen-Prüfung
+  vergleicht Dunkelheitssummen (Nr. 164). Nachgestellt mit den Schritten aus `.gitea/workflows/ci.yml` in
+  `mcr.microsoft.com/dotnet/sdk:10.0` (Debian, nicht der echte Ubuntu-Runner): Release-Build ohne Warnungen,
+  alle 779 Tests grün auf linux/amd64 (emuliert) – vorher App 316/318. Der Lauf auf dem echten Gitea-Runner steht
+  weiterhin aus.
+- „Ungespeicherte Änderungen“: Schließen des Dialogs über die Titelleiste/Cmd+W/Alt+F4 gilt als „Abbrechen“ statt
+  „Speichern“ (Nr. 165).
+- Editor: Knoten, Kanten und Gruppen bekommen auch nach einer Id `int.MaxValue` keine doppelten negativen Ids mehr –
+  stattdessen eine Meldung; neben Ids ≤ 0 beginnt der Editor bei 1 (Nr. 166).
+- Werteingabe: Ein riesiger (ungeprüfter) Wertebereich blockiert die Oberfläche beim Tippen nicht mehr (Nr. 167).
+- Leertaste-Verschieben bleibt nicht mehr hängen, wenn der Fokus bei gedrückter Taste wechselt (Nr. 168).
+- Toter Code entfernt: `EditorGeometry.FreeSegments`, `GraphCanvas.NodeStrokeBrush`.
+- Tests (+30 in App: `EditorLimitTests`, zwei Fenstertests): Core 244, Solver 105, Explainer 82, App 348 = 779, alle
+  grün in Release (macOS).

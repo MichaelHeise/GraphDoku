@@ -60,11 +60,15 @@ public sealed partial class RenderingSmokeTests
             var members = cage.Nodes.Select(id => editor.Puzzle.FindNode(id)!).ToList();
             var anchor = EditorGeometry.RowWiseOrder(GridType.Square, members).First();
             var other = members.First(n => n != anchor);
-            var withSum = CountDarkPixels(frame, Corner(anchor));
-            var without = CountDarkPixels(frame, Corner(other));
-            output.WriteLine($"Käfig {cage.Id}: Ecke mit Summe {withSum}, ohne {without}");
-            withSum.Should().BeGreaterThan(8, $"Käfig {cage.Id} zeigt seine Summe");
-            without.Should().BeLessThan(withSum / 2, $"nur die erste Zelle von Käfig {cage.Id} trägt die Summe");
+
+            // Summe der Dunkelheit statt fester Schwelle je Pixel: Kleine Summen wie „6“ haben je nach Plattform
+            // (Hinting, Glättung) nur wenige ganz dunkle Pixel. Die Differenz zur Ecke einer anderen Zelle desselben
+            // Käfigs (gleiche Füllfarbe) zeigt die Summe; trüge die andere Zelle auch eine, wäre sie nahe 0.
+            var withSum = Darkness(frame, Corner(anchor));
+            var without = Darkness(frame, Corner(other));
+            output.WriteLine($"Käfig {cage.Id}: Dunkelheit der Ecke mit Summe {withSum}, ohne {without}");
+            (withSum - without).Should().BeGreaterThan(1000, $"Käfig {cage.Id} zeigt seine Summe nur in der ersten Zelle");
+            CountDarkPixels(frame, Corner(other)).Should().BeLessThan(3, $"nur die erste Zelle von Käfig {cage.Id} trägt die Summe");
         }
 
         // Zoom auf die linke obere Ecke, um die Lesbarkeit zu prüfen.

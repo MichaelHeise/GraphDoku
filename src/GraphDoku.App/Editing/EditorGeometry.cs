@@ -360,29 +360,6 @@ public static class EditorGeometry
     }
 
     /// <summary>
-    /// Sichtbare Stücke der Kantenlinie a–b: ohne die Kreise vom Radius <paramref name="radius"/> um die Enden und um
-    /// die <paramref name="others"/>. Bei Zellen (Paket 7) bleiben so Wert und Kandidaten frei; die Linie erscheint nur
-    /// als kurzes Stück über jedem Zellrand, den sie kreuzt.
-    /// </summary>
-    public static IReadOnlyList<(WorldPoint From, WorldPoint To)> FreeSegments(WorldPoint a, WorldPoint b, double radius, IEnumerable<WorldPoint> others)
-    {
-        ArgumentNullException.ThrowIfNull(others);
-        var dx = b.X - a.X;
-        var dy = b.Y - a.Y;
-        var length = Math.Sqrt((dx * dx) + (dy * dy));
-        if (length < 1e-9 || length <= 2 * radius)
-        {
-            return [];
-        }
-
-        var ux = dx / length;
-        var uy = dy / length;
-        return [.. FreeIntervals(a, b, radius, others, out _)
-            .Where(f => f.To - f.From > 1e-9)
-            .Select(f => (new WorldPoint(a.X + (ux * f.From), a.Y + (uy * f.From)), new WorldPoint(a.X + (ux * f.To), a.Y + (uy * f.To))))];
-    }
-
-    /// <summary>
     /// Freie Stücke [von, bis] entlang a–b (0 = a) zwischen den Endkreisen, ohne die von anderen Kreisen bedeckten.
     /// <paramref name="blocked"/>: ob überhaupt ein anderer Kreis die Strecke bedeckt.
     /// </summary>
