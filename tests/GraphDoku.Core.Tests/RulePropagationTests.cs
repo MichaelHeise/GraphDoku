@@ -106,12 +106,71 @@ public class RulePropagationTests
     {
         // 1 + 2 Knoten, Ziel 4, Werte 1..9: der jeweils andere ist mindestens 1, also höchstens 3.
         var p = TestPuzzles.WithNodes(2);
-        var (state, changes) = Run(new Group(1, [1, 2], "Sum", TestPuzzles.Params(("target", 4))), p);
+        var parameters = TestPuzzles.Params(("target", 4), ("allowRepeats", true));
+        var (state, changes) = Run(new Group(1, [1, 2], "Sum", parameters), p);
 
         state.GetCandidates(1).Should().Equal(1, 2, 3);
         state.GetCandidates(2).Should().Equal(1, 2, 3);
         changes.Should().HaveCount(2);
-        changes[0].Reason.Text.Should().StartWith("Summe 4 in Gruppe 1: Knoten 1 kann nicht 4, 5, 6, 7, 8, 9 sein");
+        changes[0].Reason.Text.Should().Be("Summe 4 in Gruppe 1: Knoten 1 kann nicht 4, 5, 6, 7, 8, 9 sein, denn die übrigen Knoten ergeben zusammen 1 bis 9.");
+    }
+
+    [Fact]
+    public void Sum_without_repeats_checks_every_candidate_for_a_complete_assignment()
+    {
+        // Ziel 4 ohne Wiederholung: nur 1 + 3 und 3 + 1; die 2 bräuchte eine zweite 2.
+        var p = TestPuzzles.WithNodes(2);
+        var (state, changes) = Run(new Group(1, [1, 2], "Sum", TestPuzzles.Params(("target", 4))), p);
+
+        state.GetCandidates(1).Should().Equal(1, 3);
+        state.GetCandidates(2).Should().Equal(1, 3);
+        changes.Should().HaveCount(4, "pro Knoten eine Streichung über Schranken und eine über die vollständige Prüfung");
+        changes[^1].Reason.Text.Should().Be("Summe 4 in Gruppe 1: Knoten 2 kann nicht 2 sein, denn mit den Kandidaten der übrigen Knoten (ohne Wiederholung) lässt sich die Summe dann nicht erreichen.");
+        changes[^1].Reason.NodeIds.Should().Equal(1, 2);
+    }
+
+    [Fact]
+    public void Sum_cage_of_three_with_target_six_is_one_two_three()
+    {
+        var p = TestPuzzles.WithNodes(3);
+        var (state, _) = Run(new Group(1, [1, 2, 3], "Sum", TestPuzzles.Params(("target", 6))), p);
+
+        foreach (var node in new[] { 1, 2, 3 })
+        {
+            state.GetCandidates(node).Should().Equal(1, 2, 3);
+        }
+    }
+
+    [Fact]
+    public void Sum_search_respects_holes_in_candidates()
+    {
+        // Ziel 10, Knoten 2 ∈ {1, 9}, Knoten 3 ∈ {1, 9}: Knoten 1 braucht 10 − (1 + 9) = 0 oder 10 − 2 = 8 bzw. − 8.
+        // Mit Wiederholung bleibt nur Knoten 1 = 8 (1 + 1 + 8), ohne Wiederholung ist 8 unmöglich (1 + 1 doppelt).
+        var p = TestPuzzles.WithNodes(3);
+        var withRepeats = Run(new Group(1, [1, 2, 3], "Sum", TestPuzzles.Params(("target", 10), ("allowRepeats", true))), p, (2, [1, 9]), (3, [1, 9]));
+        withRepeats.State.GetCandidates(1).Should().Equal(8);
+        withRepeats.State.GetCandidates(2).Should().Equal(1);
+
+        var distinct = Run(new Group(1, [1, 2, 3], "Sum", TestPuzzles.Params(("target", 10))), p, (2, [1, 9]), (3, [1, 9]));
+        distinct.State.GetCandidates(1).Should().BeEmpty("ohne Wiederholung gibt es keine Lösung");
+    }
+
+    [Fact]
+    public void Sum_stays_sound_when_the_search_budget_runs_out()
+    {
+        // 40 Knoten mit geraden Kandidaten 2..20 und ungerader Zielsumme: unlösbar, aber weder die Schranken noch
+        // die Suche innerhalb des Budgets können das zeigen. Dann wird nichts gestrichen (nur sichere Schlüsse).
+        var p = TestPuzzles.WithNodes(40, 1, 20);
+        var even = Enumerable.Range(1, 10).Select(i => i * 2).ToArray();
+        var setup = Enumerable.Range(1, 40).Select(n => (n, even)).ToArray();
+        var parameters = TestPuzzles.Params(("target", 401), ("allowRepeats", true));
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var (state, changes) = Run(new Group(1, Enumerable.Range(1, 40), "Sum", parameters), p, setup);
+
+        changes.Should().BeEmpty();
+        state.GetCandidates(17).Should().Equal(even);
+        watch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5), "das Suchbudget begrenzt die Laufzeit");
     }
 
     [Fact]

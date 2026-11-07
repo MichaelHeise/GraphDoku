@@ -169,12 +169,25 @@ public abstract class RuleBase : IRule
     /// <summary>
     /// Streicht in einer Menge paarweise verschiedener Knoten den Wert jedes festgelegten Knotens bei allen anderen.
     /// </summary>
-    protected void EliminateFixedValues(CandidateState state, IConstraint constraint, List<CandidateChange> changes)
+    /// <param name="state">Kandidatenzustand (wird nicht verändert).</param>
+    /// <param name="constraint">Kante oder Gruppe.</param>
+    /// <param name="changes">Hier werden die Streichungen angehängt.</param>
+    /// <param name="groupRuleSentence">
+    /// Bei Gruppen der zweite Satz der Begründung, z. B. „Alle Werte sind verschieden.“ Der Text einer Gruppe hängt
+    /// nur vom festgelegten Knoten ab, nicht vom Zielknoten; der Erklär-Modus fasst Streichungen mit gleicher
+    /// Begründung zu einem Schritt zusammen („Zeile 3 enthält bereits die 5 …“).
+    /// </param>
+    protected void EliminateFixedValues(
+        CandidateState state,
+        IConstraint constraint,
+        List<CandidateChange> changes,
+        string groupRuleSentence = "Alle Werte sind verschieden.")
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(constraint);
         ArgumentNullException.ThrowIfNull(changes);
         var nodes = constraint.NodeIds;
+        var isEdge = Kind.AppliesToEdges();
         foreach (var source in nodes)
         {
             if (state.GetValue(source) is not int value)
@@ -184,58 +197,92 @@ public abstract class RuleBase : IRule
 
             foreach (var target in nodes)
             {
-                if (target != source && state.GetCandidates(target).Contains(value))
+                if (target == source || !state.GetCandidates(target).Contains(value))
                 {
-                    var reason = MakeReason(
-                        constraint,
-                        [source, target],
-                        $"{DisplayName} in {Describe(constraint)}: Knoten {source} hat den Wert {value}, also kann Knoten {target} nicht {value} sein.");
-                    changes.Add(CandidateChange.Eliminate(target, [value], reason));
+                    continue;
                 }
+
+                var text = isEdge
+                    ? $"{DisplayName} in {Describe(constraint)}: Knoten {source} hat den Wert {Format(value)}, also kann Knoten {target} nicht {Format(value)} sein."
+                    : $"{Describe(constraint)} enthält bereits die {Format(value)} (Knoten {source}). {groupRuleSentence} Also ist die {Format(value)} in den übrigen Knoten der Gruppe nicht mehr möglich.";
+                changes.Add(CandidateChange.Eliminate(target, [value], MakeReason(constraint, [source, target], text)));
             }
         }
     }
 
     /// <summary>
     /// Kantenkonsistenz für eine zweistellige Relation: Ein Kandidat bleibt nur, wenn der andere Knoten einen
-    /// passenden Wert hat. <paramref name="relation"/> erhält (Wert von From, Wert von To).
+    /// passenden Wert hat. Die Prüfungen erhalten den eigenen Wert und die Kandidaten des anderen Knotens.
     /// </summary>
-    protected IReadOnlyList<CandidateChange> EliminateUnsupported(
+    /// <param name="state">Kandidatenzustand (wird nicht verändert).</param>
+    /// <param name="constraint">Die Kante (From, To).</param>
+    /// <param name="fromSupported">Hat der Wert von From einen Partner unter den Kandidaten von To?</param>
+    /// <param name="toSupported">Hat der Wert von To einen Partner unter den Kandidaten von From?</param>
+    /// <param name="describe">Begründungstext für (Zielknoten, anderer Knoten, gestrichene Werte).</param>
+    protected static IReadOnlyList<CandidateChange> EliminateUnsupported(
         CandidateState state,
         IConstraint constraint,
-        Func<int, int, bool> relation,
-        string relationText)
+        Func<int, CandidateSet, bool> fromSupported,
+        Func<int, CandidateSet, bool> toSupported,
+        Func<int, int, IReadOnlyList<int>, string> describe)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(constraint);
-        ArgumentNullException.ThrowIfNull(relation);
+        ArgumentNullException.ThrowIfNull(fromSupported);
+        ArgumentNullException.ThrowIfNull(toSupported);
+        ArgumentNullException.ThrowIfNull(describe);
         var from = constraint.NodeIds[0];
         var to = constraint.NodeIds[1];
         var fromCandidates = state.GetCandidates(from);
         var toCandidates = state.GetCandidates(to);
         var changes = new List<CandidateChange>();
 
-        var removedFrom = fromCandidates.Where(a => !toCandidates.Any(b => relation(a, b))).ToList();
+        var removedFrom = fromCandidates.Where(a => !fromSupported(a, toCandidates)).ToList();
         if (removedFrom.Count > 0)
         {
-            changes.Add(CandidateChange.Eliminate(from, removedFrom, UnsupportedReason(constraint, from, to, removedFrom, relationText)));
+            changes.Add(CandidateChange.Eliminate(from, removedFrom, MakeReason(constraint, [from, to], describe(from, to, removedFrom))));
         }
 
-        var removedTo = toCandidates.Where(b => !fromCandidates.Any(a => relation(a, b))).ToList();
+        var removedTo = toCandidates.Where(b => !toSupported(b, fromCandidates)).ToList();
         if (removedTo.Count > 0)
         {
-            changes.Add(CandidateChange.Eliminate(to, removedTo, UnsupportedReason(constraint, to, from, removedTo, relationText)));
+            changes.Add(CandidateChange.Eliminate(to, removedTo, MakeReason(constraint, [to, from], describe(to, from, removedTo))));
         }
 
         return changes;
     }
 
-    private Reason UnsupportedReason(IConstraint constraint, int target, int other, List<int> removed, string relationText)
+    /// <summary>Standardtext für <see cref="EliminateUnsupported"/>: „… kann nicht 3, 4 sein, weil Knoten 2 (Kandidaten: …) …“.</summary>
+    protected string UnsupportedText(IConstraint constraint, CandidateState state, int target, int other, IReadOnlyList<int> removed, string relationText)
     {
+        ArgumentNullException.ThrowIfNull(constraint);
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(removed);
         var values = FormatValues(removed);
-        var text = removed.Count == 1
-            ? $"{DisplayName} ({relationText}) an {Describe(constraint)}: Knoten {target} kann nicht {values} sein, weil Knoten {other} dazu keinen passenden Wert hat."
-            : $"{DisplayName} ({relationText}) an {Describe(constraint)}: Knoten {target} kann keinen der Werte {values} haben, weil Knoten {other} dazu keinen passenden Wert hat.";
-        return MakeReason(constraint, [target, other], text);
+        var otherText = $"Knoten {other} (Kandidaten: {FormatCandidates(state.GetCandidates(other))})";
+        return removed.Count == 1
+            ? $"{DisplayName} ({relationText}) an {Describe(constraint)}: Knoten {target} kann nicht {values} sein, weil {otherText} dazu keinen passenden Wert hat."
+            : $"{DisplayName} ({relationText}) an {Describe(constraint)}: Knoten {target} kann keinen der Werte {values} haben, weil {otherText} dazu keinen passenden Wert hat.";
+    }
+
+    /// <summary>true, wenn <paramref name="value"/> im int-Bereich liegt und Kandidat ist.</summary>
+    protected static bool ContainsValue(CandidateSet set, long value)
+    {
+        ArgumentNullException.ThrowIfNull(set);
+        return value is >= int.MinValue and <= int.MaxValue && set.Contains((int)value);
+    }
+
+    protected static string Format(long value) => value.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>Kandidaten als Text; lange Listen werden als Bereich mit Anzahl gekürzt.</summary>
+    protected static string FormatCandidates(CandidateSet set)
+    {
+        ArgumentNullException.ThrowIfNull(set);
+        return set.Count switch
+        {
+            0 => "keine",
+            <= 12 => FormatValues(set),
+            _ => $"{set.Count} Werte von {Format(set.MinValue)} bis {Format(set.MaxValue)}",
+        };
     }
 }

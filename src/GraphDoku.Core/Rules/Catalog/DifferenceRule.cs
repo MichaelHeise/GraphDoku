@@ -35,8 +35,18 @@ public sealed class DifferenceRule : RuleBase
     {
         var k = constraint.Params.GetIntOrNull("k") ?? throw new RuleParamsException("Pflichtparameter „k“ fehlt.");
         var atLeast = constraint.Params.GetString("mode", ModeExact) == ModeAtLeast;
-        return atLeast
-            ? EliminateUnsupported(state, constraint, (a, b) => Math.Abs((long)a - b) >= k, $"Abstand mindestens {k}")
-            : EliminateUnsupported(state, constraint, (a, b) => Math.Abs((long)a - b) == k, $"Abstand genau {k}");
+        var relationText = atLeast ? $"Abstand mindestens {k}" : $"Abstand genau {k}";
+
+        // Ein Wert a hat einen Partner, wenn der andere Knoten a ± k (genau) bzw. einen Wert ≤ a − k oder ≥ a + k
+        // (mindestens) als Kandidaten hat.
+        Func<int, CandidateSet, bool> supported = atLeast
+            ? (a, other) => other.MinValue <= (long)a - k || other.MaxValue >= (long)a + k
+            : (a, other) => ContainsValue(other, (long)a + k) || ContainsValue(other, (long)a - k);
+        return EliminateUnsupported(
+            state,
+            constraint,
+            supported,
+            supported,
+            (target, other, removed) => UnsupportedText(constraint, state, target, other, removed, relationText));
     }
 }

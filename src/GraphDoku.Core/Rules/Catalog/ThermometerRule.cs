@@ -18,19 +18,26 @@ public sealed class ThermometerRule : RuleBase
     {
         var nodes = constraint.NodeIds;
         var count = nodes.Count;
+        var sets = nodes.Select(state.GetCandidates).ToArray();
+
+        // lower[i]: kleinster Wert, den Position i bei streng steigender Folge davor annehmen kann (nächster
+        // Kandidat oberhalb von lower[i − 1]); upper[i] entsprechend von hinten. Genau die Kandidaten in
+        // [lower, upper] haben eine passende Fortsetzung in beide Richtungen.
+        const long None = long.MaxValue;
         var lower = new long[count];
         var upper = new long[count];
-
         for (var i = 0; i < count; i++)
         {
-            var min = state.GetCandidates(nodes[i]).Min();
-            lower[i] = i == 0 ? min : Math.Max(min, lower[i - 1] + 1);
+            lower[i] = i == 0
+                ? sets[0].MinValue
+                : lower[i - 1] == None ? None : sets[i].NextAbove(lower[i - 1]) ?? None;
         }
 
         for (var i = count - 1; i >= 0; i--)
         {
-            var max = state.GetCandidates(nodes[i]).Max();
-            upper[i] = i == count - 1 ? max : Math.Min(max, upper[i + 1] - 1);
+            upper[i] = i == count - 1
+                ? sets[i].MaxValue
+                : upper[i + 1] == long.MinValue ? long.MinValue : sets[i].NextBelow(upper[i + 1]) ?? long.MinValue;
         }
 
         var changes = new List<CandidateChange>();
@@ -39,12 +46,14 @@ public sealed class ThermometerRule : RuleBase
             var nodeId = nodes[i];
             var lo = lower[i];
             var hi = upper[i];
-            var impossible = state.GetCandidates(nodeId).Where(v => v < lo || v > hi).ToList();
+            var impossible = sets[i].Where(v => v < lo || v > hi).ToList();
             if (impossible.Count > 0)
             {
-                var text = lo <= hi
+                var text = lo < hi
                     ? $"{DisplayName} {Describe(constraint)}: Die Werte steigen streng an, also liegt Knoten {nodeId} (Position {i + 1}) zwischen {lo} und {hi}; streiche {FormatValues(impossible)}."
-                    : $"{DisplayName} {Describe(constraint)}: Die Werte können nicht streng ansteigen; für Knoten {nodeId} (Position {i + 1}) bleibt kein Wert.";
+                    : lo == hi
+                        ? $"{DisplayName} {Describe(constraint)}: Die Werte steigen streng an, also muss Knoten {nodeId} (Position {i + 1}) den Wert {lo} haben; streiche {FormatValues(impossible)}."
+                        : $"{DisplayName} {Describe(constraint)}: Die Werte können nicht streng ansteigen; für Knoten {nodeId} (Position {i + 1}) bleibt kein Wert.";
                 changes.Add(CandidateChange.Eliminate(nodeId, impossible, MakeReason(constraint, nodes, text)));
             }
         }

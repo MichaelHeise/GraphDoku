@@ -68,7 +68,7 @@ public sealed class CoverRangeRule : RuleBase
             }
         }
 
-        EliminateFixedValues(state, constraint, changes);
+        EliminateFixedValues(state, constraint, changes, $"Jede Zahl von {range.Min} bis {range.Max} kommt genau einmal vor.");
         return changes;
     }
 }

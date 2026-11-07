@@ -14,10 +14,18 @@ public sealed class LessThanRule : RuleBase
 
     public override RuleKind Kind => RuleKind.DirectedEdge;
 
-    protected override IReadOnlyList<CandidateChange> PropagateCore(CandidateState state, IConstraint constraint) =>
-        EliminateUnsupported(
+    protected override IReadOnlyList<CandidateChange> PropagateCore(CandidateState state, IConstraint constraint)
+    {
+        var from = constraint.NodeIds[0];
+        var to = constraint.NodeIds[1];
+        var relation = $"Knoten {from} < Knoten {to}";
+        return EliminateUnsupported(
             state,
             constraint,
-            (a, b) => a < b,
-            $"Knoten {constraint.NodeIds[0]} < Knoten {constraint.NodeIds[1]}");
+            (a, toCandidates) => a < toCandidates.MaxValue,
+            (b, fromCandidates) => b > fromCandidates.MinValue,
+            (target, other, removed) => target == from
+                ? $"{DisplayName} an {Describe(constraint)} ({relation}): Knoten {to} ist höchstens {Format(state.GetCandidates(to).MaxValue)}, also kann Knoten {from} nicht {FormatValues(removed)} sein."
+                : $"{DisplayName} an {Describe(constraint)} ({relation}): Knoten {from} ist mindestens {Format(state.GetCandidates(from).MinValue)}, also kann Knoten {to} nicht {FormatValues(removed)} sein.");
+    }
 }

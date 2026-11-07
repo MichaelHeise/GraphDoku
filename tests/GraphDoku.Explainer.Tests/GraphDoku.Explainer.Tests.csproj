@@ -5,4 +5,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GraphDoku.Explainer\GraphDoku.Explainer.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\puzzles\*.json" LinkBase="puzzles" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Unabhängiger Lösungsprüfer aus den Solver-Tests (ohne Solver- und Propagationscode). -->
+    <Compile Include="..\GraphDoku.Solver.Tests\Helpers\SolutionVerifier.cs" Link="Helpers\SolutionVerifier.cs" />
+  </ItemGroup>
 </Project>
