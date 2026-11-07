@@ -4,6 +4,8 @@ Stand: 7. November 2026, Branch `feature/initial-implementation` (Grundlage: Com
 Quellen: `docs/decisions.md` (Nr. 1–169), `docs/progress.md`, Git-Historie, die Berichte der Implementierungs-,
 Review- und Fixer-Agenten aller Pakete und das Abschluss-Review.
 
+**Nachtrag (Review von PR #1):** Abschnitt 7 beschreibt den ersten echten CI-Lauf, das Review des Pull Requests und die Korrekturen auf `fix/pr1-review-findings` (Nr. 170–182). Die Abschnitte 1–6 bleiben als Stand des Abschluss-Reviews stehen; wo sie überholt sind, sagt es Abschnitt 7.
+
 Verweise der Form „Nr. X“ beziehen sich auf `docs/decisions.md`. Dort steht zu jedem Punkt die ausführliche
 Begründung.
 
@@ -366,3 +368,66 @@ Vor Nr. 164 waren dort zwei Rendering-Tests rot (App 316/318).
 4. **Später, laut Spezifikation:** einen eigenen Lern-Solver als zweite `ISolver`-Implementierung (die Schnittstelle
    ist dafür ausgelegt, Nr. 35/163). Optional: Prüfmeldungen auf der Zeichenfläche markieren und einen
    Einstellungsspeicher für Zeitlimit und Darstellung anlegen.
+
+---
+
+## 7. Review von PR #1 und erster Gitea-Lauf
+
+Stand: Branch `fix/pr1-review-findings` (PR in `feature/initial-implementation`). **Tests: 817, alle grün** (Core 259,
+Solver 105, Explainer 85, App 368), Release, 0 Warnungen.
+
+### Erster Lauf auf dem echten Gitea-Runner
+
+- PR #1 (`feature/initial-implementation` → `main`) war **rot**: zwei Solver-Tests erwarteten innerhalb von 300 ms
+  schon Lösungen. Der Runner hat 4 Kerne einer älteren CPU (AMD A8-7600) ohne CPU-Kontingent; mit allen
+  Test-Assemblies parallel reichte das Zeitfenster nicht. Im emulierten Linux-Container war das nicht aufgefallen, auch
+  nicht mit nur einer CPU (Nr. 170).
+- Behoben durch eine nicht parallele Test-Collection und 2 s statt 300 ms. Danach war der Runner **grün**. Damit sind
+  die offenen Punkte aus Abschnitt 4 und 5 zum Runner erledigt: Ubuntu-Image, fontconfig, Cache und
+  `upload-artifact@v3` funktionieren.
+- Die CI gibt jetzt Kernzahl, CPU-Kontingent und CPU-Modell aus.
+
+### Review und Korrekturen
+
+Vier Review-Agenten prüften den ganzen PR. Jeder Befund wurde zuerst mit einem Test nachgestellt, der vor der
+Korrektur fehlschlug, dann behoben und von einem unabhängigen Agenten geprüft (auch: schlägt der Test ohne die
+Korrektur fehl?). Danach prüfte ein weiterer Durchgang den ganzen Fix-Branch; jeder Befund musste einen eigenen
+Widerlegungsversuch überstehen.
+
+| Nr. | Bereich | Befund | Schwere |
+| --- | --- | --- | --- |
+| 171 | Core | Summengruppe mit 10.000+ Knoten: StackOverflow beendet die App | mittel |
+| 172 | Core | Einzelnes UTF-16-Surrogat im Text: falsche Ausnahmeart | gering |
+| 173, 181 | Core | Speichern zerstörte bei Fehler mitten im Schreiben die alte Datei; jetzt über temporäre Datei | gering |
+| 174 | Explainer | Doku von „Ungültig“ widersprach dem Verhalten | gering |
+| 175 | Explainer | Hidden Singles erkannten Gruppen nur am Regelnamen | gering |
+| 176, 182 | App | Kropki-Punkte und Pfeile in der Kreisdarstellung schlecht treffbar | gering |
+| 177 | App | Weitere Maustaste beendet Geste – **nicht nachvollziehbar**, kein Code geändert | – |
+| 178 | App | Fehler eines veralteten Laufs als Fehler des neuen Rätsels gemeldet | gering |
+| 179 | App | „Öffnen“ konnte Änderungen während der Dateiauswahl verwerfen | gering |
+| 180 | App | Parameterfeld zeigte ungültigen Text ohne Fehlermeldung | gering |
+
+**Was anders lief als gedacht:**
+
+- ★ Die erste Fassung des sicheren Speicherns (Nr. 173) löste symbolische Links selbst auf und schrieb dabei in einem
+  Sonderfall still in eine falsche Datei; außerdem scheiterten sehr lange Dateinamen. Erst die Nachprüfung fand das.
+  Die eigene Linkauflösung ist wieder entfernt (Nr. 181).
+- Der Rückfall-Treffertest für Pfeile war in der ersten Korrektur zu großzügig und schlug genau getroffene Linien
+  daneben (Nr. 182).
+- Die Ursache des roten CI-Laufs war zuerst falsch vermutet (viele gemeldete Kerne); die Runner-Diagnose zeigte eine
+  langsame 4-Kern-CPU (Nr. 170).
+
+### Neu bekannte Einschränkungen
+
+- Speichern ist in zwei Fällen nicht atomar: durch einen symbolischen Dateilink und in einem schreibgeschützten
+  Verzeichnis (Nr. 173, 181). Windows-ACLs sowie Eigentümer und Gruppe der alten Datei bleiben beim Ersetzen nicht
+  erhalten, harte Links werden aufgetrennt.
+- Ein zweiter Zeiger (Multitouch, Stift) kann eine laufende Geste beenden (Nr. 177).
+- Die Zeittests hängen weiter an echter Laufzeit; auf einem noch langsameren Runner könnten 2 s knapp werden (Nr. 170).
+
+### Nächste Schritte (ersetzt Abschnitt 6, Punkt 1 und 3)
+
+1. Den PR von `fix/pr1-review-findings` in `feature/initial-implementation` prüfen und mergen; danach sollte PR #1
+   grün sein.
+2. Stufe 0 des Erklär-Modus (Nr. 95) bestätigen oder verwerfen.
+3. Von Hand testen (Abschnitt 6, Punkt 2), dann PR #1 nach `main` mergen.

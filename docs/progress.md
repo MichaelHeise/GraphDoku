@@ -607,3 +607,18 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
   zusammengeführten offenen Punkten und der Qualitätssicherung steht in `docs/implementation-summary.md`.
 - Offen über alle Pakete hinweg: erster Lauf auf dem echten Gitea-Runner, Handtest am Desktop, Bestätigung von
   Stufe 0 des Erklär-Modus (Nr. 95) durch den Projektinhaber.
+
+## Review von PR #1 (Branch `fix/pr1-review-findings`)
+
+- Branch `feature/initial-implementation` gepusht, PR #1 nach `main` geöffnet. Erster echter Lauf auf dem
+  Gitea-Runner: rot, zwei zeitabhängige Solver-Tests (Nr. 170). Behoben auf `fix/pr1-review-findings`; danach auf dem
+  Runner grün (Runs 346, 347).
+- Review des ganzen PR durch vier Review-Agenten (Core; Solver und Explainer; App-Editor und ViewModels; Zeichenfläche,
+  Repo und CI): 10 Befunde, keiner schwer. Behoben in vier Gruppen mit getrennten Dateien, je mit Regressionstest, der
+  vor der Korrektur fehlschlug, und unabhängiger Prüfung (Nr. 171–180). Ein Befund nicht nachvollziehbar (Nr. 177).
+- Unabhängige Nachprüfung des ganzen Fix-Branches: 6 Befunde, davon 3 in einem eigenen Prüfschritt bestätigt und
+  behoben (Nr. 181, 182), 3 widerlegt.
+- Tests: 817, alle grün in Release (Core 259, Solver 105, Explainer 85, App 368), 0 Warnungen.
+- Nebenbei: `.claude/worktrees/` in `.gitignore` (Arbeitsverzeichnisse der Agenten waren versehentlich als
+  eingebettete Repositories eingecheckt und sofort wieder entfernt worden).
+- Offen: Handtest am Desktop, Bestätigung von Stufe 0 (Nr. 95), Mehrfachzeiger-Gesten (Nr. 177).

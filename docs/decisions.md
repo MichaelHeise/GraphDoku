@@ -1098,7 +1098,7 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      eine `ArgumentException` durch, wenn der übergebene String selbst ein einzelnes UTF-16-Surrogat enthielt (nicht
      die JSON-Maskierung, die schon Nr. 163 abdeckt). Sie wird jetzt wie dokumentiert zur `PuzzleFormatException` mit
      deutscher Meldung. Der Ladeweg der App war nicht betroffen (`File.ReadAllText` ersetzt ungültige Bytes).
-173. **Speichern über temporäre Datei** (Review PR #1): `PuzzleSerializer.Save` kürzte die Zieldatei mit
+173. **Speichern über temporäre Datei** (Review PR #1; Linkauflösung und Name der temporären Datei überholt durch Nr. 181): `PuzzleSerializer.Save` kürzte die Zieldatei mit
      `File.WriteAllText` zuerst auf null; ein Fehler mitten im Schreiben (volle Platte, getrenntes Netzlaufwerk)
      zerstörte so die zuletzt gespeicherte Fassung. Jetzt wird in eine versteckte temporäre Datei im selben
      Verzeichnis geschrieben, auf die Platte geschrieben (Flush) und per `File.Move(…, overwrite: true)` über das Ziel
@@ -1149,3 +1149,22 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      Feld desselben Panels gültig bearbeitet wird. Ist der Modellwert selbst ungültig (z. B. „abc“ aus einer Datei),
      zeigt das Feld ihn mit der Meldung „Bitte eine ganze Zahl eingeben.“ statt ihn zu verbergen. Nur leerer Text gilt
      weiter als gleichwertig zu einem fehlenden Parameter.
+181. **Speichern durch symbolische Links direkt, kurzer Name der temporären Datei** (Nachprüfung PR #1): Die
+     unabhängige Nachprüfung der Korrekturen fand zwei Fehler in Nr. 173. (a) Die Linkauflösung mit
+     `FileInfo.ResolveLinkTarget(returnFinalTarget: true)` hängt ein relatives Linkziel textuell an den übergebenen
+     Pfad; das Betriebssystem löst „..“ aber vom echten Verzeichnis des Links aus. Lag der Link in einem Verzeichnis,
+     das selbst über einen Link erreicht wurde, schrieb `Save` still in eine andere Datei – die gespeicherte Fassung
+     ging verloren. Die eigene Linkauflösung ist entfernt: Ist die Zieldatei selbst ein symbolischer Link, schreibt
+     `Save` wie vor dem Review direkt (nicht atomar) hindurch und das Betriebssystem folgt dem Link. Ein verlinktes
+     Verzeichnis im Pfad ohne Dateilink am Ende nutzt weiter temporäre Datei und Umbenennen. (b) Der Name der
+     temporären Datei war 38 Zeichen länger als der Zielname; bei Dateinamen ab etwa 217 Zeichen scheiterte das
+     Speichern. Die temporäre Datei heißt jetzt `.graphdoku-<32 Hex>.tmp`. Nicht atomar bleibt das Speichern damit in
+     zwei Fällen: durch einen Dateilink und in einem schreibgeschützten Verzeichnis (Nr. 173).
+182. **„Kleiner als“-Pfeil nach seinem Umriss treffen** (Nachprüfung PR #1): Der Rückfall-Treffertest nach den Knoten
+     (Nr. 176) gab dem Pfeil einen Kreis mit 1,25 halben Pfeillängen, innerhalb dessen der Abstand 0 galt. Damit
+     gewann der Pfeil auch in den leeren Ecken dieses Kreises gegen eine genau getroffene Linie daneben – vor dem
+     Review gewann die nächste Linie. Jetzt zählt der Abstand zum gezeichneten Umriss (`EdgeMarks.ArrowDistance`: 0 im
+     Umriss, sonst bis zum nächsten Rand), mit derselben Toleranz von 6 px wie bei Linien; an Spitze und Ecken reicht
+     die Trefferfläche damit bis 6 px über den Umriss. Kropki-Punkte bleiben unverändert: Ihre Trefferfläche endet am
+     gezeichneten Rand, wie bestehende Tests festlegen; ein Klick in den Punkt trifft ihn ohnehin schon vor den
+     Knoten.
