@@ -45,7 +45,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         Solve = new SolveViewModel(Editor, solver);
         Explain = new ExplainViewModel(Editor, Solve, explainer ?? new EnginePuzzleExplainer(solver, Editor.Registry));
         Editor.DocumentChanged += (_, _) => UpdateTitle();
-        Editor.StatusMessage = "Neues Rätsel. Mit „Knoten setzen“ Knoten auf das Gitter setzen oder eine Vorlage wählen.";
         UpdateTitle();
     }
 
@@ -111,6 +110,21 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         if (await PickPathAsync(_files.PickOpenPathAsync, "Öffnen fehlgeschlagen").ConfigureAwait(true) is { } path)
         {
             await OpenFileAsync(path).ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>
+    /// Kanten-Generator (Paket 5): Dialog mit Abstandsregel, Regel, Parametern, Richtung und Knotenmenge; „Kanten
+    /// erzeugen“ fügt die Kanten als ein Undo-Schritt ein. Die Auswahl zum Zeitpunkt des Aufrufs ist die Knotenmenge
+    /// „Ausgewählte Knoten“.
+    /// </summary>
+    [RelayCommand]
+    private async Task GenerateEdgesAsync()
+    {
+        var generator = new EdgeGeneratorViewModel(Editor);
+        if (await _dialogs.ShowEdgeGeneratorAsync(generator).ConfigureAwait(true))
+        {
+            generator.Apply();
         }
     }
 

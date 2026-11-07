@@ -35,6 +35,7 @@ public partial class MainWindow : Window
             Add(Key.S, modifier | KeyModifiers.Shift, vm => vm.SaveAsCommand.Execute(null));
             Add(Key.A, modifier, vm => RunUnlessTextBox(_ => vm.Editor.SelectAll()));
             Add(Key.G, modifier, vm => vm.Editor.CreateGroupFromSelection());
+            Add(Key.E, modifier, vm => vm.GenerateEdgesCommand.Execute(null));
             Add(Key.D0, modifier, vm => vm.Editor.FitView());
         }
 

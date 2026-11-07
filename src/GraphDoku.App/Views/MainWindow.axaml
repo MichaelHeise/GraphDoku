@@ -21,26 +21,7 @@
       <StackPanel Spacing="6">
         <TextBlock Text="Parameter" FontWeight="SemiBold" Margin="0,6,0,0" IsVisible="{Binding HasParameters}" />
         <TextBlock Text="Diese Regel hat keine Parameter." Classes="hint" IsVisible="{Binding !HasParameters}" />
-        <ItemsControl ItemsSource="{Binding Parameters}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:RuleParameterViewModel">
-              <StackPanel Spacing="2" Margin="0,0,0,8">
-                <TextBlock Text="{Binding Label}" />
-                <TextBox Text="{Binding Text}" IsVisible="{Binding IsInteger}" />
-                <CheckBox Content="{Binding DisplayName}" IsChecked="{Binding BoolValue}" IsVisible="{Binding IsBoolean}" />
-                <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding ChoiceValue}" IsVisible="{Binding IsChoice}" HorizontalAlignment="Stretch">
-                  <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="x:String">
-                      <TextBlock Text="{Binding Converter={x:Static views:Converters.ChoiceLabel}}" />
-                    </DataTemplate>
-                  </ComboBox.ItemTemplate>
-                </ComboBox>
-                <TextBlock Text="{Binding Description}" Classes="hint" />
-                <TextBlock Text="{Binding Error}" Classes="error" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
-              </StackPanel>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <ItemsControl ItemsSource="{Binding Parameters}" ItemTemplate="{StaticResource RuleParameterItem}" />
       </StackPanel>
     </DataTemplate>
   </Window.Resources>
@@ -88,6 +69,7 @@
         <MenuItem Header="Alle Knoten auswählen" Command="{Binding Editor.SelectAllCommand}" InputGesture="Ctrl+A" />
         <Separator />
         <MenuItem Header="Gruppe aus Auswahl erstellen" Command="{Binding Editor.CreateGroupFromSelectionCommand}" InputGesture="Ctrl+G" />
+        <MenuItem Header="Kanten erzeugen …" Command="{Binding GenerateEdgesCommand}" InputGesture="Ctrl+E" />
       </MenuItem>
       <MenuItem Header="_Ansicht">
         <MenuItem Header="Einpassen" Command="{Binding Editor.FitViewCommand}" InputGesture="Ctrl+0" />
@@ -129,6 +111,8 @@
             </DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>
+        <Button Content="Erzeugen …" Command="{Binding GenerateEdgesCommand}"
+                ToolTip.Tip="Kanten-Generator: Kanten zwischen allen Knotenpaaren mit einem bestimmten Abstand erzeugen (auch Bearbeiten → Kanten erzeugen …, Strg/Cmd+E)" />
         <Rectangle Width="1" Fill="#dddddd" Margin="6,2" />
         <Button Content="Rückgängig" ToolTip.Tip="{Binding Editor.UndoText}" Command="{Binding Editor.UndoCommand}" />
         <Button Content="Wiederholen" ToolTip.Tip="{Binding Editor.RedoText}" Command="{Binding Editor.RedoCommand}" />
@@ -367,7 +351,7 @@
                 <TextBlock Text="{Binding DomainError}" Classes="error" IsVisible="{Binding DomainError, Converter={x:Static ObjectConverters.IsNotNull}}" />
                 <TextBlock Text="{Binding Statistics}" Classes="hint" Margin="0,6,0,0" />
                 <TextBlock Classes="hint" Margin="0,10,0,0"
-                           Text="Knoten setzen: Werkzeug „Knoten setzen“. Knoten auswählen, um Givens einzutragen oder Gruppen zu bilden. Eine Kante anklicken, um ihre Regel zu bearbeiten." />
+                           Text="Knoten setzen: Werkzeug „Knoten setzen“. Knoten auswählen, um Givens einzutragen oder Gruppen zu bilden. Eine Kante anklicken, um ihre Regel zu bearbeiten. Viele Kanten auf einmal: „Erzeugen …“ neben der Kantenregel (Kanten-Generator)." />
               </StackPanel>
             </DataTemplate>
 
@@ -392,6 +376,19 @@
                   <Button Content="Givens löschen" Command="{Binding Editor.ClearGivensCommand}" />
                   <Button Content="Knoten löschen" Command="{Binding Editor.DeleteSelectionCommand}" />
                 </WrapPanel>
+                <TextBlock Text="Eigener Wertebereich" FontWeight="SemiBold" Margin="0,8,0,0" />
+                <TextBlock Text="{Binding DomainInfo}" Classes="hint" />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBox Text="{Binding DomainMin}" Width="70" />
+                  <TextBlock Text="bis" VerticalAlignment="Center" />
+                  <TextBox Text="{Binding DomainMax}" Width="70" />
+                </StackPanel>
+                <TextBlock Text="{Binding DomainError}" Classes="error" IsVisible="{Binding DomainError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6">
+                  <Button Content="Bereich setzen" Command="{Binding ApplyDomainCommand}" ToolTip.Tip="Eigenen Wertebereich für alle ausgewählten Knoten setzen" />
+                  <Button Content="Globalen Bereich verwenden" Command="{Binding ClearDomainCommand}" IsEnabled="{Binding HasDomainOverride}" />
+                </WrapPanel>
+                <TextBlock Classes="hint" Text="Überschreibt den globalen Wertebereich des Rätsels für diese Knoten (z. B. ein Feld nur mit 1–4)." />
               </StackPanel>
             </DataTemplate>
 

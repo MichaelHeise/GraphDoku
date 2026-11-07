@@ -1,6 +1,78 @@
+using GraphDoku.Core.Generation;
 using GraphDoku.Core.Model;
 
 namespace GraphDoku.App.Editing.Commands;
+
+/// <summary>
+/// Fügt die Kanten eines Generator-Ergebnisses in <b>einem</b> Undo-Schritt ein (Entscheidung Nr. 116): Ausführen =
+/// <see cref="EdgeGenerationResult.ApplyTo"/>, Rückgängig = genau die Kanten mit den Ids des Ergebnisses entfernen.
+/// </summary>
+public sealed class AddGeneratedEdgesCommand : IEditCommand
+{
+    private readonly EdgeGenerationResult _result;
+    private readonly HashSet<int> _ids;
+
+    public AddGeneratedEdgesCommand(EdgeGenerationResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (!result.IsSuccess || result.Edges.Count == 0)
+        {
+            throw new ArgumentException("Nur ein erfolgreiches Ergebnis mit mindestens einer Kante kann eingefügt werden.", nameof(result));
+        }
+
+        _result = result;
+        _ids = [.. result.Edges.Select(e => e.Id)];
+    }
+
+    /// <summary>Ids der eingefügten Kanten.</summary>
+    public IReadOnlyCollection<int> EdgeIds => _ids;
+
+    public string Description => _ids.Count == 1 ? "1 Kante erzeugen" : $"{_ids.Count} Kanten erzeugen";
+
+    public void Execute(Puzzle puzzle) => _result.ApplyTo(puzzle);
+
+    public void Undo(Puzzle puzzle)
+    {
+        ArgumentNullException.ThrowIfNull(puzzle);
+        AddNodesCommand.RemoveWhere(puzzle.Edges, e => _ids.Contains(e.Id));
+    }
+
+    public bool TryMerge(IEditCommand later) => false;
+}
+
+/// <summary>Setzt oder entfernt eigene Wertebereiche einzelner Knoten (null = globaler Bereich des Rätsels).</summary>
+public sealed class SetNodeDomainsCommand : IEditCommand
+{
+    private readonly Dictionary<int, (ValueDomain? Old, ValueDomain? New)> _changes;
+
+    public SetNodeDomainsCommand(IReadOnlyDictionary<int, (ValueDomain? Old, ValueDomain? New)> changes)
+    {
+        ArgumentNullException.ThrowIfNull(changes);
+        _changes = new Dictionary<int, (ValueDomain? Old, ValueDomain? New)>(changes);
+    }
+
+    public IReadOnlyDictionary<int, (ValueDomain? Old, ValueDomain? New)> Changes => _changes;
+
+    public string Description => _changes.Values.All(c => c.New is null) ? "Eigenen Wertebereich entfernen" : "Eigenen Wertebereich setzen";
+
+    public void Execute(Puzzle puzzle) => Apply(puzzle, useNew: true);
+
+    public void Undo(Puzzle puzzle) => Apply(puzzle, useNew: false);
+
+    public bool TryMerge(IEditCommand later) => false;
+
+    private void Apply(Puzzle puzzle, bool useNew)
+    {
+        ArgumentNullException.ThrowIfNull(puzzle);
+        foreach (var (id, change) in _changes)
+        {
+            if (puzzle.FindNode(id) is { } node)
+            {
+                node.Domain = useNew ? change.New : change.Old;
+            }
+        }
+    }
+}
 
 /// <summary>Fügt eine Kante hinzu.</summary>
 public sealed class AddEdgeCommand : IEditCommand

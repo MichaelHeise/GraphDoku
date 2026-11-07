@@ -1,0 +1,100 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GraphDoku.App.ViewModels"
+        xmlns:rules="using:GraphDoku.Core.Rules"
+        xmlns:views="using:GraphDoku.App.Views"
+        x:Class="GraphDoku.App.Views.EdgeGeneratorWindow"
+        x:DataType="vm:EdgeGeneratorViewModel"
+        Title="Kanten erzeugen"
+        Width="460" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <Window.Styles>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,6,0,0" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="Foreground" Value="#666666" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Margin="16">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button Content="Abbrechen" Click="OnCancel" IsCancel="True" />
+      <Button x:Name="ApplyButton" Content="Kanten erzeugen" Click="OnApply" IsDefault="True" IsEnabled="{Binding CanApply}" FontWeight="SemiBold" />
+    </StackPanel>
+
+    <!-- Vorschau: wie viele Kanten entstehen, übersprungene Paare oder Fehler des Generators. -->
+    <Border x:Name="PreviewBox" DockPanel.Dock="Bottom" Padding="10,8" CornerRadius="4" BorderThickness="1" Margin="0,10,0,0"
+            Background="{Binding PreviewSeverity, Converter={x:Static views:Converters.SeverityBackground}}"
+            BorderBrush="{Binding PreviewSeverity, Converter={x:Static views:Converters.SeverityBorder}}">
+      <StackPanel Spacing="4">
+        <TextBlock Text="Vorschau" FontWeight="SemiBold" FontSize="12" />
+        <TextBlock Text="{Binding PreviewMessage}" TextWrapping="Wrap" />
+        <ItemsControl ItemsSource="{Binding PreviewErrors}" IsVisible="{Binding HasPreviewErrors}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <TextBlock Text="{Binding StringFormat='• {0}'}" Foreground="#b42318" FontSize="12" TextWrapping="Wrap" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer MaxHeight="560">
+      <StackPanel Spacing="6">
+        <TextBlock Text="Abstandsregel" Classes="section" Margin="0" />
+        <ComboBox ItemsSource="{Binding DistanceOptions}" SelectedItem="{Binding SelectedDistance}" HorizontalAlignment="Stretch">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:DistanceOption">
+              <TextBlock Text="{Binding Name}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Text="{Binding KnightMoveHint}" Classes="hint"
+                   IsVisible="{Binding KnightMoveHint, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <StackPanel Spacing="4" IsVisible="{Binding IsFreeDistance}">
+          <Grid ColumnDefinitions="Auto,70,Auto,70,Auto,90" ColumnSpacing="6">
+            <TextBlock Text="Abstand" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Text="{Binding MinDistanceText}" ToolTip.Tip="Kleinster Abstand der Zellmittelpunkte" />
+            <TextBlock Grid.Column="2" Text="bis" VerticalAlignment="Center" />
+            <TextBox Grid.Column="3" Text="{Binding MaxDistanceText}" PlaceholderText="(genau)"
+                     ToolTip.Tip="Größter Abstand; leer = genau der kleinste Abstand" />
+            <TextBlock Grid.Column="4" Text="Toleranz" VerticalAlignment="Center" Margin="6,0,0,0" />
+            <TextBox Grid.Column="5" Text="{Binding ToleranceText}" ToolTip.Tip="Rundungstoleranz beim Vergleich der Abstände" />
+          </Grid>
+          <TextBlock Text="{Binding FreeDistanceHint}" Classes="hint" />
+        </StackPanel>
+
+        <TextBlock Text="Regel der neuen Kanten" Classes="section" />
+        <ComboBox ItemsSource="{Binding Rules}" SelectedItem="{Binding SelectedRule}" HorizontalAlignment="Stretch">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="rules:IRule">
+              <TextBlock Text="{Binding DisplayName}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <ItemsControl ItemsSource="{Binding Parameters}" ItemTemplate="{StaticResource RuleParameterItem}" IsVisible="{Binding HasParameters}" />
+
+        <StackPanel Spacing="4" IsVisible="{Binding IsDirected}">
+          <TextBlock Text="Richtung" Classes="section" />
+          <ComboBox ItemsSource="{Binding DirectionOptions}" SelectedItem="{Binding SelectedDirection}" HorizontalAlignment="Stretch">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:DirectionOption">
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <TextBlock Classes="hint" Text="Der Pfeil zeigt vom kleineren zum größeren Wert. Einzelne Kanten lassen sich danach im Panel mit „Richtung umkehren“ drehen." />
+        </StackPanel>
+
+        <TextBlock Text="Anwenden auf" Classes="section" />
+        <RadioButton GroupName="scope" Content="{Binding SelectionScopeText}" IsChecked="{Binding UseSelection}" IsEnabled="{Binding HasSelection}" />
+        <RadioButton GroupName="scope" Content="{Binding AllNodesScopeText}" IsChecked="{Binding UseAllNodes}" />
+        <TextBlock Classes="hint" Text="Bei „Ausgewählte Knoten“ müssen beide Enden einer Kante ausgewählt sein. Paare, die schon eine Kante mit derselben Regel haben, werden übersprungen. Das Einfügen ist ein einziger Schritt für „Rückgängig“." />
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

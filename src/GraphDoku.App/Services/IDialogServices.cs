@@ -1,3 +1,4 @@
+using GraphDoku.App.ViewModels;
 using GraphDoku.Core.Model;
 
 namespace GraphDoku.App.Services;
@@ -32,6 +33,12 @@ public interface IDialogService
     Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string documentName);
 
     Task ShowErrorAsync(string title, string message);
+
+    /// <summary>
+    /// Zeigt den Dialog „Kanten erzeugen“ zum <paramref name="generator"/>. true = „Kanten erzeugen“ gewählt (der Aufrufer
+    /// fügt die Kanten dann mit <see cref="EdgeGeneratorViewModel.Apply"/> ein), false = abgebrochen.
+    /// </summary>
+    Task<bool> ShowEdgeGeneratorAsync(EdgeGeneratorViewModel generator);
 }
 
 /// <summary>Ersatz ohne Oberfläche (Designer): bricht jede Dateiauswahl ab.</summary>
@@ -54,4 +61,6 @@ public sealed class NullDialogService : IDialogService
     public Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string documentName) => Task.FromResult(UnsavedChangesChoice.Cancel);
 
     public Task ShowErrorAsync(string title, string message) => Task.CompletedTask;
+
+    public Task<bool> ShowEdgeGeneratorAsync(EdgeGeneratorViewModel generator) => Task.FromResult(false);
 }

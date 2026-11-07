@@ -816,3 +816,69 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
     Nachbarn außerhalb der Thermometer, 5 Givens. Damit kommen alle acht Katalogregeln in den Beispielen vor.
 132. **Namen und Dateinamen** deutsch und ohne Umlaute im Dateinamen: „Killer-Sudoku“, „Kropki-Sudoku“,
     „Hexadoku 16x16“, „Dreiecks-Sudoku“, „Thermo-Sudoku 6x6“.
+
+## Kanten-Generator und Regeln im Editor (Paket 5, Editor-Teil)
+
+133. **Generator als modaler Dialog „Kanten erzeugen“** (Bearbeiten → Kanten erzeugen …, Schaltfläche „Erzeugen …“
+    rechts neben der Kantenregel, Strg/Cmd+E), nicht als Panel. Grund: Das Panel rechts gehört der Auswahl (Knoten,
+    Kante, Gruppe); modal kann sich das Rätsel während der Vorschau nicht ändern, und die Auswahl beim Öffnen ist die
+    Knotenmenge „Ausgewählte Knoten“. Die Logik liegt in `EdgeGeneratorViewModel`, der Dialog kommt über
+    `IDialogService.ShowEdgeGeneratorAsync` (liefert nur „bestätigt“; eingefügt wird mit `EdgeGeneratorViewModel.Apply`),
+    in Tests ersetzt.
+134. **Vorschau bei jeder Änderung:** `EdgeGenerator.Generate` auf dem aktuellen Rätsel (auch beim freien Abstand mit
+    256 Knoten unkritisch). Eigene Vorschautexte im Futur („144 neue Kanten „Ungleich“ (…). 4 Knotenpaare werden
+    übersprungen (Kante bereits vorhanden).“), weil die Meldung des Generators „erzeugt“ sagt; nach dem Einfügen zeigt
+    die Statuszeile die Meldung des Generators. Farben wie die Lösen-Leiste: grün = Kanten entstehen, gelb = nichts zu
+    tun (kein passendes Paar oder alle vorhanden), rot = Fehler mit Liste. „Kanten erzeugen“ ist nur aktiv, wenn
+    mindestens eine Kante entsteht; ohne neue Kanten gibt es keinen Undo-Schritt.
+135. **Ein Undo-Schritt:** `AddGeneratedEdgesCommand` hält das `EdgeGenerationResult`; Ausführen/Wiederholen =
+    `result.ApplyTo`, Rückgängig = genau die Kanten mit den Ids des Ergebnisses entfernen (Nr. 116). `Apply` erzeugt
+    unmittelbar vor dem Einfügen noch einmal, damit nie eine veraltete Vorschau eingefügt wird.
+136. **Abstandsregeln in der Liste:** Der Springerzug erscheint nur auf dem Quadratgitter; auf Dreieck/Sechseck steht
+    stattdessen ein Hinweis („… Ein freier Abstand kann ihn ersetzen.“) – die Prüfung im Generator bleibt als Schutz.
+    Freier Abstand: „Abstand [min] bis [max]“ (max leer = genau min) und „Toleranz“ (Standard 0,000001), Dezimalkomma
+    oder -punkt; ein Hinweis nennt typische Abstände des jeweiligen Gitters. Unlesbare Zahlen und ungültige
+    Parametertexte erscheinen als Fehler in der Vorschau.
+137. **Regel und Parameter:** Voreinstellung ist die Kantenregel der Werkzeugleiste (daher die Schaltfläche direkt
+    daneben). Die Parameterfelder sind dieselben wie im Eigenschaften-Panel (`RuleParameterViewModel`; die
+    Feldvorlage wurde als `RuleParameterItem` nach `App.axaml` verschoben und wird von beiden Fenstern benutzt).
+138. **Knotenmenge:** Voreinstellung „Ausgewählte Knoten (n)“, wenn beim Öffnen mindestens zwei Knoten ausgewählt
+    sind, sonst „Alle Knoten (n)“; mit weniger als zwei ausgewählten Knoten ist „Ausgewählte Knoten“ gesperrt.
+139. **Richtung** erscheint nur bei gerichteten Regeln („Kleiner als“): „Werte steigen in Leserichtung (nach rechts bzw.
+    unten)“ = `ReadingOrder`, „Werte fallen in Leserichtung (steigen nach links bzw. oben)“ = `ReverseReadingOrder`.
+140. **Alle Katalogregeln anlegbar – ohne neuen Bedienweg für die Reihenfolge.** Die Bedienung aus Paket 3 (Nr. 51, 56)
+    deckt die Spezifikation bereits ab: Thermometer-Reihenfolge = Auswahlreihenfolge (Klick, dann Shift-Klicks; Nummern
+    an den Knoten; Rahmenauswahl zeilenweise), „Reihenfolge umkehren“, Nummern und Kolben auf der Zeichenfläche;
+    „Kleiner als“ = Ziehrichtung, „Richtung umkehren“, im Generator die Richtungsregel. Eine weitergehende Umordnung
+    einzelner Knoten einer bestehenden Gruppe gibt es nicht (Gruppe aus neuer Auswahl erstellen). Ein Test legt alle
+    acht Regeln im Editor an und löst das Ergebnis.
+141. **Zielsummen auf der Zeichenfläche** für jede sichtbare (oder gewählte) `Sum`-Gruppe, nicht nur für „Käfige“: in
+    der Zelle, die in Leserichtung zuerst kommt (`EditorGeometry.RowWiseOrder`), auf dem Quadratgitter oben links in der
+    Zellecke, auf Dreieck/Sechseck zur oberen linken Ecke hin eingerückt; Schrift 0,2 Zellbreiten (Dreieck 0,13), 8–18 px,
+    halbfett auf weißem, leicht durchscheinendem Grund; „?“ bei fehlendem oder ungültigem `target`; unter 6 px
+    Knotenradius keine Summen. Ausgeblendete Gruppen zeigen keine Summe (wie ihre Hervorhebung). **Gruppenbeschriftungen
+    werden nicht gezeichnet:** Bei Vorlage und Beispielen hätte jede Zelle drei Beschriftungen („Zeile 1“, „Spalte 1“,
+    „Block 1“); sie stehen in der Gruppenliste.
+142. **Lesbarkeit der Beispiele (nach Ansehen der Bilder):** Kantenmarken (Differenz-/Verhältnispunkte, Pfeile) werden
+    nach den Knoten gezeichnet (vorher deckten die Kreise die Kropki-Punkte zur Hälfte ab), die Linien weiterhin davor.
+    „Ungleich“-Linien ohne Auswahl dünner und heller (#8a8a8a, 1,3 px statt #4a4a4a, 1,8 px; das Dreiecks-Sudoku mit 168
+    solchen Kanten war unruhig). Pfeile höchstens 0,42 × Spalt zwischen den Kreisen (mindestens 5 px) und mit weißem
+    Rand. Thermometer: Linie 0,95 statt 0,7 Knotenradien breit, Kolben 1,3 statt 1,18 Knotenradien.
+143. **Statuszeile ohne veraltete Startmeldung:** `EditorViewModel.LoadPuzzle` (und der Konstruktor) setzen eine zum
+    Dokument passende Grundmeldung (leeres Rätsel: „Leeres Rätsel „Name“ (Gitter, Werte a..b). Mit „Knoten setzen“ …“,
+    sonst „Rätsel „Name“: n Knoten, m Kanten, g Gruppen.“); Neu, Öffnen und Vorlage im Hauptfenster ersetzen sie wie
+    bisher durch ihre eigene Meldung. Die feste Meldung „Neues Rätsel. …“ im Konstruktor des Hauptfensters entfällt.
+144. **Eigener Wertebereich pro Knoten** (offen aus Paket 3, Nr. 56): im Auswahl-Panel zwei Zahlenfelder mit
+    „Bereich setzen“ und „Globalen Bereich verwenden“ für alle ausgewählten Knoten – ein Undo-Schritt pro Schaltfläche
+    (`SetNodeDomainsCommand`), nicht pro Tastendruck, damit halbe Eingaben („1“ auf dem Weg zu „12“) keine Zwischenstände
+    erzeugen. Die Felder zeigen den gemeinsamen eigenen Bereich, sonst den globalen, und werden nur neu gefüllt, wenn sich
+    die Bereiche der Auswahl ändern. Givens außerhalb des neuen Bereichs werden nicht abgelehnt, sondern in der
+    Statuszeile genannt (die Prüfmeldungen zeigen sie ohnehin). Prüfung wie beim globalen Bereich
+    (`NewPuzzleViewModel.CheckDomain`).
+145. **Schaltfläche „Erzeugen …“ statt „Kanten erzeugen …“ in der Werkzeugleiste:** Mit dem längeren Text brach die
+    Werkzeugleiste schon bei 1280 px Breite um („Einpassen“ in einer zweiten Zeile, im Rendering gesehen). Der volle
+    Name steht im Menü und im Tooltip.
+146. **Akzeptanztest nicht erweitert:** `SolveIntegrationTests` öffnet bereits jede Datei in `puzzles/` über
+    `OpenFileAsync`, löst sie mit `SolveCommand` und prüft mit `CheckUniquenessCommand` die Eindeutigkeit (alle außer
+    `klassisch-leer.json` eindeutig); das deckt die Paket-5-Akzeptanz auf ViewModel-Ebene. Neu ist ein Rendering-Test,
+    der jede Datei über „Öffnen“ rendert.

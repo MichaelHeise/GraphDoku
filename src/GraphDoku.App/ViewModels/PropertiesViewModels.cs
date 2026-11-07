@@ -299,9 +299,14 @@ public sealed partial class GroupPropertiesViewModel : ConstraintPropertiesViewM
     }
 }
 
-/// <summary>Panel bei ausgewählten Knoten: Übersicht, Gruppe aus Auswahl erstellen, Givens löschen.</summary>
+/// <summary>
+/// Panel bei ausgewählten Knoten: Übersicht, Gruppe aus Auswahl erstellen, Givens löschen und eigener Wertebereich
+/// der ausgewählten Knoten (überschreibt den globalen Bereich; Undo-Schritt per Schaltfläche, nicht pro Tastendruck).
+/// </summary>
 public sealed partial class NodeSelectionPropertiesViewModel : PropertiesViewModel
 {
+    private string? _loadedDomains;
+
     public NodeSelectionPropertiesViewModel(EditorViewModel editor)
         : base(editor) => Refresh();
 
@@ -309,6 +314,25 @@ public sealed partial class NodeSelectionPropertiesViewModel : PropertiesViewMod
 
     [ObservableProperty]
     public partial string Summary { get; set; } = string.Empty;
+
+    /// <summary>Kleinster Wert des eigenen Bereichs (Eingabe).</summary>
+    [ObservableProperty]
+    public partial string DomainMin { get; set; } = string.Empty;
+
+    /// <summary>Größter Wert des eigenen Bereichs (Eingabe).</summary>
+    [ObservableProperty]
+    public partial string DomainMax { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string? DomainError { get; set; }
+
+    /// <summary>Welche Bereiche die ausgewählten Knoten jetzt haben (global, eigener, gemischt).</summary>
+    [ObservableProperty]
+    public partial string DomainInfo { get; set; } = string.Empty;
+
+    /// <summary>true, wenn mindestens ein ausgewählter Knoten einen eigenen Bereich hat.</summary>
+    [ObservableProperty]
+    public partial bool HasDomainOverride { get; set; }
 
     public override bool IsStillValid() => Editor.SelectedNodeIds.Count > 0;
 
@@ -325,6 +349,87 @@ public sealed partial class NodeSelectionPropertiesViewModel : PropertiesViewMod
             var givens = ids.Count(id => Editor.Puzzle.FindNode(id)?.Given is not null);
             Summary = $"{ids.Count} Knoten ausgewählt, davon {givens} mit Given.\nReihenfolge der Auswahl: {Shorten(ids)}";
         }
+
+        RefreshDomain();
+    }
+
+    /// <summary>Setzt den eingegebenen Bereich als eigenen Wertebereich aller ausgewählten Knoten (ein Undo-Schritt).</summary>
+    [RelayCommand]
+    private void ApplyDomain()
+    {
+        var style = System.Globalization.NumberStyles.AllowLeadingSign;
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        if (!int.TryParse(DomainMin.Trim(), style, culture, out var min) || !int.TryParse(DomainMax.Trim(), style, culture, out var max))
+        {
+            DomainError = "Bitte ganze Zahlen eingeben.";
+            return;
+        }
+
+        var domain = new ValueDomain(min, max);
+        DomainError = NewPuzzleViewModel.CheckDomain(domain);
+        if (DomainError is not null)
+        {
+            return;
+        }
+
+        var nodes = SelectedNodes();
+        var changes = nodes.Where(n => n.Domain != domain).ToDictionary(n => n.Id, n => (n.Domain, (ValueDomain?)domain));
+        if (changes.Count == 0)
+        {
+            Editor.StatusMessage = $"Die ausgewählten Knoten haben bereits den eigenen Wertebereich {domain}.";
+            return;
+        }
+
+        Editor.Execute(new SetNodeDomainsCommand(changes));
+        var outside = nodes.Count(n => n.Given is int g && !domain.Contains(g));
+        Editor.StatusMessage = $"Eigener Wertebereich {domain} für {changes.Count} Knoten gesetzt."
+            + (outside > 0 ? $" Achtung: {outside} Given(s) liegen außerhalb des Bereichs (siehe Prüfmeldungen)." : string.Empty);
+    }
+
+    /// <summary>Entfernt die eigenen Wertebereiche der ausgewählten Knoten (es gilt wieder der globale Bereich).</summary>
+    [RelayCommand]
+    private void ClearDomain()
+    {
+        var changes = SelectedNodes().Where(n => n.Domain is not null).ToDictionary(n => n.Id, n => (n.Domain, (ValueDomain?)null));
+        if (changes.Count == 0)
+        {
+            Editor.StatusMessage = "Die ausgewählten Knoten haben keinen eigenen Wertebereich.";
+            return;
+        }
+
+        Editor.Execute(new SetNodeDomainsCommand(changes));
+        Editor.StatusMessage = $"Eigener Wertebereich für {changes.Count} Knoten entfernt; es gilt der globale Bereich {Editor.Puzzle.Domain}.";
+    }
+
+    private List<Node> SelectedNodes() =>
+        [.. Editor.SelectedNodeIds.Select(Editor.Puzzle.FindNode).Where(n => n is not null).Select(n => n!)];
+
+    private void RefreshDomain()
+    {
+        var nodes = SelectedNodes();
+        var domains = nodes.Select(n => n.Domain).Distinct().ToList();
+        HasDomainOverride = domains.Any(d => d is not null);
+        DomainInfo = domains.Count switch
+        {
+            0 => string.Empty,
+            1 when domains[0] is null => $"Es gilt der globale Bereich {Editor.Puzzle.Domain}.",
+            1 => nodes.Count == 1 ? $"Eigener Bereich {domains[0]}." : $"Alle haben den eigenen Bereich {domains[0]}.",
+            _ => $"Gemischt: {nodes.Count(n => n.Domain is not null)} von {nodes.Count} Knoten mit eigenem Bereich.",
+        };
+
+        // Eingabefelder nur neu füllen, wenn sich die Bereiche der Auswahl geändert haben (nicht bei jeder anderen
+        // Bearbeitung, sonst ginge eine angefangene Eingabe verloren).
+        var signature = string.Join(";", nodes.Select(n => n.Domain?.ToString() ?? "-")) + "|" + Editor.Puzzle.Domain;
+        if (signature == _loadedDomains)
+        {
+            return;
+        }
+
+        _loadedDomains = signature;
+        var shown = domains.Count == 1 && domains[0] is { } common ? common : Editor.Puzzle.Domain;
+        DomainMin = shown.Min.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        DomainMax = shown.Max.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        DomainError = null;
     }
 
     private static string Shorten(IReadOnlyList<int> ids) =>

@@ -127,10 +127,10 @@
 
 **Offen**
 
-- Eigene Wertebereiche pro Knoten im Editor bearbeiten (werden geladen, gespeichert und bei der Eingabe beachtet).
+- ~~Eigene Wertebereiche pro Knoten im Editor bearbeiten~~ – erledigt in Paket 5 (Editor-Teil), Nr. 144.
 - Prüfmeldungen markieren das betroffene Element noch nicht auf der Zeichenfläche.
 - ~~Lösungswerte in den Knoten (Paket 4)~~ erledigt in Paket 4; Kanten-Generator und Beispielrätsel (Paket 5).
-- Kein Kopieren/Einfügen, keine Summenbeschriftung von Käfigen auf der Zeichenfläche (nicht gefordert).
+- Kein Kopieren/Einfügen (nicht gefordert). ~~Summenbeschriftung von Käfigen~~ – erledigt in Paket 5 (Editor-Teil).
 
 **Bekannte Probleme**
 
@@ -228,13 +228,8 @@ Entscheidungen: Nr. 116–132.
 
 **Offen**
 
-- **Editor-Oberfläche für den Generator** (Abstandsregel, Regeltyp, Parameter, Richtung, „Auswahl oder alle Knoten“) –
-  nächster Schritt. Vorgesehene Nutzung siehe Nr. 116 (Vorschau und Meldung, Einfügen als **ein** Undo-Befehl).
-- **Käfigsummen werden auf der Zeichenfläche nicht angezeigt.** `GraphCanvas` zeichnet keine Gruppenbeschriftung und keinen
-  `target`-Wert; das Killer-Sudoku ist im Editor deshalb nur über das Eigenschaften-Panel (Zielsumme je Käfig) lesbar und
-  auf der Zeichenfläche nicht spielbar (im Review bestätigt: Daten korrekt, nur die Anzeige fehlt). Empfehlung: Summe
-  klein in die linke obere Zelle eines `Sum`-Käfigs schreiben. **Muss** im UI-Schritt von Paket 5 erledigt werden (die
-  App war im Branch des Generators nicht zu ändern).
+- ~~Editor-Oberfläche für den Generator~~ – erledigt, siehe „Paket 5 – Editor-Teil“.
+- ~~Käfigsummen werden auf der Zeichenfläche nicht angezeigt~~ – erledigt, siehe „Paket 5 – Editor-Teil“ (Nr. 141).
 - `Puzzle.NextEdgeId()` (wie `NextNodeId`/`NextGroupId`) kann bei einer ungeprüft geöffneten Datei mit Ids ≤ 0 selbst
   eine Id ≤ 0 liefern; der Generator umgeht das (Nr. 124), der Editor für einzeln gezogene Kanten, Knoten und Gruppen
   noch nicht.
@@ -244,7 +239,8 @@ Entscheidungen: Nr. 116–132.
 - Die fünf Generator-„Tests“ (`ExamplePuzzleGenerator.*`) erscheinen im normalen Testlauf als bestanden, tun dort aber
   nichts (Nr. 125).
 - Das Dreiecks-Sudoku hat 168 `NotEqual`-Kanten; der Editor zeichnet sie als Linien, das Bild ist dicht, aber lesbar
-  (Rendering mit einem nicht eingecheckten Headless-Hilfsprogramm angesehen).
+  (Rendering mit einem nicht eingecheckten Headless-Hilfsprogramm angesehen). Seit dem Editor-Teil sind „Ungleich“-Linien
+  dünner und heller (Nr. 142), das Bild ist deutlich ruhiger.
 
 **Laufzeiten** (Entwicklungsrechner, macOS arm64, Release), Erklär-Modus (`ExplanationEngine.Explain`, ohne
 Testprüfungen):
@@ -260,6 +256,68 @@ Testprüfungen):
 Der Test erlaubt großzügig 30 s pro Erklärung (nur als Schutz gegen grobe Regressionen). `CountSolutions` für alle
 Beispiele zusammen dauert etwa eine Sekunde. Erzeugung (einmalig): Killer ≈ 25 s (40 Versuche), Hexadoku ≈ 60 s
 (6 Durchläufe mit je 256 Erklärungen), die übrigen wenige Sekunden.
+
+## Paket 5 – Editor-Teil (Kanten-Generator, alle Regeln, Darstellung)
+
+**Erledigt**
+
+- **Kanten-Generator im Editor:** Dialog „Kanten erzeugen“ (Bearbeiten → Kanten erzeugen …, Schaltfläche „Erzeugen …“
+  neben der Kantenregel in der Werkzeugleiste, Strg/Cmd+E). Wählbar: Abstandsregel (direkte Nachbarn, inkl. diagonal,
+  Springerzug nur auf dem Quadratgitter, freier Abstand mit kleinstem/größtem Abstand und Toleranz, Dezimalkomma),
+  Regel der neuen Kanten mit den Parameterfeldern des Eigenschaften-Panels (gemeinsame Vorlage `RuleParameterItem`),
+  Richtung bei „Kleiner als“ (Werte steigen bzw. fallen in Leserichtung) und Knotenmenge (ausgewählte Knoten oder alle).
+  Jede Änderung zeigt sofort eine Vorschau aus `EdgeGenerator.Generate` („144 neue Kanten „Ungleich“ (…).“, übersprungene
+  Paare, Fehler rot mit Liste); „Kanten erzeugen“ ist nur aktiv, wenn mindestens eine Kante entstünde, und fügt alle
+  Kanten als **ein** Undo-Schritt ein (`AddGeneratedEdgesCommand`: Ausführen = `result.ApplyTo`, Rückgängig = genau diese
+  Ids entfernen). Die Statuszeile zeigt danach die Meldung des Generators.
+- **Alle Katalogregeln im Editor anlegbar** (geprüft per Test, der alle acht im Editor anlegt und löst): Kantenregeln per
+  Ziehen (Richtung von „Kleiner als“ = Ziehrichtung, „Richtung umkehren“) oder Generator (Richtungsregel); Gruppenregeln
+  aus der Auswahl. **Thermometer-Reihenfolge** = Auswahlreihenfolge (Klick, dann Shift-Klicks; Nummern an den Knoten),
+  „Reihenfolge umkehren“ im Gruppen-Panel, Nummern und Kolben auf der Zeichenfläche. Keine Lücke gefunden, die neuen Code
+  brauchte; abgesichert durch Tests (Shift-Klick-Reihenfolge, Umkehren mit Undo, Ziehrichtung bei „Kleiner als“).
+- **Zeichenfläche:** Zielsummen aller sichtbaren `Sum`-Gruppen klein oben links in der ersten Zelle (Leserichtung) des
+  Käfigs; Kantenmarken (Kropki-Punkte, Pfeile) über den Knoten statt halb verdeckt darunter; „Ungleich“-Linien dünner und
+  heller; Pfeile passen in den Spalt zwischen den Kreisen; Thermometer mit breiterer Linie und größerem Kolben.
+- **Eigener Wertebereich pro Knoten** (Lücke aus Paket 3): im Auswahl-Panel „Bereich setzen“ / „Globalen Bereich
+  verwenden“ für alle ausgewählten Knoten, je ein Undo-Schritt (`SetNodeDomainsCommand`), Anzeige global/eigen/gemischt,
+  Hinweis bei Givens außerhalb des neuen Bereichs.
+- **Statuszeile:** Die feste Startmeldung „Neues Rätsel. …“ blieb stehen, wenn ein Rätsel auf anderem Weg geladen wurde
+  (z. B. in den Rendering-Tests). Jetzt setzt `EditorViewModel.LoadPuzzle` eine zum Dokument passende Grundmeldung
+  („Leeres Rätsel „…“ (Quadrat, Werte 1..9). Mit „Knoten setzen“ …“ bzw. „Rätsel „…“: 81 Knoten, …“), die Öffnen, Neu und
+  Vorlage durch ihre eigene Meldung ersetzen.
+- **Rendering angesehen:** jede Datei aus `puzzles/` über „Öffnen“ (`beispiel-*.png`), Killer-Summen (auch gezoomt und mit
+  ausgeblendeten Gruppen), Generator-Dialog (Auswahl, „Kleiner als“, Fehler, Dreiecksgitter ohne Springerzug),
+  Auswahl-Panel mit eigenem Wertebereich. Dabei behoben: Käfigsummen fehlten, Kropki-Punkte und Pfeile waren halb von den
+  Kreisen verdeckt, das Dreiecks-Sudoku war durch 168 dunkle Linien unruhig, die Werkzeugleiste brach mit der neuen
+  Schaltfläche bei 1280 px um (deshalb „Erzeugen …“ statt „Kanten erzeugen …“). Hexadoku (0–F) und Dreiecks-Sudoku sind
+  bei 1280 × 800 lesbar.
+- **Akzeptanz:** Jedes Beispielrätsel ist lösbar und eindeutig – auf App-Ebene über die ViewModel-Befehle geprüft
+  (`SolveIntegrationTests`: jede Datei in `puzzles/` mit `OpenFileAsync` öffnen, `SolveCommand`, `CheckUniquenessCommand`;
+  bestand schon und deckt die neuen Dateien ab, daher nicht erweitert), dazu Core-/Solver-/Explainer-Tests aus dem
+  Core-Teil.
+- Tests: `EdgeGeneratorViewModelTests` (12: Vorschau ohne Änderung, Einfügen als ein Undo-Schritt mit Undo/Redo, übersprungene
+  Paare und zweiter Lauf ohne Undo-Schritt, Knotenmenge Auswahl/alle, Auswahl unter zwei Knoten, Richtung bei „Kleiner
+  als“, Parameter, Fehler bei Parametern und Zahlen, freier Abstand mit Dezimalkomma/Bereich/Toleranz, Springerzug nur
+  auf dem Quadratgitter, Standardregel aus der Werkzeugleiste, Befehl des Hauptfensters mit Bestätigen/Abbrechen),
+  `EditorRuleEditingTests` (9: alle Katalogregeln, Thermometer-Reihenfolge, „Kleiner als“-Richtung, eigener Wertebereich
+  mit Undo, Fehler, Eingabe bleibt stehen, Statuszeile), Rendering (+12: jede Beispieldatei, Killer-Summen mit
+  Pixelprüfung, Generator-Dialog, Auswahl-Panel).
+- Gesamt: 668 Tests (Core 230, Solver 104, Explainer 81, App 253), alle grün in Release.
+
+**Offen**
+
+- Gruppenbeschriftungen (`label`) werden auf der Zeichenfläche nicht gezeichnet (stehen in der Gruppenliste); bei der
+  Vorlage wären es 27 Beschriftungen übereinander. Nur Zielsummen von `Sum`-Gruppen erscheinen.
+- Knoten mit eigenem Wertebereich sind auf der Zeichenfläche nicht markiert (nur im Panel sichtbar).
+- Die Reihenfolge einer bestehenden Gruppe lässt sich nur umkehren; für eine andere Reihenfolge wird die Gruppe aus einer
+  neuen Auswahl erstellt.
+- `Puzzle.NextEdgeId()`/`NextNodeId`/`NextGroupId` bei Ids ≤ 0 (siehe Core-Teil) – unverändert offen.
+
+**Bekannte Probleme**
+
+- Der Generator-Dialog ist modal; Auswahl und Rätsel lassen sich während der Vorschau nicht ändern (gewollt, Nr. 133).
+- Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel-Tests, Aussehen
+  über die headless gerenderten Bilder.
 
 ## Paket 6 – Erklär-Modus (Bibliotheksteil)
 

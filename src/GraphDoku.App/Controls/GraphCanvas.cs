@@ -35,6 +35,9 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     private static readonly IBrush GroupBoundaryBrush = new ImmutableSolidColorBrush(Color.Parse("#2f3640"), 0.85);
     private static readonly IBrush HaloBrush = new ImmutableSolidColorBrush(Color.Parse("#1d64d8"), 0.28);
     private static readonly IDashStyle Dashed = new ImmutableDashStyle([4, 3], 0);
+    private static readonly IPen NotEqualPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.Parse("#8a8a8a")), 1.3, lineCap: PenLineCap.Round);
+    private static readonly IBrush SumLabelBackground = new ImmutableSolidColorBrush(Colors.White, 0.85);
+    private static readonly IBrush SumTextBrush = new ImmutableSolidColorBrush(Color.Parse("#1f2937"));
 
     /// <summary>Lösungswerte: blau und normal statt schwarz und halbfett wie Givens (Paket 4).</summary>
     public static readonly Color SolutionColor = Color.Parse("#1d4ed8");
@@ -264,9 +267,14 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         var radius = EditorGeometry.NodeRadius(puzzle.Grid) * viewport.Scale;
         DrawRaster(context, puzzle.Grid, viewport);
         DrawGroups(context, puzzle, viewport, nodes, radius);
-        DrawEdges(context, puzzle, viewport, nodes, radius);
+        DrawEdges(context, puzzle, viewport, nodes, radius, marks: false);
         DrawEdgePreview(context, puzzle, viewport, nodes);
         DrawNodes(context, puzzle, viewport, radius);
+
+        // Marken (Kropki-Punkte, Pfeile) über den Knoten: Sie liegen auf dem Spalt zwischen zwei Kreisen und würden sonst
+        // halb verdeckt.
+        DrawEdges(context, puzzle, viewport, nodes, radius, marks: true);
+        DrawSumTargets(context, puzzle, viewport, nodes, radius);
         DrawOrderBadges(context, puzzle, viewport, nodes, radius);
         DrawBranchBadge(context, puzzle, viewport, nodes, radius);
         if (_editor.RubberBand is { } band)
@@ -443,14 +451,16 @@ public sealed class GraphCanvas : Control, ICustomHitTest
                 g.EndFigure(false);
             }
 
-            context.DrawGeometry(null, new Pen(brush, Math.Max(3, radius * 0.7), lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round), line);
+            context.DrawGeometry(null, new Pen(brush, Math.Max(4, radius * 0.95), lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round), line);
         }
 
-        // Kolben am Anfang: zeigt die Richtung (Werte steigen vom Kolben weg).
-        context.DrawEllipse(brush, null, points[0], radius * 1.18, radius * 1.18);
+        // Kolben am Anfang: zeigt die Richtung (Werte steigen vom Kolben weg). Deutlich größer als der Knotenkreis, damit
+        // er neben dem weißen Kreis als Fläche zu sehen ist.
+        context.DrawEllipse(brush, null, points[0], radius * 1.3, radius * 1.3);
     }
 
-    private void DrawEdges(DrawingContext context, Puzzle puzzle, Viewport viewport, Dictionary<int, Node> nodes, double radius)
+    /// <summary>Kanten: erst nur die Linien (unter den Knoten), dann mit <paramref name="marks"/> nur die Marken (darüber).</summary>
+    private void DrawEdges(DrawingContext context, Puzzle puzzle, Viewport viewport, Dictionary<int, Node> nodes, double radius, bool marks)
     {
         foreach (var edge in puzzle.Edges)
         {
@@ -473,17 +483,26 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             var selected = _editor.SelectedEdgeId == edge.Id;
             var ruleOfStep = _editor.Explanation?.Constraint is { Kind: ConstraintKind.Edge, Id: var ruleEdgeId } && ruleEdgeId == edge.Id;
             var brush = ruleOfStep ? ExplanationRuleBrush : selected ? AccentBrush : EdgeBrush;
-            var pen = new Pen(brush, selected || ruleOfStep ? 3.2 : 1.8, known ? null : Dashed, PenLineCap.Round);
+            if (marks)
+            {
+                DrawEdgeMark(context, edge, a + (vector / 2), unit, radius, length - (2 * radius), brush, selected);
+                continue;
+            }
+
+            // „Ungleich“ hat keine Marke und kommt oft zu Dutzenden vor (Dreiecks-Sudoku: 168): dünner und heller, damit
+            // Knoten und Werte lesbar bleiben.
+            var plain = edge.Rule == "NotEqual" && !selected && !ruleOfStep;
+            var pen = plain
+                ? NotEqualPen
+                : new Pen(brush, selected || ruleOfStep ? 3.2 : 1.8, known ? null : Dashed, PenLineCap.Round);
             if (length > 2 * radius)
             {
                 context.DrawLine(pen, a + (unit * radius), b - (unit * radius));
             }
-
-            DrawEdgeMark(context, edge, a + (vector / 2), unit, radius, brush, selected);
         }
     }
 
-    private static void DrawEdgeMark(DrawingContext context, Edge edge, Point middle, Vector unit, double nodeRadius, IBrush lineBrush, bool selected)
+    private static void DrawEdgeMark(DrawingContext context, Edge edge, Point middle, Vector unit, double nodeRadius, double gap, IBrush lineBrush, bool selected)
     {
         // Markengröße relativ zum Knotenradius, damit sie auch im engeren Dreiecksgitter zwischen die Kreise passt.
         var dot = Math.Clamp(nodeRadius * 0.32, 3.5, 14);
@@ -516,8 +535,9 @@ public sealed class GraphCanvas : Control, ICustomHitTest
 
             case "LessThan":
             {
-                // Pfeil von „from“ (kleiner) nach „to“ (größer).
-                var size = Math.Clamp(nodeRadius * 0.36, 5, 16);
+                // Pfeil von „from“ (kleiner) nach „to“ (größer); höchstens so lang wie der Spalt zwischen den Kreisen
+                // (darüber hinaus läge er auf den Werten), aber nie kleiner als 5 px.
+                var size = Math.Max(5, Math.Min(Math.Clamp(nodeRadius * 0.36, 5, 16), gap * 0.42));
                 var normal = new Vector(-unit.Y, unit.X);
                 var tip = middle + (unit * size);
                 var geometry = new StreamGeometry();
@@ -530,7 +550,8 @@ public sealed class GraphCanvas : Control, ICustomHitTest
                     g.EndFigure(true);
                 }
 
-                context.DrawGeometry(lineBrush, null, geometry);
+                // Weißer Rand, damit der Pfeil auch über einer Kreislinie klar zu sehen ist.
+                context.DrawGeometry(lineBrush, new Pen(Brushes.White, 1, lineJoin: PenLineJoin.Round), geometry);
                 break;
             }
         }
@@ -780,6 +801,60 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         var rect = new Rect(position.X - (width / 2), position.Y - badge, width, badge * 2);
         context.DrawRectangle(ExplanationBranchBrush, new Pen(Brushes.White, 1.5), new RoundedRect(rect, badge));
         context.DrawText(text, new Point(position.X - (text.Width / 2), position.Y - (text.Height / 2)));
+    }
+
+    /// <summary>
+    /// Zielsumme jeder sichtbaren <c>Sum</c>-Gruppe (Killer-Käfig) klein in der Zelle, die in Leserichtung zuerst kommt
+    /// (oberste Zeile, darin ganz links): auf dem Quadratgitter in der linken oberen Ecke, sonst zur oberen linken Ecke
+    /// der Zelle hin. „?“, wenn die Zielsumme fehlt oder ungültig ist.
+    /// </summary>
+    private void DrawSumTargets(DrawingContext context, Puzzle puzzle, Viewport viewport, Dictionary<int, Node> nodes, double radius)
+    {
+        if (radius < 6)
+        {
+            return;
+        }
+
+        var editor = _editor!;
+        var size = Math.Clamp(viewport.Scale * (puzzle.Grid == GridType.Triangle ? 0.13 : 0.2), 8, 18);
+        foreach (var group in puzzle.Groups)
+        {
+            if (group.Rule != "Sum" || (!editor.IsGroupVisible(group.Id) && editor.SelectedGroupId != group.Id))
+            {
+                continue;
+            }
+
+            var members = group.Nodes.Where(nodes.ContainsKey).Select(id => nodes[id]).ToList();
+            if (members.Count == 0)
+            {
+                continue;
+            }
+
+            var anchor = EditorGeometry.RowWiseOrder(puzzle.Grid, members).First();
+            var target = SafeInt(group.Params, "target");
+            var text = CreateText(target?.ToString(CultureInfo.InvariantCulture) ?? "?", size, SumTextBrush, FontWeight.SemiBold);
+            var center = EditorGeometry.Center(puzzle.Grid, anchor);
+            var vertices = GridGeometry.GetCellVertices(puzzle.Grid, anchor.X, anchor.Y);
+
+            // Ecke der Zelle oben links (kleinste Summe x + y), Text etwas nach innen gerückt.
+            var corner = vertices.MinBy(v => v.X + v.Y);
+            var screenCorner = ToPoint(viewport.ToScreen(corner));
+            var screenCenter = ToPoint(viewport.ToScreen(center));
+            Point topLeft;
+            if (puzzle.Grid == GridType.Square)
+            {
+                topLeft = new Point(screenCorner.X + 2, screenCorner.Y + 1);
+            }
+            else
+            {
+                var inner = screenCorner + ((screenCenter - screenCorner) * 0.42);
+                topLeft = new Point(inner.X - (text.Width / 2), inner.Y - (text.Height / 2));
+            }
+
+            var box = new Rect(topLeft.X - 1.5, topLeft.Y, text.Width + 3, text.Height);
+            context.DrawRectangle(SumLabelBackground, null, new RoundedRect(box, 2));
+            context.DrawText(text, topLeft);
+        }
     }
 
     private void DrawOrderBadges(DrawingContext context, Puzzle puzzle, Viewport viewport, Dictionary<int, Node> nodes, double radius)

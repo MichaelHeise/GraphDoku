@@ -15,7 +15,7 @@ Die verbindliche Spezifikation liegt in `docs/spec/`.
 | 2 – OR-Tools-Solver | `ISolver`, Lösen, Eindeutigkeit prüfen, Zeitlimit, Abbruch | erledigt |
 | 3 – Editor | Zeichenfläche, Knoten/Kanten/Gruppen bearbeiten, Undo/Redo, Öffnen/Speichern | erledigt |
 | 4 – Lösen in der App | „Lösen“, „Eindeutigkeit prüfen“, asynchron mit Abbruch | erledigt |
-| 5 – Generator und alle Regeln im Editor | Kanten-Generator, Beispielrätsel (Killer, Kropki, Hexadoku, Dreiecksgitter) | Generator (Core) und Beispielrätsel erledigt, Editor-Oberfläche offen |
+| 5 – Generator und alle Regeln im Editor | Kanten-Generator, Beispielrätsel (Killer, Kropki, Hexadoku, Dreiecksgitter) | erledigt |
 | 6 – Erklär-Modus | Kandidaten, Propagation mit Begründung, Schrittleiste | erledigt |
 | 7 – optional: Zellformen | Dreieck, Quadrat, Sechseck als Darstellung | offen |
 
@@ -72,7 +72,11 @@ Fenster: links die **Gruppenliste**, in der Mitte die **Zeichenfläche**, rechts
 | Löschen | Entf (Mac: fn+⌫) löscht ausgewählte Knoten (mit ihren Kanten), die gewählte Kante oder Gruppe |
 | Givens | Knoten auswählen und Ziffern tippen (mehrstellig nacheinander, bei 0–15 auch A–F); ⌫ löscht Givens |
 | Kante | Werkzeug „Kante ziehen“, Regel in der Werkzeugleiste wählen, von Knoten zu Knoten ziehen; Kante anklicken, um Regel und Parameter zu ändern |
+| Kanten-Generator | „Erzeugen …“ neben der Kantenregel, Bearbeiten → Kanten erzeugen … oder Strg/Cmd+E: Abstandsregel (direkte Nachbarn, inkl. diagonal, Springerzug nur auf dem Quadratgitter, freier Abstand von–bis mit Toleranz), Regel und Parameter, bei „Kleiner als“ die Richtung, Knotenmenge (ausgewählte Knoten oder alle). Die Vorschau zeigt, wie viele Kanten entstehen und welche Paare schon eine solche Kante haben; „Kanten erzeugen“ fügt alle als **einen** Schritt für „Rückgängig“ ein |
 | Gruppe | Knoten auswählen (die Reihenfolge zählt, z. B. für Thermometer), im Panel Regel wählen, „Gruppe erstellen“ (Strg/Cmd+G); Beschriftung, Farbe, Regel, Parameter und Reihenfolge im Panel |
+| Thermometer | erste Zelle (Kolben) anklicken, dann die weiteren der Reihe nach mit Shift-Klick; die Nummern an den Knoten zeigen die Reihenfolge; „Reihenfolge umkehren“ im Gruppen-Panel |
+| Kleiner als | Kante vom kleineren zum größeren Wert ziehen; „Richtung umkehren“ im Kanten-Panel |
+| Eigener Wertebereich | Knoten auswählen, im Panel „Eigener Wertebereich“ von–bis eingeben, „Bereich setzen“; „Globalen Bereich verwenden“ entfernt ihn |
 | Gruppen hervorheben | Häkchen in der Gruppenliste bzw. „Alle ein“/„Alle aus“ |
 | Ansicht | Mausrad zoomt, mittlere/rechte Maustaste oder Leertaste + Ziehen verschiebt, „Einpassen“ (Strg/Cmd+0) |
 | Rückgängig | Strg/Cmd+Z, Wiederholen Strg/Cmd+Y oder Shift+Strg/Cmd+Z (alle Bearbeitungen) |
@@ -80,7 +84,8 @@ Fenster: links die **Gruppenliste**, in der Mitte die **Zeichenfläche**, rechts
 
 Unfertige Rätsel lassen sich speichern und wieder öffnen; was noch fehlt (z. B. eine Gruppe mit zu wenigen Knoten),
 steht im Statusbereich. Kantenmarken: Ungleich = Linie, Differenz = weißer Punkt (mit k, falls nicht 1), Verhältnis =
-schwarzer Punkt (mit Faktor, falls nicht 2), Kleiner als = Pfeil vom kleineren zum größeren Wert.
+schwarzer Punkt (mit Faktor, falls nicht 2), Kleiner als = Pfeil vom kleineren zum größeren Wert. Summen-Gruppen (Killer-Käfige)
+zeigen ihre Zielsumme klein oben links in ihrer ersten Zelle; Thermometer erscheinen als Linie mit Kolben am Anfang.
 
 ## Lösen in der App
 
@@ -132,7 +137,7 @@ außer `klassisch-leer.json` eindeutig).
 | `klassisch-leicht.json` | Klassisches 9×9, 30 Givens; der Erklär-Modus löst es ohne Verzweigung |
 | `klassisch-mittel.json` | Klassisches 9×9, 24 Givens; der Erklär-Modus braucht einige Verzweigungen |
 | `klassisch-schwer.json` | Klassisches 9×9, 21 Givens; der Erklär-Modus braucht mehrere Verzweigungen |
-| `killer-sudoku.json` | Killer-Sudoku 9×9: 28 farbige Käfige mit Summe (`Sum`), 3 Givens (Summen derzeit nur im Eigenschaften-Panel sichtbar) |
+| `killer-sudoku.json` | Killer-Sudoku 9×9: 28 farbige Käfige mit Summe (`Sum`, Summe oben links im Käfig), 3 Givens |
 | `kropki-sudoku.json` | Kropki-Sudoku 9×9: schwarze Punkte (`Ratio`, Faktor 2) und weiße Punkte (`Difference`, k = 1), 2 Givens |
 | `hexadoku-16x16.json` | Hexadoku 16×16 mit Werten 0–15 (Anzeige 0–F), Zeilen, Spalten und 4×4-Blöcke als `CoverRange`, 90 Givens |
 | `dreiecks-sudoku.json` | Dreiecks-Sudoku (Tridoku-ähnlich) auf dem Dreiecksgitter: 9 Regionen, 3 Außenseiten, sich berührende Dreiecke verschiedener Regionen ungleich (`NotEqual`), 33 Givens |

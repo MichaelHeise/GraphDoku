@@ -1,7 +1,29 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GraphDoku.App.ViewModels"
+             xmlns:views="using:GraphDoku.App.Views"
              x:Class="GraphDoku.App.App"
              RequestedThemeVariant="Light">
+  <Application.Resources>
+    <!-- Eingabefeld eines Regelparameters (aus IRule.Parameters); gemeinsam für Eigenschaften-Panel und Kanten-Generator. -->
+    <DataTemplate x:Key="RuleParameterItem" x:DataType="vm:RuleParameterViewModel">
+      <StackPanel Spacing="2" Margin="0,0,0,8">
+        <TextBlock Text="{Binding Label}" />
+        <TextBox Text="{Binding Text}" IsVisible="{Binding IsInteger}" />
+        <CheckBox Content="{Binding DisplayName}" IsChecked="{Binding BoolValue}" IsVisible="{Binding IsBoolean}" />
+        <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding ChoiceValue}" IsVisible="{Binding IsChoice}" HorizontalAlignment="Stretch">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <TextBlock Text="{Binding Converter={x:Static views:Converters.ChoiceLabel}}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Text="{Binding Description}" Foreground="#666666" FontSize="12" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding Error}" Foreground="#b42318" FontSize="12" TextWrapping="Wrap"
+                   IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      </StackPanel>
+    </DataTemplate>
+  </Application.Resources>
   <Application.Styles>
     <FluentTheme />
   </Application.Styles>

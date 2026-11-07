@@ -1,4 +1,5 @@
 using GraphDoku.App.Services;
+using GraphDoku.App.ViewModels;
 
 namespace GraphDoku.App.Tests.Helpers;
 
@@ -60,6 +61,21 @@ internal sealed class FakeDialogService : IDialogService
     {
         Errors.Add((title, message));
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Bedient den Dialog „Kanten erzeugen“: stellt das ViewModel ein und liefert true („Kanten erzeugen“) oder false
+    /// (Abbrechen). Ohne Antwort wird abgebrochen.
+    /// </summary>
+    public Func<EdgeGeneratorViewModel, bool>? EdgeGeneratorAnswer { get; set; }
+
+    /// <summary>Zuletzt gezeigter Generator-Dialog.</summary>
+    public EdgeGeneratorViewModel? LastEdgeGenerator { get; private set; }
+
+    public Task<bool> ShowEdgeGeneratorAsync(EdgeGeneratorViewModel generator)
+    {
+        LastEdgeGenerator = generator;
+        return Task.FromResult(EdgeGeneratorAnswer?.Invoke(generator) ?? false);
     }
 }
 

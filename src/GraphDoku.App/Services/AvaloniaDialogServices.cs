@@ -73,4 +73,7 @@ public sealed class AvaloniaDialogService(Window owner) : IDialogService
 
     public Task ShowErrorAsync(string title, string message) =>
         new MessageWindow(title, message, ["OK"]).ShowDialog<int>(owner);
+
+    public Task<bool> ShowEdgeGeneratorAsync(EdgeGeneratorViewModel generator) =>
+        new EdgeGeneratorWindow { DataContext = generator }.ShowDialog<bool>(owner);
 }

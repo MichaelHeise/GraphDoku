@@ -34,6 +34,7 @@ public sealed partial class EditorViewModel : ViewModelBase
         Viewport.Changed += OnViewportChanged;
         _history = CreateHistory(new Puzzle("Unbenannt"));
         AfterDocumentReplaced();
+        StatusMessage = DescribeDocument(Puzzle);
     }
 
     /// <summary>Etwas Sichtbares hat sich geändert (Modell, Auswahl, Ansicht, Gesten): neu zeichnen.</summary>
@@ -161,6 +162,22 @@ public sealed partial class EditorViewModel : ViewModelBase
         _hiddenGroups.Clear();
         AfterDocumentReplaced();
         RaiseContentChanged(documentReplaced: true, shown);
+
+        // Kontextpassende Grundmeldung statt einer veralteten Meldung des vorigen Dokuments (z. B. „Neues Rätsel …“);
+        // Öffnen, Neu und Vorlage im Hauptfenster ersetzen sie anschließend durch ihre eigene Meldung.
+        StatusMessage = DescribeDocument(puzzle);
+    }
+
+    /// <summary>
+    /// Statusmeldung für ein gerade geladenes Rätsel: bei einem leeren Rätsel der Hinweis zum Anfangen, sonst Name und
+    /// Umfang.
+    /// </summary>
+    public static string DescribeDocument(Puzzle puzzle)
+    {
+        ArgumentNullException.ThrowIfNull(puzzle);
+        return puzzle.Nodes.Count == 0
+            ? $"Leeres Rätsel „{puzzle.Name}“ ({GridNames.ToGerman(puzzle.Grid)}, Werte {puzzle.Domain}). Mit „Knoten setzen“ Knoten auf das Gitter setzen oder eine Vorlage wählen."
+            : $"Rätsel „{puzzle.Name}“: {puzzle.Nodes.Count} Knoten, {puzzle.Edges.Count} Kanten, {puzzle.Groups.Count} Gruppen.";
     }
 
     /// <summary>Führt eine Bearbeitung als Undo-Schritt aus.</summary>
