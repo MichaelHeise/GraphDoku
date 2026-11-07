@@ -27,6 +27,15 @@ public static class EdgeMarks
     public static double ArrowSize(double nodeRadius, double gap) => Math.Max(5, Math.Min(Math.Clamp(nodeRadius * 0.36, 5, 16), gap * 0.42));
 
     /// <summary>
+    /// Umriss des Pfeils relativ zu seiner Mitte in Vielfachen von <see cref="ArrowSize"/>: je (längs der Kante, quer
+    /// dazu) die Spitze, eine hintere Ecke, die Kerbe und die andere hintere Ecke.
+    /// </summary>
+    public static IReadOnlyList<(double Along, double Across)> ArrowOutline { get; } = [(1, 0), (-1, 0.75), (-0.45, 0), (-1, -0.75)];
+
+    /// <summary>Abstand der hinteren Pfeilecken von der Mitte in Vielfachen von <see cref="ArrowSize"/>: √(1² + 0,75²).</summary>
+    private const double ArrowCornerReach = 1.25;
+
+    /// <summary>
     /// Beschriftung des Punkts: „Differenz“ k (mit „≥“ bei „mindestens“), nicht bei k = 1; „Verhältnis“ der Faktor, nicht
     /// bei 2. null = ohne Beschriftung (auch bei Regeln ohne Punkt).
     /// </summary>
@@ -48,7 +57,8 @@ public static class EdgeMarks
     }
 
     /// <summary>
-    /// Radius der gezeichneten Marke um ihren Mittelpunkt (Punkt samt Beschriftung, beim Pfeil seine halbe Länge).
+    /// Radius des Kreises um den Mittelpunkt, der die gezeichnete Marke umschließt (Punkt samt Beschriftung, beim Pfeil
+    /// bis zu seinen hinteren Ecken).
     /// <paramref name="measureLabel"/> misst eine Beschriftung (Text, Schriftgröße → Breite, Höhe); ohne Messung zählt
     /// nur der unbeschriftete Punkt.
     /// </summary>
@@ -57,7 +67,7 @@ public static class EdgeMarks
         ArgumentNullException.ThrowIfNull(edge);
         if (edge.Rule == "LessThan")
         {
-            return ArrowSize(nodeRadius, gap);
+            return ArrowSize(nodeRadius, gap) * ArrowCornerReach;
         }
 
         var dot = DotRadius(nodeRadius);
@@ -68,6 +78,52 @@ public static class EdgeMarks
 
         var (width, height) = measureLabel(label, LabelFontSize(dot));
         return LabeledDotRadius(dot, width, height);
+    }
+
+    /// <summary>
+    /// Liegt ein Punkt auf der gezeichneten Marke? <paramref name="dx"/>/<paramref name="dy"/> ist sein Abstand von der
+    /// Markenmitte in Pixeln, <paramref name="unitX"/>/<paramref name="unitY"/> die Richtung der Kante (Einheitsvektor
+    /// von „from“ nach „to“). Ein Punkt zählt in seinem Kreis (<see cref="Radius"/>), ein Pfeil genau in seinem Umriss
+    /// (<see cref="ArrowOutline"/>) – ohne Toleranz, denn die Marke liegt nur dort über den Knoten, wo sie gezeichnet ist.
+    /// </summary>
+    public static bool Contains(
+        Edge edge,
+        double nodeRadius,
+        double gap,
+        Func<string, double, (double Width, double Height)>? measureLabel,
+        double dx,
+        double dy,
+        double unitX,
+        double unitY)
+    {
+        ArgumentNullException.ThrowIfNull(edge);
+        if (edge.Rule == "LessThan")
+        {
+            var size = ArrowSize(nodeRadius, gap);
+            var along = ((dx * unitX) + (dy * unitY)) / size;
+            var across = ((dy * unitX) - (dx * unitY)) / size; // Querrichtung (-unitY, unitX) wie beim Zeichnen
+            return InPolygon(along, across, ArrowOutline);
+        }
+
+        var radius = Radius(edge, nodeRadius, gap, measureLabel);
+        return (dx * dx) + (dy * dy) <= radius * radius;
+    }
+
+    /// <summary>Punkt im Vieleck (Strahlverfahren, gerade/ungerade Kreuzungszahl).</summary>
+    private static bool InPolygon(double x, double y, IReadOnlyList<(double X, double Y)> polygon)
+    {
+        var inside = false;
+        for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
+        {
+            var (xi, yi) = polygon[i];
+            var (xj, yj) = polygon[j];
+            if ((yi > y) != (yj > y) && x < ((xj - xi) * (y - yi) / (yj - yi)) + xi)
+            {
+                inside = !inside;
+            }
+        }
+
+        return inside;
     }
 
     private static int? SafeInt(RuleParams parameters, string name)

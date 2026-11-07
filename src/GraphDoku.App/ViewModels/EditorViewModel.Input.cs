@@ -670,7 +670,8 @@ public sealed partial class EditorViewModel
     /// <summary>
     /// Kante in der Nähe des Weltpunkts (Toleranz in Pixeln). Bei Kreisen zählt die ganze Strecke zwischen den
     /// Mittelpunkten und die gezeichnete Marke (<see cref="EdgeMarks.Radius"/>, mindestens die Toleranz), mit
-    /// <paramref name="marksOnly"/> nur die Marke. Bei Zellen nur die Marke und die sichtbaren Stege über den Zellrändern
+    /// <paramref name="marksOnly"/> (Prüfung vor den Knoten) nur die Marke genau so weit, wie sie gezeichnet ist
+    /// (<see cref="EdgeMarks.Contains"/>, ohne Toleranz). Bei Zellen nur die Marke und die sichtbaren Stege über den Zellrändern
     /// (<see cref="EditorGeometry.CellEdgeStubTargets"/>), und zwar nur rund um die Stelle, an der die Kante den Rand
     /// kreuzt – höchstens eine halbe Steglänge weit, auch wenn die Toleranz in Pixeln größer wäre –, und nie im
     /// Freihaltekreis um die Mitte der getroffenen Zelle. So trifft ein Klick ins Innere einer Zelle und in ihre Ecken
@@ -697,9 +698,14 @@ public sealed partial class EditorViewModel
             var from = EditorGeometry.Center(Puzzle.Grid, a);
             var to = EditorGeometry.Center(Puzzle.Grid, b);
             double distance;
-            if (!cells)
+            if (marksOnly)
             {
-                distance = marksOnly ? double.MaxValue : EditorGeometry.DistanceToSegment(world, from, to);
+                // Vor dem Knoten nur die gezeichnete Marke selbst, ohne Toleranz: Daneben liegt der Knoten oben (I1).
+                distance = !cells && EdgeHasMark(edge.Rule) && HitsDrawnMark(edge, world, from, to, clear) ? 0 : double.MaxValue;
+            }
+            else if (!cells)
+            {
+                distance = EditorGeometry.DistanceToSegment(world, from, to);
                 if (EdgeHasMark(edge.Rule))
                 {
                     var (mark, gap) = EditorGeometry.EdgeMarkPosition(from, to, clear, NodesNear(from, to, clear));
@@ -724,7 +730,8 @@ public sealed partial class EditorViewModel
                 }
             }
 
-            if (distance <= tolerance && distance < bestDistance)
+            // Gleichstand bei 0 (mehrere Marken übereinander): Die zuletzt gezeichnete liegt oben und gewinnt.
+            if (distance <= tolerance && (distance < bestDistance || distance == 0))
             {
                 best = edge;
                 bestDistance = distance;
@@ -732,6 +739,29 @@ public sealed partial class EditorViewModel
         }
 
         return best;
+    }
+
+    /// <summary>Liegt der Weltpunkt auf der gezeichneten Marke der Kante (Kreisdarstellung, <see cref="EdgeMarks.Contains"/>)?</summary>
+    private bool HitsDrawnMark(Edge edge, WorldPoint world, WorldPoint from, WorldPoint to, double clear)
+    {
+        var length = from.DistanceTo(to);
+        if (length < 1e-9)
+        {
+            return false;
+        }
+
+        var (mark, gap) = EditorGeometry.EdgeMarkPosition(from, to, clear, NodesNear(from, to, clear));
+        var scale = Viewport.Scale;
+        var nodeRadius = EditorGeometry.ContentRadius(Puzzle.Grid, NodeShape) * scale;
+        return EdgeMarks.Contains(
+            edge,
+            nodeRadius,
+            gap * scale,
+            MeasureMarkLabel,
+            (world.X - mark.X) * scale,
+            (world.Y - mark.Y) * scale,
+            (to.X - from.X) / length,
+            (to.Y - from.Y) / length);
     }
 
     /// <summary>Regeln mit Marke auf der Kante (Kropki-Punkte, Pfeil); „Ungleich“ ist nur eine Linie.</summary>

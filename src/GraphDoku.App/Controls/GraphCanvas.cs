@@ -610,14 +610,23 @@ public sealed class GraphCanvas : Control, ICustomHitTest
                 // Pfeil von „from“ (kleiner) nach „to“ (größer).
                 var size = EdgeMarks.ArrowSize(nodeRadius, gap);
                 var normal = new Vector(-unit.Y, unit.X);
-                var tip = middle + (unit * size);
+                var outline = EdgeMarks.ArrowOutline; // gemeinsam mit dem Treffertest (EdgeMarks.Contains)
                 var geometry = new StreamGeometry();
                 using (var g = geometry.Open())
                 {
-                    g.BeginFigure(tip, true);
-                    g.LineTo(middle - (unit * size) + (normal * size * 0.75));
-                    g.LineTo(middle - (unit * size * 0.45));
-                    g.LineTo(middle - (unit * size) - (normal * size * 0.75));
+                    for (var i = 0; i < outline.Count; i++)
+                    {
+                        var corner = middle + (unit * size * outline[i].Along) + (normal * size * outline[i].Across);
+                        if (i == 0)
+                        {
+                            g.BeginFigure(corner, true);
+                        }
+                        else
+                        {
+                            g.LineTo(corner);
+                        }
+                    }
+
                     g.EndFigure(true);
                 }
 
