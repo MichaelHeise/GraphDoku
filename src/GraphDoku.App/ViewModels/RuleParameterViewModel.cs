@@ -78,6 +78,7 @@ public sealed partial class RuleParameterViewModel : ViewModelBase
         {
             current.TryGetValue(Name, out var value);
             var present = current.Contains(Name);
+            string? error = null;
             switch (Definition.Type)
             {
                 case RuleParameterType.Integer:
@@ -97,6 +98,9 @@ public sealed partial class RuleParameterViewModel : ViewModelBase
                         Text = text;
                     }
 
+                    // Ein ungültiger Wert aus dem Modell (z. B. „abc“ oder 5.5 aus einer Datei) wird angezeigt und
+                    // gleich als Fehler markiert, damit Feld und Fehlermeldung zusammenpassen.
+                    error = IntegerError(Text);
                     break;
                 case RuleParameterType.Boolean:
                     BoolValue = present
@@ -110,7 +114,7 @@ public sealed partial class RuleParameterViewModel : ViewModelBase
                     break;
             }
 
-            Error = null;
+            Error = error;
         }
         finally
         {
@@ -157,9 +161,7 @@ public sealed partial class RuleParameterViewModel : ViewModelBase
         }
     }
 
-    partial void OnTextChanged(string value) => Notify(TryParse(value, out _) || string.IsNullOrWhiteSpace(value)
-        ? null
-        : "Bitte eine ganze Zahl eingeben.");
+    partial void OnTextChanged(string value) => Notify(IntegerError(value));
 
     partial void OnBoolValueChanged(bool value) => Notify(null);
 
@@ -178,6 +180,10 @@ public sealed partial class RuleParameterViewModel : ViewModelBase
             _changed(this);
         }
     }
+
+    private static string? IntegerError(string? text) => TryParse(text, out _) || string.IsNullOrWhiteSpace(text)
+        ? null
+        : "Bitte eine ganze Zahl eingeben.";
 
     private static bool TryParse(string? text, out int value) =>
         int.TryParse(text?.Trim(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out value);
