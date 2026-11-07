@@ -711,11 +711,16 @@ public sealed partial class EditorViewModel
                 if (edge.Rule == "LessThan")
                 {
                     // Der Pfeil nach seinem Umriss, nicht nach seinem Umkreis: Dessen leere Ecken schlugen sonst eine
-                    // genau getroffene nahe Linie (A1).
+                    // genau getroffene nahe Linie (A1). Dafür reicht er an Spitze und hinteren Ecken bis zur Toleranz
+                    // über den Umriss hinaus, also weiter als früher der Umkreis (klein gezoomt etwa 11 px vor der
+                    // Spitze); gegen nahe Linien gilt weiterhin der kleinste Abstand.
                     distance = Math.Min(distance, DistanceToDrawnArrow(world, from, to, clear));
                 }
                 else if (EdgeHasMark(edge.Rule))
                 {
+                    // Punkte zählen bewusst nur bis zu ihrem gezeichneten Rand (mindestens die Toleranz), mit Abstand
+                    // 0 erst innerhalb von Radius minus Toleranz – so festgelegt in den Tests zu großen und beschrifteten
+                    // Punkten. Ein Klick in den Punkt wählt ihn ohnehin schon vor den Knoten (marksOnly).
                     var (mark, gap) = EditorGeometry.EdgeMarkPosition(from, to, clear, NodesNear(from, to, clear));
                     var radius = Math.Max(tolerance, EdgeMarks.Radius(edge, nodeRadius, gap * Viewport.Scale, MeasureMarkLabel) / Viewport.Scale);
                     distance = Math.Min(distance, Math.Max(0, mark.DistanceTo(world) - radius + tolerance));
