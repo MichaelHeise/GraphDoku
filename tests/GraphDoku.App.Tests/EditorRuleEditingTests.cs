@@ -1,3 +1,4 @@
+using System.Text.Json;
 using GraphDoku.App.Editing;
 using GraphDoku.App.Tests.Helpers;
 using GraphDoku.App.ViewModels;
@@ -118,6 +119,84 @@ public class EditorRuleEditingTests
         panel.Endpoints.Should().Be("Von Knoten 2 nach Knoten 1 (Wert bei 2 < Wert bei 1)");
         panel.ReverseCommand.Execute(null);
         (editor.Puzzle.Edges.Single().From, editor.Puzzle.Edges.Single().To).Should().Be((1, 2));
+    }
+
+    [Fact]
+    public void Invalid_parameter_text_is_reset_when_undo_reloads_the_panel()
+    {
+        var editor = EditorDriver.CreateEditor(Grid(3, 1));
+        editor.NewGroupRule = editor.GroupRules.Single(r => r.TypeName == "CoverRange");
+        editor.SelectNodes([1, 2, 3]);
+        editor.CreateGroupFromSelection();
+        var panel = editor.Properties.Should().BeOfType<GroupPropertiesViewModel>().Subject;
+        var min = panel.Parameters.Single(p => p.Name == "min");
+        var max = panel.Parameters.Single(p => p.Name == "max");
+        min.Text.Should().BeEmpty("„min“ ist optional und fehlt");
+
+        max.Text = "3";
+        min.Text = "x";
+        min.Error.Should().NotBeNull();
+
+        editor.UndoCommand.Execute(null); // nimmt „max = 3“ zurück und lädt das Panel neu
+
+        editor.Properties.Should().BeSameAs(panel);
+        editor.Puzzle.Groups.Single().Params.Contains("min").Should().BeFalse();
+        min.Text.Should().BeEmpty("das Feld zeigt den Stand des Modells statt der ungültigen Eingabe ohne Fehlermeldung");
+        min.Error.Should().BeNull();
+    }
+
+    [Fact]
+    public void Blank_parameter_text_is_kept_when_the_parameter_is_absent()
+    {
+        var definition = new RuleParameter("factor", RuleParameterType.Integer, "Faktor");
+        var parameter = new RuleParameterViewModel(definition, new RuleParams(), _ => { }) { Text = "  " };
+
+        parameter.Load(new RuleParams());
+
+        parameter.Text.Should().Be("  ", "Leerzeichen und ein fehlender Parameter sind gleichwertig (Cursor bleibt stehen)");
+        parameter.Error.Should().BeNull();
+    }
+
+    [Fact]
+    public void Invalid_parameter_text_is_reset_when_another_parameter_of_the_panel_is_edited()
+    {
+        var editor = EditorDriver.CreateEditor(Grid(3, 1));
+        editor.NewGroupRule = editor.GroupRules.Single(r => r.TypeName == "CoverRange");
+        editor.SelectNodes([1, 2, 3]);
+        editor.CreateGroupFromSelection();
+        var panel = editor.Properties.Should().BeOfType<GroupPropertiesViewModel>().Subject;
+        var min = panel.Parameters.Single(p => p.Name == "min");
+        var max = panel.Parameters.Single(p => p.Name == "max");
+
+        min.Text = "x";
+        min.Error.Should().NotBeNull();
+
+        max.Text = "3"; // gültige Änderung in einem anderen Feld lädt das ganze Panel neu
+
+        editor.Properties.Should().BeSameAs(panel);
+        editor.Puzzle.Groups.Single().Params.Contains("max").Should().BeTrue();
+        min.Text.Should().BeEmpty("beabsichtigt: ungültige Eingaben anderer Felder werden auf den Stand des Modells zurückgesetzt");
+        min.Error.Should().BeNull();
+        max.Text.Should().Be("3");
+    }
+
+    [Theory]
+    [InlineData("\"abc\"", "abc")]
+    [InlineData("5.5", "5.5")]
+    public void Invalid_model_value_is_shown_with_an_error(string json, string expectedText)
+    {
+        var definition = new RuleParameter("factor", RuleParameterType.Integer, "Faktor");
+        var current = new RuleParams().SetRaw("factor", JsonDocument.Parse(json).RootElement.Clone());
+
+        var parameter = new RuleParameterViewModel(definition, current, _ => { });
+
+        parameter.Text.Should().Be(expectedText);
+        parameter.Error.Should().Be("Bitte eine ganze Zahl eingeben.");
+
+        parameter.Load(new RuleParams().Set("factor", 4));
+
+        parameter.Text.Should().Be("4");
+        parameter.Error.Should().BeNull();
     }
 
     [Fact]

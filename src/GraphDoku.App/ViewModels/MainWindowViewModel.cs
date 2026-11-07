@@ -107,7 +107,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        if (await PickPathAsync(_files.PickOpenPathAsync, "Öffnen fehlgeschlagen").ConfigureAwait(true) is { } path)
+        // Die Auswahl ist nicht auf jeder Plattform modal: Wurde währenddessen bearbeitet, erneut nachfragen.
+        var version = Editor.ContentVersion;
+        if (await PickPathAsync(_files.PickOpenPathAsync, "Öffnen fehlgeschlagen").ConfigureAwait(true) is { } path
+            && (version == Editor.ContentVersion || await ConfirmDiscardChangesAsync().ConfigureAwait(true)))
         {
             await OpenFileAsync(path).ConfigureAwait(true);
         }

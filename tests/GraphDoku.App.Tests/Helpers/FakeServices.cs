@@ -15,9 +15,13 @@ internal sealed class FakeFileDialogService : IFileDialogService
     /// <summary>Wird von der nächsten Auswahl geworfen (z. B. Datei ohne lokalen Pfad), danach zurückgesetzt.</summary>
     public Exception? NextFailure { get; set; }
 
+    /// <summary>Läuft während der Öffnen-Auswahl (nicht modaler Dialog: der Benutzer bearbeitet weiter).</summary>
+    public Action? DuringOpenPick { get; set; }
+
     public Task<string?> PickOpenPathAsync()
     {
         ThrowIfFailing();
+        DuringOpenPick?.Invoke();
         return Task.FromResult(OpenPaths.Count > 0 ? OpenPaths.Dequeue() : null);
     }
 

@@ -285,6 +285,38 @@ public sealed class SolveViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Exception_of_a_search_for_a_replaced_puzzle_is_reported_as_outdated()
+    {
+        _solver.Block = true;
+        _solver.ThrowAfterWait = new InvalidOperationException("Fehler im alten Lauf");
+        var running = Solve.SolveCommand.ExecuteAsync(null);
+        _solver.WaitUntilStarted();
+
+        Editor.LoadPuzzle(ClassicSudoku.Create());
+        await running.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Solve.Outcome.Should().Be(SolveOutcome.Outdated, "der Fehler gehört zum alten Rätsel, nicht zum neu geladenen");
+        Solve.Severity.Should().Be(ResultSeverity.Warning);
+        Solve.ResultMessage.Should().Contain("anderes Rätsel");
+    }
+
+    [Fact]
+    public async Task Exception_of_a_search_after_an_edit_is_reported_as_outdated()
+    {
+        _solver.Block = true;
+        _solver.ThrowAfterWait = new InvalidOperationException("Fehler im alten Lauf");
+        var running = Solve.CheckUniquenessCommand.ExecuteAsync(null);
+        _solver.WaitUntilStarted();
+
+        EditPuzzle();
+        _solver.Release();
+        await running.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Solve.Outcome.Should().Be(SolveOutcome.Outdated);
+        Solve.ResultMessage.Should().Contain("während der Suche geändert");
+    }
+
+    [Fact]
     public async Task Unsolvable_puzzle_is_reported_as_error()
     {
         await Solve.SolveCommand.ExecuteAsync(null);

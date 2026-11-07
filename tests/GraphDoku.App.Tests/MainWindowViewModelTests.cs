@@ -132,6 +132,42 @@ public sealed class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Edits_made_while_the_open_picker_is_shown_are_asked_for_again()
+    {
+        var viewModel = Create();
+        var path = _temp.File("andere.graphdoku.json");
+        PuzzleSerializer.Save(ClassicSudoku.Create(), path);
+        _files.OpenPaths.Enqueue(path);
+        _files.DuringOpenPick = () => MakeEdit(viewModel);
+        _dialogs.UnsavedChangesAnswer = UnsavedChangesChoice.Cancel;
+
+        await viewModel.OpenCommand.ExecuteAsync(null);
+
+        _dialogs.UnsavedChangesQuestions.Should().Be(1, "die Bearbeitung während der Auswahl ist ungespeichert");
+        viewModel.Editor.Puzzle.Nodes.Should().HaveCount(1, "„Abbrechen“ behält das bearbeitete Dokument");
+        viewModel.FilePath.Should().BeNull();
+        viewModel.Editor.IsDirty.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Discarding_again_after_the_open_picker_loads_the_file()
+    {
+        var viewModel = Create();
+        MakeEdit(viewModel);
+        var path = _temp.File("andere.graphdoku.json");
+        PuzzleSerializer.Save(ClassicSudoku.Create(), path);
+        _files.OpenPaths.Enqueue(path);
+        _files.DuringOpenPick = () => viewModel.Editor.Click(new GridPoint(14, 14)); // zweiter Knoten
+        _dialogs.UnsavedChangesAnswer = UnsavedChangesChoice.Discard;
+
+        await viewModel.OpenCommand.ExecuteAsync(null);
+
+        _dialogs.UnsavedChangesQuestions.Should().Be(2, "vor und nach der Auswahl wurde bearbeitet");
+        viewModel.Editor.Puzzle.Nodes.Should().HaveCount(81);
+        viewModel.FilePath.Should().Be(path);
+    }
+
+    [Fact]
     public async Task Save_choice_in_the_unsaved_changes_question_saves_first()
     {
         var viewModel = Create();

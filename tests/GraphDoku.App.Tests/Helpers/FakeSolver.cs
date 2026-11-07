@@ -27,6 +27,9 @@ internal sealed class FakeSolver : ISolver, IDisposable
     /// <summary>Ausnahme, die der nächste Aufruf wirft.</summary>
     public Exception? Throw { get; set; }
 
+    /// <summary>Ausnahme, die der nächste Aufruf erst nach dem Warten (Freigabe oder Abbruch) wirft.</summary>
+    public Exception? ThrowAfterWait { get; set; }
+
     public List<SolverOptions> ReceivedOptions { get; } = [];
 
     public List<Puzzle> ReceivedPuzzles { get; } = [];
@@ -86,6 +89,12 @@ internal sealed class FakeSolver : ISolver, IDisposable
         }
 
         WasCancelled = token.IsCancellationRequested;
+        if (ThrowAfterWait is { } exception)
+        {
+            ThrowAfterWait = null;
+            throw exception;
+        }
+
         return WasCancelled;
     }
 }
