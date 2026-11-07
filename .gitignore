@@ -44,3 +44,6 @@ Desktop.ini
 
 # Lokaler NuGet-Cache der CI
 .nuget/
+
+# Lokale Arbeitsverzeichnisse von Claude Code (Worktrees)
+.claude/worktrees/
