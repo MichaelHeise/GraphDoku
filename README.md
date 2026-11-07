@@ -19,7 +19,9 @@ Die verbindliche Spezifikation liegt in `docs/spec/`.
 | 6 – Erklär-Modus | Kandidaten, Propagation mit Begründung, Schrittleiste | erledigt |
 | 7 – optional: Zellformen | Dreieck, Quadrat, Sechseck als Darstellung | erledigt |
 
-Details: `docs/progress.md`; Abweichungen von der Spezifikation: `docs/decisions.md`.
+Alle sieben Pakete sind umgesetzt. Zusammenfassung mit allen Abweichungen vom Plan, offenen Punkten und
+Qualitätssicherung: [`docs/implementation-summary.md`](docs/implementation-summary.md). Details: `docs/progress.md`;
+Entscheidungen und Abweichungen einzeln begründet: `docs/decisions.md`.
 
 ## Regelkatalog (Version 1)
 
@@ -169,6 +171,7 @@ docs/
   spec/                  Spezifikation (Projektkonzept, Agenten-Anleitung)
   decisions.md           Entscheidungen und Abweichungen
   progress.md            Fortschritt pro Paket
+  implementation-summary.md  Zusammenfassung der Umsetzung (Abweichungen, offene Punkte)
 ```
 
 Abhängigkeiten nur in diese Richtung: App → Explainer → Solver → Core (die App darf auch direkt auf Solver und Core

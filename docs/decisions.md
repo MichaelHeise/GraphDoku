@@ -760,7 +760,7 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
     stören den Generator nicht, weil er nur über die Endknoten vergleicht.
     `Puzzle.NextEdgeId()` selbst wurde nicht geändert, weil der Editor es ebenfalls nutzt (die App war im Branch des
     Generators nicht zu ändern); dort besteht dieselbe Lücke für einzeln gezogene Kanten sowie für
-    `NextNodeId`/`NextGroupId` – offen, siehe `docs/progress.md`, Paket 5.
+    `NextNodeId`/`NextGroupId` – offen, siehe `docs/progress.md`, Paket 5. (Für den Editor erledigt durch Nr. 166.)
 
 ### Beispielrätsel
 

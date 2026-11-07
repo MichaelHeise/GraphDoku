@@ -235,9 +235,9 @@ Entscheidungen: Nr. 116–132.
 
 - ~~Editor-Oberfläche für den Generator~~ – erledigt, siehe „Paket 5 – Editor-Teil“.
 - ~~Käfigsummen werden auf der Zeichenfläche nicht angezeigt~~ – erledigt, siehe „Paket 5 – Editor-Teil“ (Nr. 141).
-- `Puzzle.NextEdgeId()` (wie `NextNodeId`/`NextGroupId`) kann bei einer ungeprüft geöffneten Datei mit Ids ≤ 0 selbst
+- ~~`Puzzle.NextEdgeId()` (wie `NextNodeId`/`NextGroupId`) kann bei einer ungeprüft geöffneten Datei mit Ids ≤ 0 selbst
   eine Id ≤ 0 liefern; der Generator umgeht das (Nr. 124), der Editor für einzeln gezogene Kanten, Knoten und Gruppen
-  noch nicht.
+  noch nicht.~~ Im Editor erledigt im Abschluss-Review (Nr. 166); `Puzzle.Next…Id()` in Core bleibt unverändert.
 
 **Bekannte Probleme / Hinweise**
 
@@ -600,3 +600,10 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 - `docs/decisions.md` Nr. 9: Aussage „keine zusätzlichen Systempakete auf Linux“ als durch Nr. 48 überholt markiert.
 - `THIRD-PARTY-NOTICES.md`: transitive Abhängigkeit `Avalonia.FreeDesktop.AtSpi` 12.1.5 (MIT, Linux-Desktop) ergänzt.
 - Keine Code-Änderungen, daher keine neuen Tests.
+
+## Abschluss
+
+- Alle Pakete 1–7 sind erledigt. Die Zusammenfassung der Umsetzung mit allen Abweichungen vom Plan, den
+  zusammengeführten offenen Punkten und der Qualitätssicherung steht in `docs/implementation-summary.md`.
+- Offen über alle Pakete hinweg: erster Lauf auf dem echten Gitea-Runner, Handtest am Desktop, Bestätigung von
+  Stufe 0 des Erklär-Modus (Nr. 95) durch den Projektinhaber.
