@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:GraphDoku.App.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
+        x:Class="GraphDoku.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="{Binding Title}"
+        Width="900" Height="600">
+  <Design.DataContext>
+    <vm:MainWindowViewModel />
+  </Design.DataContext>
+
+  <DockPanel Margin="24">
+    <StackPanel DockPanel.Dock="Top" Spacing="12">
+      <TextBlock Text="{Binding Headline}" FontSize="24" FontWeight="SemiBold" />
+      <TextBlock Text="{Binding Placeholder}" TextWrapping="Wrap" />
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <Button Content="Klassisches 9×9 erzeugen" Command="{Binding CreateClassicSudokuCommand}" />
+        <TextBlock Text="{Binding Status}" VerticalAlignment="Center" />
+      </StackPanel>
+      <TextBlock Text="Registrierte Regeltypen:" FontWeight="SemiBold" Margin="0,12,0,0" />
+    </StackPanel>
+    <ItemsControl ItemsSource="{Binding AvailableRules}" />
+  </DockPanel>
+</Window>

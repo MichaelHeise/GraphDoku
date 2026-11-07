@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GraphDoku.Explainer</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GraphDoku.Solver\GraphDoku.Solver.csproj" />
+    <ProjectReference Include="..\GraphDoku.Core\GraphDoku.Core.csproj" />
+  </ItemGroup>
+</Project>

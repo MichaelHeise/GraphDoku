@@ -1,0 +1,43 @@
+# Hinweise zu Komponenten Dritter
+
+GraphDoku selbst ist proprietär (siehe `LICENSE`). Die folgenden NuGet-Pakete werden verwendet und stehen unter ihren
+eigenen Lizenzen. Die Lizenztexte liegen den jeweiligen Paketen bei bzw. sind über die angegebenen Projektseiten
+abrufbar.
+
+## Direkt referenzierte Pakete
+
+| Paket | Version | Lizenz | Verwendung | Projekt |
+| --- | --- | --- | --- | --- |
+| Google.OrTools (inkl. `Google.OrTools.runtime.*`) | 9.15.6755 | Apache-2.0 | Solver (CP-SAT) | https://github.com/google/or-tools |
+| Avalonia, Avalonia.Desktop, Avalonia.Themes.Fluent | 12.1.5 | MIT | Benutzeroberfläche | https://github.com/AvaloniaUI/Avalonia |
+| Avalonia.Fonts.Inter | 12.1.5 | MIT (Paket); Schrift Inter: SIL Open Font License 1.1 | Standardschrift | https://github.com/rsms/inter |
+| CommunityToolkit.Mvvm | 8.4.2 | MIT | MVVM | https://github.com/CommunityToolkit/dotnet |
+
+## Nur für Tests (werden nicht ausgeliefert)
+
+| Paket | Version | Lizenz | Projekt |
+| --- | --- | --- | --- |
+| xunit | 2.9.3 | Apache-2.0 | https://github.com/xunit/xunit |
+| xunit.runner.visualstudio | 3.1.5 | Apache-2.0 | https://github.com/xunit/visualstudio.xunit |
+| Microsoft.NET.Test.Sdk | 18.11.0 | MIT | https://github.com/microsoft/vstest |
+| FluentAssertions | 7.2.2 | Apache-2.0 | https://github.com/fluentassertions/fluentassertions |
+
+FluentAssertions wird bewusst in Version 7 verwendet: Ab Version 8 steht das Paket unter einer kommerziellen Lizenz
+(Xceed), die für dieses proprietäre Projekt nicht vorgesehen ist.
+
+## Wesentliche transitive Abhängigkeiten
+
+| Paket | Lizenz | Herkunft |
+| --- | --- | --- |
+| Google.Protobuf | BSD-3-Clause | OR-Tools |
+| SkiaSharp, SkiaSharp.NativeAssets.* (enthält Skia, BSD-3-Clause) | MIT | Avalonia |
+| HarfBuzzSharp, HarfBuzzSharp.NativeAssets.* (enthält HarfBuzz, „Old MIT“) | MIT | Avalonia |
+| Avalonia.Angle.Windows.Natives (ANGLE) | BSD-3-Clause | Avalonia (nur Windows) |
+| Avalonia.Native, Avalonia.X11, Avalonia.Win32, Avalonia.FreeDesktop, Avalonia.Skia, Avalonia.HarfBuzz, Avalonia.Remote.Protocol | MIT | Avalonia |
+| Avalonia.BuildServices (Build-Telemetrie, im Repo deaktiviert, siehe `docs/decisions.md`) | MIT | Avalonia |
+| Tmds.DBus.Protocol | MIT | Avalonia (Linux) |
+| MicroCom.Runtime | MIT | Avalonia |
+| System.* / Microsoft.* (z. B. System.Drawing.Common, Microsoft.TestPlatform.*) | MIT | .NET / Test-SDK |
+| xunit.abstractions, xunit.assert, xunit.core, xunit.extensibility.*, xunit.analyzers | Apache-2.0 | xUnit |
+
+Die vollständige Liste liefert `dotnet list GraphDoku.sln package --include-transitive`.

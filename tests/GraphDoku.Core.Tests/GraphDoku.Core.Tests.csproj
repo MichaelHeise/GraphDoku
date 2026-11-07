@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GraphDoku.Core.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GraphDoku.Core\GraphDoku.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\puzzles\*.json" LinkBase="puzzles" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

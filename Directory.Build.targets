@@ -1,0 +1,7 @@
+<Project>
+  <!--
+    Avalonia.BuildServices (transitive Abhängigkeit von Avalonia) sendet beim Build anonyme Telemetrie.
+    Das Ziel wird hier durch ein leeres Ziel gleichen Namens ersetzt; zusätzlich setzt die CI AVALONIA_TELEMETRY_OPTOUT=1.
+  -->
+  <Target Name="AvaloniaStats" />
+</Project>

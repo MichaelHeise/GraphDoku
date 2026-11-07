@@ -1,0 +1,46 @@
+# .NET Build-Ausgaben
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+publish/
+*.nupkg
+*.snupkg
+
+# Testergebnisse
+TestResults/
+*.trx
+coverage*.json
+coverage*.xml
+*.coverage
+
+# Benutzer- und IDE-Dateien
+*.user
+*.suo
+*.userprefs
+*.rsuser
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.sln.iml
+.fleet/
+*.swp
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Lokaler NuGet-Cache der CI
+.nuget/

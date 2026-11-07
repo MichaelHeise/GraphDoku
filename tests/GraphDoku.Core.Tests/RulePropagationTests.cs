@@ -1,0 +1,267 @@
+using GraphDoku.Core.Candidates;
+using GraphDoku.Core.Model;
+using GraphDoku.Core.Rules;
+
+namespace GraphDoku.Core.Tests;
+
+public class RulePropagationTests
+{
+    /// <summary>Wendet die Regel einmal an und liefert die Kandidaten danach.</summary>
+    private static (CandidateState State, IReadOnlyList<CandidateChange> Changes) Run(
+        IConstraint constraint,
+        Puzzle p,
+        params (int Node, int[] Candidates)[] setup)
+    {
+        var state = CandidateState.FromPuzzle(p);
+        foreach (var (node, candidates) in setup)
+        {
+            foreach (var value in state.GetCandidates(node).Except(candidates).ToList())
+            {
+                state.Remove(node, value);
+            }
+        }
+
+        var changes = RuleRegistry.Default.Get(constraint.Rule).Propagate(state, constraint);
+        foreach (var change in changes)
+        {
+            state.Apply(change);
+        }
+
+        return (state, changes);
+    }
+
+    [Fact]
+    public void Propagate_does_not_modify_the_state()
+    {
+        var p = TestPuzzles.WithNodes(2);
+        var state = CandidateState.FromPuzzle(p);
+        state.Assign(1, 5);
+        var edge = new Edge(1, 1, 2, "NotEqual");
+
+        var changes = RuleRegistry.Default.Get("NotEqual").Propagate(state, edge);
+
+        changes.Should().ContainSingle();
+        state.GetCandidates(2).Should().Contain(5);
+    }
+
+    [Fact]
+    public void NotEqual_removes_fixed_value_from_other_node_with_reason()
+    {
+        var p = TestPuzzles.WithNodes(2);
+        var (state, changes) = Run(new Edge(3, 1, 2, "NotEqual"), p, (1, [5]));
+
+        state.GetCandidates(2).Should().NotContain(5).And.HaveCount(8);
+        var change = changes.Should().ContainSingle().Subject;
+        change.NodeId.Should().Be(2);
+        change.Kind.Should().Be(CandidateChangeKind.Eliminate);
+        change.Values.Should().Equal(5);
+        change.Reason.Constraint.Should().Be(ConstraintRef.ForEdge(3));
+        change.Reason.NodeIds.Should().Equal(1, 2);
+        change.Reason.Text.Should().Be("Ungleich in Kante 3: Knoten 1 hat den Wert 5, also kann Knoten 2 nicht 5 sein.");
+    }
+
+    [Fact]
+    public void NotEqual_without_fixed_values_changes_nothing()
+    {
+        var (_, changes) = Run(new Edge(1, 1, 2, "NotEqual"), TestPuzzles.WithNodes(2), (1, [1, 2]), (2, [1, 2]));
+        changes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AllDifferent_removes_fixed_values_and_names_group_label()
+    {
+        var p = TestPuzzles.WithNodes(3);
+        var group = new Group(1, [1, 2, 3], "AllDifferent", label: "Zeile 1");
+        var (state, changes) = Run(group, p, (1, [3]), (2, [3, 4]), (3, [4, 5, 6]));
+
+        state.GetCandidates(2).Should().Equal(4);
+        state.GetCandidates(3).Should().Equal(4, 5, 6);
+        changes.Should().ContainSingle().Which.Reason.Text.Should().Contain("Gruppe 1 „Zeile 1“");
+    }
+
+    [Fact]
+    public void CoverRange_restricts_to_range_and_removes_fixed_values()
+    {
+        var p = TestPuzzles.WithNodes(3);
+        var group = new Group(1, [1, 2, 3], "CoverRange", TestPuzzles.Params(("min", 2), ("max", 4)));
+        var (state, _) = Run(group, p, (1, [2]));
+
+        state.GetCandidates(1).Should().Equal(2);
+        state.GetCandidates(2).Should().Equal(3, 4);
+        state.GetCandidates(3).Should().Equal(3, 4);
+    }
+
+    [Fact]
+    public void CoverRange_defaults_to_puzzle_domain()
+    {
+        var p = TestPuzzles.WithNodes(2, 1, 2);
+        p.Nodes[0].Domain = new ValueDomain(1, 5);
+        var (state, _) = Run(new Group(1, [1, 2], "CoverRange"), p);
+
+        state.GetCandidates(1).Should().Equal(1, 2);
+    }
+
+    [Fact]
+    public void Sum_uses_bounds_of_other_nodes()
+    {
+        // 1 + 2 Knoten, Ziel 4, Werte 1..9: der jeweils andere ist mindestens 1, also höchstens 3.
+        var p = TestPuzzles.WithNodes(2);
+        var (state, changes) = Run(new Group(1, [1, 2], "Sum", TestPuzzles.Params(("target", 4))), p);
+
+        state.GetCandidates(1).Should().Equal(1, 2, 3);
+        state.GetCandidates(2).Should().Equal(1, 2, 3);
+        changes.Should().HaveCount(2);
+        changes[0].Reason.Text.Should().StartWith("Summe 4 in Gruppe 1: Knoten 1 kann nicht 4, 5, 6, 7, 8, 9 sein");
+    }
+
+    [Fact]
+    public void Sum_without_repeats_removes_fixed_values()
+    {
+        var p = TestPuzzles.WithNodes(3);
+        var parameters = TestPuzzles.Params(("target", 6));
+        var (state, _) = Run(new Group(1, [1, 2, 3], "Sum", parameters), p, (1, [2]));
+
+        state.GetCandidates(2).Should().NotContain(2);
+        state.GetCandidates(3).Should().NotContain(2);
+    }
+
+    [Fact]
+    public void Sum_with_repeats_keeps_fixed_values()
+    {
+        var p = TestPuzzles.WithNodes(3);
+        var parameters = TestPuzzles.Params(("target", 6), ("allowRepeats", true));
+        var (state, _) = Run(new Group(1, [1, 2, 3], "Sum", parameters), p, (1, [2]));
+
+        state.GetCandidates(2).Should().Contain(2);
+        state.GetCandidates(2).Should().Equal(1, 2, 3);
+    }
+
+    [Fact]
+    public void Single_node_sum_fixes_the_value()
+    {
+        var (state, _) = Run(new Group(1, [1], "Sum", TestPuzzles.Params(("target", 7))), TestPuzzles.WithNodes(1));
+        state.GetCandidates(1).Should().Equal(7);
+    }
+
+    [Fact]
+    public void Thermometer_bounds_strictly_increasing_values()
+    {
+        var p = TestPuzzles.WithNodes(3);
+        var (state, changes) = Run(new Group(1, [1, 2, 3], "Thermometer"), p);
+
+        state.GetCandidates(1).Should().Equal(1, 2, 3, 4, 5, 6, 7);
+        state.GetCandidates(2).Should().Equal(2, 3, 4, 5, 6, 7, 8);
+        state.GetCandidates(3).Should().Equal(3, 4, 5, 6, 7, 8, 9);
+        changes.Should().HaveCount(3);
+        changes[1].Reason.Text.Should().Contain("Position 2").And.Contain("zwischen 2 und 8");
+    }
+
+    [Fact]
+    public void Thermometer_respects_list_order()
+    {
+        var p = TestPuzzles.WithNodes(2);
+        var (state, _) = Run(new Group(1, [2, 1], "Thermometer"), p, (1, [3]));
+
+        state.GetCandidates(2).Should().Equal(1, 2);
+    }
+
+    [Fact]
+    public void Difference_exact_keeps_only_supported_values()
+    {
+        var p = TestPuzzles.WithNodes(2);
+        var edge = new Edge(1, 1, 2, "Difference", TestPuzzles.Params(("k", 3)));
+        var (state, changes) = Run(edge, p, (1, [1, 5]));
+
+        state.GetCandidates(2).Should().Equal(2, 4, 8);
+        state.GetCandidates(1).Should().Equal(1, 5);
+        changes.Should().ContainSingle().Which.Reason.Text.Should().Contain("Abstand genau 3");
+    }
+
+    [Fact]
+    public void Difference_atLeast_removes_values_too_close_to_all_partners()
+    {
+        var p = TestPuzzles.WithNodes(2);
+        var edge = new Edge(1, 1, 2, "Difference", TestPuzzles.Params(("k", 5), ("mode", "atLeast")));
+        var (state, _) = Run(edge, p);
+
+        // 5 hat zu keinem Wert in 1..9 einen Abstand ≥ 5.
+        state.GetCandidates(1).Should().Equal(1, 2, 3, 4, 6, 7, 8, 9);
+        state.GetCandidates(2).Should().Equal(1, 2, 3, 4, 6, 7, 8, 9);
+    }
+
+    [Fact]
+    public void Ratio_keeps_values_with_partner_at_factor()
+    {
+        var p = TestPuzzles.WithNodes(2);
+        var (state, _) = Run(new Edge(1, 1, 2, "Ratio"), p);
+
+        state.GetCandidates(1).Should().Equal(1, 2, 3, 4, 6, 8);
+        state.GetCandidates(2).Should().Equal(1, 2, 3, 4, 6, 8);
+    }
+
+    [Fact]
+    public void Ratio_with_custom_factor()
+    {
+        var p = TestPuzzles.WithNodes(2);
+        var (state, _) = Run(new Edge(1, 1, 2, "Ratio", TestPuzzles.Params(("factor", 3))), p, (2, [3]));
+
+        state.GetCandidates(1).Should().Equal(1, 9);
+    }
+
+    [Fact]
+    public void LessThan_is_directed()
+    {
+        var p = TestPuzzles.WithNodes(2);
+        var (state, _) = Run(new Edge(1, 1, 2, "LessThan"), p, (2, [4, 6]));
+
+        state.GetCandidates(1).Should().Equal(1, 2, 3, 4, 5);
+        state.GetCandidates(2).Should().Equal(4, 6);
+
+        var (reverse, _) = Run(new Edge(1, 2, 1, "LessThan"), p, (2, [4, 6]));
+        reverse.GetCandidates(1).Should().Equal(5, 6, 7, 8, 9);
+    }
+
+    [Fact]
+    public void Propagation_is_skipped_when_a_node_has_no_candidates()
+    {
+        var p = TestPuzzles.WithNodes(2);
+        var state = CandidateState.FromPuzzle(p);
+        foreach (var v in Enumerable.Range(1, 9))
+        {
+            state.Remove(1, v);
+        }
+
+        RuleRegistry.Default.Get("LessThan").Propagate(state, new Edge(1, 1, 2, "LessThan")).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Every_catalog_rule_is_sound_on_a_solved_assignment()
+    {
+        // Eine gültige Belegung darf von keiner Regel verändert werden.
+        var p = TestPuzzles.WithNodes(4);
+        int[] values = [1, 2, 4, 8];
+        for (var i = 0; i < 4; i++)
+        {
+            p.Nodes[i].Given = values[i];
+        }
+
+        IConstraint[] constraints =
+        [
+            new Group(1, [1, 2, 3, 4], "AllDifferent"),
+            new Group(2, [1, 2, 3, 4], "CoverRange", TestPuzzles.Params(("min", 1), ("max", 9))),
+            new Group(3, [1, 2, 3, 4], "Sum", TestPuzzles.Params(("target", 15))),
+            new Group(4, [1, 2, 3, 4], "Thermometer"),
+            new Edge(1, 1, 2, "NotEqual"),
+            new Edge(2, 2, 3, "Difference", TestPuzzles.Params(("k", 2))),
+            new Edge(3, 3, 4, "Ratio"),
+            new Edge(4, 1, 4, "LessThan"),
+        ];
+
+        var state = CandidateState.FromPuzzle(p);
+        foreach (var constraint in constraints)
+        {
+            RuleRegistry.Default.Get(constraint.Rule).Propagate(state, constraint)
+                .Should().BeEmpty($"{constraint.Rule} darf eine gültige Belegung nicht ändern");
+        }
+    }
+}

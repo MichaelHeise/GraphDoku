@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GraphDoku.Solver</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GraphDoku.Core\GraphDoku.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Google.OrTools" />
+  </ItemGroup>
+</Project>

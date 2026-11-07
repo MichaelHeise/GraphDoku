@@ -1,0 +1,39 @@
+# Fortschritt
+
+## Paket 1 – Gerüst und Kernmodell
+
+**Erledigt**
+
+- Solution `GraphDoku.sln` mit `src/GraphDoku.Core`, `GraphDoku.Solver`, `GraphDoku.Explainer`, `GraphDoku.App` und
+  `tests/GraphDoku.Core.Tests`, `Solver.Tests`, `Explainer.Tests`, `App.Tests`; `Directory.Build.props`,
+  `Directory.Packages.props`, `global.json`, `nuget.config`.
+- Kernmodell: `Puzzle`, `Node`, `Edge`, `Group`, `ValueDomain` (global und pro Knoten), Givens, `RuleParams`,
+  `GridType`, `PuzzleComparer` (Strukturvergleich), `Puzzle.Clone()`.
+- Regeln: `IRule`, `RuleBase`, `RuleRegistry` mit allen acht Katalogregeln (Typname, Art, Parameterprüfung,
+  Standardwerte, `CoverRange`-Größenprüfung) und einfacher, korrekter `Propagate`-Implementierung mit `Reason`.
+- `CandidateState` (Grundfunktionen), `CandidateChange`, `Reason`.
+- `PuzzleValidator`: ungültige/doppelte Ids, fehlende Knoten, Given außerhalb des Wertebereichs, ungültige
+  Wertebereiche, Schleifen, doppelte Gruppenknoten, Regelart passend zu Kante/Gruppe, unbekannte Regeltypen,
+  Parameter und Knotenanzahl.
+- JSON laden/speichern mit `formatVersion`-Prüfung und deutschen Fehlermeldungen (`PuzzleSerializer`).
+- `GridGeometry` für Quadrat-, Dreiecks- und Sechseckgitter (Weltkoordinaten, Umrisse, Nachbarn, Springerzug,
+  Abstand, Einrasten).
+- Vorlage `ClassicSudoku` und Beispieldatei `puzzles/klassisch-leer.json`.
+- Avalonia-App startet mit Platzhalter-Hauptfenster und MVVM-Verdrahtung (lokal auf macOS gestartet).
+- Repo-Hygiene: `.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE` (proprietär), `THIRD-PARTY-NOTICES.md`,
+  `README.md`; Gitea-CI `.gitea/workflows/ci.yml`.
+- Tests: 143 (Core 136, Solver 1, Explainer 2, App 4), alle grün in Debug und Release.
+- Akzeptanz: Round-Trip-Tests (Vorlage, Rätsel mit allen Merkmalen, alle Dateien in `puzzles/`); ungültige Parameter
+  und unbekannte Regeltypen werden mit verständlicher Meldung abgelehnt (getestet).
+
+**Offen**
+
+- `ISolver` und OR-Tools-Adapter pro Regel (Paket 2).
+- Erklär-Modus (Paket 6); `Propagate` ist vorhanden, wird dort ggf. verfeinert.
+
+**Bekannte Probleme**
+
+- Die Gitea-CI konnte lokal nicht ausgeführt werden; die Schritte wurden lokal mit denselben Befehlen nachgestellt.
+  Der erste Lauf auf dem Ubuntu-Runner steht noch aus.
+- Keine Headless-UI-Tests: Avalonia.Headless.XUnit 12 benötigt xUnit v3 (siehe `docs/decisions.md`, Nr. 7).
+- Der OR-Tools-Rauchtest braucht beim ersten Laden der nativen Bibliothek einige Sekunden.
