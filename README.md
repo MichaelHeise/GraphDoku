@@ -67,7 +67,7 @@ Fenster: links die **Gruppenliste**, in der Mitte die **Zeichenfläche**, rechts
 | --- | --- |
 | Neues Rätsel | Datei → Neu … (Name, Gittertyp Quadrat/Dreieck/Sechseck, globaler Wertebereich) oder Vorlage „Klassisch 9×9“ |
 | Knoten setzen | Werkzeug „Knoten setzen“, klicken oder über mehrere Gitterpunkte ziehen |
-| Auswählen | Werkzeug „Auswahl“: Klick, Shift-Klick (hinzufügen/entfernen), Rahmen ziehen (Shift: hinzufügen), Strg/Cmd+A |
+| Auswählen | Werkzeug „Auswahl“: Klick, Shift-Klick (hinzufügen/entfernen), Rahmen ziehen (Shift: hinzufügen; mit Strg/Cmd beginnt der Rahmen auch auf einem Knoten), Strg/Cmd+A |
 | Verschieben | ausgewählte Knoten ziehen; sie rasten auf Gitterpunkte ein |
 | Löschen | Entf (Mac: fn+⌫) löscht ausgewählte Knoten (mit ihren Kanten), die gewählte Kante oder Gruppe |
 | Givens | Knoten auswählen und Ziffern tippen (mehrstellig nacheinander, bei 0–15 auch A–F); ⌫ löscht Givens |
@@ -79,7 +79,7 @@ Fenster: links die **Gruppenliste**, in der Mitte die **Zeichenfläche**, rechts
 | Eigener Wertebereich | Knoten auswählen, im Panel „Eigener Wertebereich“ von–bis eingeben, „Bereich setzen“; „Globalen Bereich verwenden“ entfernt ihn |
 | Gruppen hervorheben | Häkchen in der Gruppenliste bzw. „Alle ein“/„Alle aus“ |
 | Ansicht | Mausrad zoomt, mittlere/rechte Maustaste oder Leertaste + Ziehen verschiebt, „Einpassen“ (Strg/Cmd+0) |
-| Knoten als Zellen | Ansicht → „Knoten als Zellen (…)“ oder unten rechts „Knoten als ○ Kreise ○ Zellen“: Knoten erscheinen als Quadrate, Dreiecke bzw. Sechsecke des Gitters statt als Kreise. Alles lässt sich weiter bedienen (Klick irgendwo in die Zelle; Kanten über ihren Steg oder ihre Marke am Zellrand anklicken). Reine Ansicht: ändert weder das Rätsel noch die Datei und gilt bis zum Beenden der App |
+| Knoten als Zellen | Ansicht → „Knoten als Zellen (…)“ oder unten rechts „Knoten als ○ Kreise ○ Zellen“: Knoten erscheinen als Quadrate, Dreiecke bzw. Sechsecke des Gitters statt als Kreise. Alles lässt sich weiter bedienen (Klick irgendwo in die Zelle; Kanten genau auf ihrem Steg oder ihrer Marke am Zellrand anklicken – Ziehen von dort verschiebt die Zelle; Rahmenauswahl mitten im Rätsel mit **Strg/Cmd + Ziehen**, mit Shift zusätzlich zur Auswahl). Reine Ansicht: ändert weder das Rätsel noch die Datei und gilt bis zum Beenden der App |
 | Rückgängig | Strg/Cmd+Z, Wiederholen Strg/Cmd+Y oder Shift+Strg/Cmd+Z (alle Bearbeitungen) |
 | Dateien | Öffnen (Strg/Cmd+O), Speichern (Strg/Cmd+S), Speichern unter (Shift+Strg/Cmd+S); „ *“ im Titel = ungespeichert |
 
@@ -125,7 +125,7 @@ Zeitlimit der Lösen-Leiste gilt auch hier.
 Farben auf der Zeichenfläche: **schwarz** Givens, **blau** hergeleitete Werte, **orange** geratene Werte;
 **gelb** hinterlegt die Knoten des aktuellen Schritts (rot durchgestrichen: gerade gestrichene Kandidaten),
 **orange** mit Marke „Raten“ eine Verzweigung, **grün** die Knoten, die Gruppe bzw. die Kante der verantwortlichen
-Regel; **rot umrandet** (außen) ein Knoten ohne Kandidaten (Widerspruch). Wie die Lösung ist die Erklärung nur Anzeige: Sie ändert das Rätsel nicht und wird nicht gespeichert.
+Regel; **rot umrandet** ein Knoten ohne Kandidaten (Widerspruch) – bei Kreisen als Ring außen, in der Zelldarstellung als Rahmen innen in der Zelle. Wie die Lösung ist die Erklärung nur Anzeige: Sie ändert das Rätsel nicht und wird nicht gespeichert.
 
 Rendering-Rauchtest: `dotnet test tests/GraphDoku.App.Tests --filter Rendering` rendert das Hauptfenster headless
 (Skia, auch mit gelöstem und mehrdeutigem Sudoku, im Erklär-Modus und in der Zelldarstellung) und legt PNGs in `$GRAPHDOKU_RENDER_DIR` bzw. im Temp-Verzeichnis unter `GraphDoku-Render` ab.

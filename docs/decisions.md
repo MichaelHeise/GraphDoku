@@ -969,3 +969,32 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      (168 „Ungleich“-Kanten, viele zwischen Dreiecken, die sich nur in einer Ecke berühren) Linien durch die Ecken fremder
      Zellen und durch deren Kandidaten, an jeder Gitterecke entstand ein Stern. Der Treffertest für Kanten (Nr. 154)
      benutzt genau diese Stege.
+158. **Kanten in der Zelldarstellung nur genau auf ihrem Steg treffen; Ziehen vom Steg verschiebt die Zelle**
+     (Review-Befund zu Nr. 154): Bisher griff der Treffertest am ganzen Steg plus 6 px Toleranz zu beiden Seiten. Im
+     Dreiecks-Sudoku (168 „Ungleich“-Kanten, an jeder Gitterecke drei Stege, Stege über den Schrägseiten der Zelle
+     zwischen zwei Endzellen) trafen dadurch bei eingepasster Ansicht im Fenster 1280 × 800 rund 28 % der Klicks in
+     Zellen eine Kante, knapp die Hälfte der Klicks in die Ecken und einige auf die Kandidaten – entgegen Nr. 154.
+     Jetzt zählt ein Steg nur rund um die Stelle, an der die Kante den Zellrand kreuzt, und höchstens eine halbe
+     Steglänge weit (`min(6 px, Steglänge/2)`, `EditorGeometry.CellEdgeStubTargets` liefert die Kreuzungsstelle);
+     im Freihaltekreis um die Mitte der Zelle (Wert, Kandidaten) trifft man nie eine Kante. Unter mehreren Stegen
+     (drei kreuzen sich an einer Dreiecksecke) gewinnt wie bisher der mit dem kleinsten Abstand zur Linie. Marken
+     (Kropki-Punkte, Pfeile) unverändert. Nachgemessen: Klicks bei 85 % zur Ecke und im Freihaltekreis treffen im
+     Dreiecks-Sudoku bei einfacher und doppelter Vergrößerung immer die Zelle; jede der 168 Kanten bleibt über einen
+     ihrer Stege wählbar (Tests). Präzisierung von Nr. 154: „in den Ecken trifft man die Zelle“ gilt außerhalb des dort
+     gezeichneten Stegs – wer genau auf den Steg über einer Ecke klickt, wählt die Kante, sonst wäre eine Kante zwischen
+     Dreiecken, die sich nur in einer Ecke berühren, gar nicht wählbar (Kanten sind nur per Klick wählbar). Zusätzlich
+     gilt ein Druck auf einen Steg erst beim Loslassen ohne Bewegung als Klick auf die Kante; wird gezogen, verschiebt
+     das die Zelle unter dem Zeiger (Nr. 155: Packen am Rand). Die kleinen Sterne an den Gitterecken des
+     Dreiecks-Sudokus bleiben: Es sind die Stege der drei Kanten zwischen gegenüberliegenden Dreiecken, die sich dort
+     kreuzen (Länge je ein halber Inhaltsradius); jede andere Darstellung dieser Kanten verlöre die Zuordnung. Die
+     frühere Angabe in `progress.md`, die Sterne seien „behoben“, war ungenau – behoben waren die langen Linien.
+159. **Rahmenauswahl mit Strg/Cmd + Ziehen auch auf einem Knoten** (Review-Befund zu Nr. 154): In der Zelldarstellung
+     füllen die Zellen die Fläche lückenlos, ein Rahmen ließ sich nur außerhalb aller Zellen beginnen – innere
+     Bereiche (z. B. der mittlere Block eines 9 × 9) waren nicht per Rahmen wählbar, bei eingepasstem Hexadoku gab es
+     kaum freie Fläche. Jetzt beginnt Ziehen mit gedrückter Strg-/Cmd-Taste immer einen Rahmen (mit zusätzlich Shift:
+     zur Auswahl hinzufügen, wie beim Rahmen auf freier Fläche); Auswahlkriterium bleiben die Mittelpunkte. Strg/Cmd-Klick
+     ohne Ziehen wirkt wie ein normaler Klick (mit Shift: umschalten). Gilt in beiden Darstellungen (bei Kreisen bisher
+     ohne Bedeutung), damit die Bedienung nicht von der Ansicht abhängt. Strg/Cmd statt Shift, weil Shift auf einem
+     Knoten schon beim Drücken umschaltet (Thermometer-Reihenfolge) und Ziehen ohne Taste weiterhin verschiebt. Der
+     Werkzeughinweis nennt in der Zelldarstellung „Strg/Cmd + Ziehen wählt per Rahmen“ (gleich lang wie bisher, bleibt bei
+     1280 px einzeilig).

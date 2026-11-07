@@ -54,7 +54,15 @@ public static class EditorGeometry
     /// die sich nur in einer Ecke berühren, einer über der Ecke, bei längeren Kanten einer pro Zellrand. So laufen keine
     /// Linien durch das Innere fremder Zellen.
     /// </summary>
-    public static IReadOnlyList<(WorldPoint From, WorldPoint To)> CellEdgeStubs(GridType grid, WorldPoint a, WorldPoint b, IEnumerable<WorldPoint> others)
+    public static IReadOnlyList<(WorldPoint From, WorldPoint To)> CellEdgeStubs(GridType grid, WorldPoint a, WorldPoint b, IEnumerable<WorldPoint> others) =>
+        [.. CellEdgeStubTargets(grid, a, b, others).Select(s => (s.From, s.To))];
+
+    /// <summary>
+    /// Zellen: die Stege aus <see cref="CellEdgeStubs"/> samt der Stelle, an der die Kante den Zellrand kreuzt
+    /// (<c>Crossing</c>, auf den Steg geklemmt, falls ein Freihaltekreis ihn kürzt) – für den Treffertest, der nur
+    /// rund um diese Stelle greift (Nr. 158).
+    /// </summary>
+    public static IReadOnlyList<(WorldPoint From, WorldPoint To, WorldPoint Crossing)> CellEdgeStubTargets(GridType grid, WorldPoint a, WorldPoint b, IEnumerable<WorldPoint> others)
     {
         ArgumentNullException.ThrowIfNull(others);
         var length = a.DistanceTo(b);
@@ -67,7 +75,7 @@ public static class EditorGeometry
         var free = FreeIntervals(a, b, clear, others, out _);
         var half = CellEdgeStubLength(grid) / 2;
         WorldPoint At(double t) => new(a.X + ((b.X - a.X) * t / length), a.Y + ((b.Y - a.Y) * t / length));
-        var result = new List<(WorldPoint From, WorldPoint To)>();
+        var result = new List<(WorldPoint From, WorldPoint To, WorldPoint Crossing)>();
         foreach (var crossing in BorderCrossings(grid, a, b))
         {
             foreach (var (freeFrom, freeTo) in free)
@@ -76,7 +84,7 @@ public static class EditorGeometry
                 var to = Math.Min(crossing + half, freeTo);
                 if (to - from > 1e-6)
                 {
-                    result.Add((At(from), At(to)));
+                    result.Add((At(from), At(to), At(Math.Clamp(crossing, from, to))));
                 }
             }
         }

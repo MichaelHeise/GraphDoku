@@ -14,7 +14,7 @@ public sealed partial class EditorViewModel
 {
     /// <summary>Darstellung der Knoten auf der Zeichenfläche.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsCircleShape), nameof(IsCellShape))]
+    [NotifyPropertyChangedFor(nameof(IsCircleShape), nameof(IsCellShape), nameof(ToolHint))]
     public partial NodeShape NodeShape { get; set; }
 
     /// <summary>Knoten als Kreise (für Menü und Werkzeugleiste).</summary>

@@ -285,6 +285,154 @@ public sealed class NodeShapeTests : IDisposable
         editor.Puzzle.Nodes.Should().HaveCount(count + 1);
     }
 
+    private static EditorViewModel OpenExampleInCells(string fileName, double width = 1000, double height = 800)
+    {
+        var editor = new EditorViewModel();
+        editor.SetViewSize(width, height);
+        editor.LoadPuzzle(PuzzleSerializer.Load(Path.Combine(MainWindowViewModelTests.FindRepositoryRoot(), "puzzles", fileName)));
+        editor.FitView();
+        editor.NodeShape = NodeShape.Cell;
+        return editor;
+    }
+
+    /// <summary>Review-Befund zu Nr. 154: Rahmenauswahl mitten in einem lückenlos gefüllten Rätsel (Nr. 159).</summary>
+    [Fact]
+    public void Command_drag_starts_a_rubber_band_inside_a_filled_grid()
+    {
+        var editor = OpenExampleInCells("klassisch-leer.json");
+        var before = editor.Snapshot();
+        Node Cell(int x, int y) => At(editor, x, y);
+        var middleBox = editor.Puzzle.Nodes.Where(n => n.X is >= 3 and <= 5 && n.Y is >= 3 and <= 5).Select(n => n.Id).ToList();
+        var start = Toward(EditorGeometry.Center(GridType.Square, Cell(3, 3)), EditorGeometry.CellVertices(GridType.Square, Cell(3, 3))[0], 0.8);
+        var end = Toward(EditorGeometry.Center(GridType.Square, Cell(5, 5)), EditorGeometry.CellVertices(GridType.Square, Cell(5, 5))[2], 0.8);
+
+        // Ohne Strg/Cmd wäre das ein Verschieben (blockiert, weil alle Zellen belegt sind) – mit Strg/Cmd ein Rahmen.
+        editor.Drag([editor.Viewport.ToScreen(start), editor.Viewport.ToScreen(end)], EditorModifiers.Command);
+        editor.SelectedNodeIds.Should().BeEquivalentTo(middleBox);
+        editor.SelectedNodeIds.Should().HaveCount(9);
+        editor.Puzzle.ShouldEqual(before);
+        editor.CanUndo.Should().BeFalse("ein Rahmen ist kein Bearbeitungsschritt");
+        editor.RubberBand.Should().BeNull();
+
+        // Strg/Cmd + Shift hängt die Knoten eines weiteren Rahmens an (wie Shift beim Rahmen auf freier Fläche).
+        var row = Toward(EditorGeometry.Center(GridType.Square, Cell(0, 0)), EditorGeometry.CellVertices(GridType.Square, Cell(0, 0))[0], 0.5);
+        var rowEnd = Toward(EditorGeometry.Center(GridType.Square, Cell(1, 0)), EditorGeometry.CellVertices(GridType.Square, Cell(1, 0))[2], 0.5);
+        editor.Drag([editor.Viewport.ToScreen(row), editor.Viewport.ToScreen(rowEnd)], EditorModifiers.Command | EditorModifiers.Shift);
+        editor.SelectedNodeIds.Should().HaveCount(11).And.Contain([Cell(0, 0).Id, Cell(1, 0).Id]);
+
+        // Strg/Cmd-Klick ohne Ziehen wirkt wie ein normaler Klick (mit Shift: umschalten).
+        editor.Click(editor.ScreenOf(new GridPoint(7, 7)), EditorModifiers.Command);
+        editor.SelectedNodeIds.Should().Equal(Cell(7, 7).Id);
+        editor.Click(editor.ScreenOf(new GridPoint(8, 8)), EditorModifiers.Command | EditorModifiers.Shift);
+        editor.SelectedNodeIds.Should().Equal(Cell(7, 7).Id, Cell(8, 8).Id);
+
+        // Ziehen ohne Strg/Cmd verschiebt weiterhin (hier blockiert: alle Nachbarfelder sind belegt).
+        editor.Drag([editor.Viewport.ToScreen(start), editor.Viewport.ToScreen(end)]);
+        editor.SelectedNodeIds.Should().Equal(Cell(3, 3).Id);
+        editor.Puzzle.ShouldEqual(before);
+    }
+
+    [Fact]
+    public void Command_drag_also_starts_a_rubber_band_on_a_circle()
+    {
+        var editor = EditorDriver.CreateEditor(Patch(GridType.Square));
+        editor.RubberBand(0, 0, 1, 1, EditorModifiers.Command);
+        editor.SelectedNodeIds.Should().Equal(At(editor, 0, 0).Id, At(editor, 1, 0).Id, At(editor, 0, 1).Id, At(editor, 1, 1).Id);
+        editor.Puzzle.Nodes.Should().Contain(n => n.X == 0 && n.Y == 0, "nichts wurde verschoben");
+        editor.CanUndo.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Review-Befund zu Nr. 154 im Dreiecks-Sudoku (168 „Ungleich“-Kanten, viele über Ecken): Kantenstege fangen den
+    /// Klick nur genau auf dem Steg, nicht im Innern und nicht in den Ecken der Zellen – bei der Größe des Fensters
+    /// mit 1280 × 800 und doppelt gezoomt (Nr. 158).
+    /// </summary>
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(2.0)]
+    public void Triangle_example_cells_win_inside_and_in_corners(double zoom)
+    {
+        var editor = OpenExampleInCells("dreiecks-sudoku.json", 740, 530);
+        editor.Viewport.ZoomAt(new ScreenPoint(370, 265), zoom);
+        var grid = editor.Puzzle.Grid;
+        var clear = EditorGeometry.ClearRadius(grid, NodeShape.Cell);
+        foreach (var node in editor.Puzzle.Nodes)
+        {
+            var center = EditorGeometry.Center(grid, node);
+            var points = EditorGeometry.CellVertices(grid, node).Select(v => Toward(center, v, 0.85))
+                .Concat(Enumerable.Range(0, 12).Select(k => new WorldPoint(center.X + (Math.Cos(k * Math.PI / 6) * clear * 0.99), center.Y + (Math.Sin(k * Math.PI / 6) * clear * 0.99))))
+                .Append(center);
+            foreach (var point in points)
+            {
+                editor.ClearSelection();
+                editor.Click(editor.Viewport.ToScreen(point));
+                editor.SelectedEdgeId.Should().BeNull($"Klick bei ({point.X:0.###}, {point.Y:0.###}) in Zelle {node.Id}");
+                editor.SelectedNodeIds.Should().Equal(node.Id);
+            }
+        }
+    }
+
+    [Fact]
+    public void Every_triangle_example_edge_stays_selectable_on_its_stubs()
+    {
+        var editor = OpenExampleInCells("dreiecks-sudoku.json", 740, 530);
+        var grid = editor.Puzzle.Grid;
+        var clear = EditorGeometry.ClearRadius(grid, NodeShape.Cell);
+        var reach = Math.Min(EditorViewModel.EdgeHitTolerance / editor.Viewport.Scale, EditorGeometry.CellEdgeStubLength(grid) / 2);
+        var corner = 0;
+        foreach (var edge in editor.Puzzle.Edges)
+        {
+            var from = EditorGeometry.Center(grid, editor.Puzzle.FindNode(edge.From)!);
+            var to = EditorGeometry.Center(grid, editor.Puzzle.FindNode(edge.To)!);
+            var stubs = EditorGeometry.CellEdgeStubTargets(grid, from, to, editor.NodesNear(from, to, clear));
+            stubs.Should().NotBeEmpty();
+            var selectable = false;
+            foreach (var stub in stubs)
+            {
+                // Ein Stück auf dem Steg neben der Kreuzungsstelle: An einer Gitterecke kreuzen sich drei Stege.
+                var length = stub.From.DistanceTo(stub.To);
+                var point = new WorldPoint(
+                    stub.Crossing.X + ((stub.To.X - stub.From.X) / length * reach * 0.5),
+                    stub.Crossing.Y + ((stub.To.Y - stub.From.Y) / length * reach * 0.5));
+                editor.ClearSelection();
+                editor.Click(editor.Viewport.ToScreen(point));
+                selectable |= editor.SelectedEdgeId == edge.Id;
+                corner += GridGeometry.GetCellVertices(grid, GridGeometry.ToNearestGridPoint(grid, point).X, GridGeometry.ToNearestGridPoint(grid, point).Y)
+                    .Any(v => v.DistanceTo(stub.Crossing) < 1e-6) ? 1 : 0;
+            }
+
+            selectable.Should().BeTrue($"Kante {edge.Id} ist über einen ihrer Stege wählbar");
+        }
+
+        corner.Should().BeGreaterThan(0, "das Beispiel enthält Kanten über Zellecken");
+    }
+
+    [Fact]
+    public void Dragging_from_an_edge_stub_moves_the_cell_and_clicking_selects_the_edge()
+    {
+        var puzzle = Patch(GridType.Square);
+        puzzle.Nodes.Remove(puzzle.Nodes.Single(n => n.X == 0 && n.Y == 1)); // freier Platz unterhalb
+        var from = puzzle.Nodes.Single(n => n.X == 0 && n.Y == 0);
+        var to = puzzle.Nodes.Single(n => n.X == 1 && n.Y == 0);
+        puzzle.Edges.Add(new Edge(1, from.Id, to.Id, "NotEqual"));
+        var editor = EditorDriver.CreateEditor(puzzle);
+        var node = At(editor, 0, 0);
+        var right = At(editor, 1, 0);
+        editor.NodeShape = NodeShape.Cell;
+        var onStub = Toward(EditorGeometry.Center(GridType.Square, node), EditorGeometry.Center(GridType.Square, right), 0.49);
+
+        editor.Click(editor.Viewport.ToScreen(onStub));
+        editor.SelectedEdgeId.Should().Be(1);
+        editor.SelectedNodeIds.Should().BeEmpty();
+
+        // Ziehen vom Steg aus verschiebt die Zelle, in der der Zeiger liegt (Mittelpunkt rastet ein, Nr. 155).
+        var drop = new WorldPoint(onStub.X, onStub.Y + 1);
+        editor.Drag([editor.Viewport.ToScreen(onStub), editor.Viewport.ToScreen(drop)]);
+        editor.SelectedEdgeId.Should().BeNull();
+        editor.SelectedNodeIds.Should().Equal(node.Id);
+        (node.X, node.Y).Should().Be((0, 1));
+    }
+
     [Theory]
     [MemberData(nameof(SolveIntegrationTests.ExamplePuzzles), MemberType = typeof(SolveIntegrationTests))]
     public async Task Toggling_the_display_does_not_change_the_saved_file_and_files_round_trip(string fileName)

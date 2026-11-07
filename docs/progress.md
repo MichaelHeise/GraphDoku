@@ -186,6 +186,9 @@
 
 - Lange Meldungen der Lösen-Leiste werden nach zwei Zeilen mit „…“ gekürzt (Volltext als Tooltip), vor allem bei
   Mindestbreite; die Kernaussage steht jeweils am Anfang (Nr. 80).
+- Kantenstege sind bei eingepasster Ansicht im Dreiecks-Sudoku kleine Ziele (Fangbereich etwa 3–4 px um die
+  Randkreuzung); Zoomen vergrößert sie. Der Preis dafür, dass Ecken und Inneres der Zellen frei bleiben (Nr. 158).
+- Die Rahmenauswahl über Zellen braucht Strg/Cmd; ohne Taste verschiebt Ziehen wie bisher (Nr. 159).
 - Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel-Tests, Aussehen
   über die headless gerenderten Bilder belegt.
 - Der Abbruch einer laufenden Suche wirkt über `StopSearch` von CP-SAT; bei sehr großen Modellen kann der Modellaufbau
@@ -316,6 +319,9 @@ Beispiele zusammen dauert etwa eine Sekunde. Erzeugung (einmalig): Killer ≈ 25
 **Bekannte Probleme**
 
 - Der Generator-Dialog ist modal; Auswahl und Rätsel lassen sich während der Vorschau nicht ändern (gewollt, Nr. 133).
+- Kantenstege sind bei eingepasster Ansicht im Dreiecks-Sudoku kleine Ziele (Fangbereich etwa 3–4 px um die
+  Randkreuzung); Zoomen vergrößert sie. Der Preis dafür, dass Ecken und Inneres der Zellen frei bleiben (Nr. 158).
+- Die Rahmenauswahl über Zellen braucht Strg/Cmd; ohne Taste verschiebt Ziehen wie bisher (Nr. 159).
 - Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel-Tests, Aussehen
   über die headless gerenderten Bilder.
 - Haben Knoten zugleich Kanten mit Marke zum direkten und zum übernächsten Nachbarn, liegen beide Marken im selben
@@ -458,6 +464,9 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
   Kandidaten sind dann sehr klein“ war falsch – sie verschwanden ganz.)
 - Beim 16 × 16-Hexadoku sind die Kandidaten bei 1280 × 800 ohne Zoom zu klein für das Raster; dann steht nur die
   Anzahl „(n)“ im Knoten. Ab etwa 1920 × 1200 oder nach Vergrößern erscheint das 4 × 4-Raster mit 0–F.
+- Kantenstege sind bei eingepasster Ansicht im Dreiecks-Sudoku kleine Ziele (Fangbereich etwa 3–4 px um die
+  Randkreuzung); Zoomen vergrößert sie. Der Preis dafür, dass Ecken und Inneres der Zellen frei bleiben (Nr. 158).
+- Die Rahmenauswahl über Zellen braucht Strg/Cmd; ohne Taste verschiebt Ziehen wie bisher (Nr. 159).
 - Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel-Tests und
   headless Tastatureingaben, Aussehen über die gerenderten Bilder belegt.
 
@@ -500,7 +509,8 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
   und Zoom), Sechseckgitter mit Kanten, Summe und Thermometer, jedes Beispielrätsel, Widerspruch, Verzweigung,
   Regelkante, Umschalter bei Mindestgröße. Dabei behoben: Werkzeugleiste brach mit einem Umschalter bei 1280 px um
   (daher Statusbereich), Gelb des aktuellen Schritts vom Grün der Regelgruppe überlagert (Zellen werden erneut gefüllt),
-  Linien quer durch fremde Dreiecke und Sterne an jeder Gitterecke im Dreiecks-Sudoku (jetzt Stege an den Rändern),
+  Linien quer durch fremde Dreiecke im Dreiecks-Sudoku (jetzt Stege an den Rändern; an den Gitterecken bleiben kleine
+  Sterne aus den Stegen der Eck-Kanten, Nr. 158),
   Auswahlrahmen am Zellrand halb unter der Nachbarzelle (jetzt eingerückt).
 - Tests (App 310, davon neu 50): `NodeShapeTests` (34: Umschalten ohne Undo/„ungespeichert“/Inhaltsänderung,
   Optionsgruppen-Eigenschaften, bleibt beim Öffnen, Zellumriss-Treffer für Ecken und Nachbarn auf allen drei Gittern,
@@ -511,6 +521,23 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
   `NodeShapeWindowTests` (Menü Ansicht im echten Fenster), Rendering (+15: klassisch, Dreieck, Hexadoku, Sechseckgitter,
   Widerspruch/Verzweigung/Regelkante, jede Beispieldatei, Umschalter im Statusbereich und einzeilige Werkzeugleiste).
 - Gesamt: 727 Tests (Core 232, Solver 104, Explainer 81, App 310), alle grün in Release.
+
+**Review-Befunde (Fixer)**
+
+- Rahmenauswahl mitten in einem gefüllten Rätsel war in der Zelldarstellung nicht möglich (jeder Druck traf eine
+  Zelle → Verschieben). Behoben: Strg/Cmd + Ziehen beginnt immer einen Rahmen, mit Shift zusätzlich (Nr. 159);
+  Werkzeughinweis in der Zelldarstellung angepasst.
+- Dreiecks-Sudoku: Kantenstege fingen etwa 28 % der Klicks in Zellen, viele Eckklicks und einige auf den Kandidaten.
+  Behoben: Stege greifen nur rund um die Randkreuzung (höchstens halbe Steglänge), nie im Freihaltekreis; Ziehen
+  vom Steg verschiebt die Zelle (Nr. 158). Die kleinen Sterne an den Gitterecken sind die sich kreuzenden Stege der
+  Eck-Kanten und bleiben (Begründung in Nr. 158; die frühere Angabe „behoben“ war ungenau).
+- README: roter Rahmen bei Widerspruch in der Zelldarstellung innen statt Ring außen; Rahmenauswahl mit Strg/Cmd.
+- Tests (+8, App 318): Strg/Cmd-Rahmen um den mittleren Block in `klassisch-leer.json` (9 Knoten, nichts verschoben,
+  Shift hängt an, Klick ohne Ziehen), Strg/Cmd-Rahmen bei Kreisen, Dreiecks-Sudoku: Ecken (85 %) und Freihaltekreis
+  treffen bei einfacher und doppelter Vergrößerung immer die Zelle, jede Kante über einen Steg wählbar, Ziehen vom
+  Steg verschiebt die Zelle; im echten Fenster: Statusbereich-Umschalter „Kreise/Zellen“ per Maus (beide Richtungen,
+  folgt dem ViewModel) und Strg + Ziehen auf der Zeichenfläche.
+- Gesamt: 735 Tests (Core 232, Solver 104, Explainer 81, App 318), alle grün in Release.
 
 **Offen**
 
@@ -528,5 +555,8 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 - Kanten zwischen Dreiecken, die sich nur in einer Ecke berühren, aber nicht gegenüberliegen (zwei Zellen weiter in
   derselben Zeile), erscheinen als zwei Stege an den Rändern der Zelle dazwischen – korrekt, aber auf den ersten Blick
   nicht von zwei Kanten zu dieser Zelle zu unterscheiden (wählen zeigt die Endzellen).
+- Kantenstege sind bei eingepasster Ansicht im Dreiecks-Sudoku kleine Ziele (Fangbereich etwa 3–4 px um die
+  Randkreuzung); Zoomen vergrößert sie. Der Preis dafür, dass Ecken und Inneres der Zellen frei bleiben (Nr. 158).
+- Die Rahmenauswahl über Zellen braucht Strg/Cmd; ohne Taste verschiebt Ziehen wie bisher (Nr. 159).
 - Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel- und
   headless-Fenstertests, Aussehen über die gerenderten Bilder.

@@ -21,6 +21,7 @@ public sealed partial class EditorViewModel
     private ScreenPoint _lastPoint;
     private EditorModifiers _pressModifiers;
     private int? _pressNodeId;
+    private int? _pressEdgeId;
     private bool _pressedSelectedNode;
     private object? _gestureKey;
     private Dictionary<int, GridPoint> _moveOrigins = [];
@@ -160,6 +161,16 @@ public sealed partial class EditorViewModel
                 Viewport.PanBy(position.X - _lastPoint.X, position.Y - _lastPoint.Y);
                 break;
             case Gesture.PendingMove when position.DistanceTo(_pressPoint) > DragThreshold:
+                if (_pressEdgeId is not null && _pressNodeId is int grabbed)
+                {
+                    // Zelldarstellung: auf einem Kantensteg gepackt – gezogen wird die Zelle, nicht die Kante (Nr. 158).
+                    _pressEdgeId = null;
+                    if (!_pressedSelectedNode)
+                    {
+                        SelectNodes([grabbed]);
+                    }
+                }
+
                 BeginMove();
                 MoveTo(world);
                 break;
@@ -192,6 +203,9 @@ public sealed partial class EditorViewModel
         _gestureKey = null;
         switch (gesture)
         {
+            case Gesture.PendingMove when _pressEdgeId is int pressedEdge:
+                SelectEdge(pressedEdge);
+                break;
             case Gesture.PendingMove:
                 // Klick auf einen bereits gewählten Knoten einer Mehrfachauswahl: nur diesen wählen.
                 if (_pressedSelectedNode && _pressNodeId is int id && _selectedNodes.Count > 1)
@@ -204,6 +218,18 @@ public sealed partial class EditorViewModel
                 if (_appliedDelta != (0, 0))
                 {
                     StatusMessage = $"{_moveOrigins.Count} Knoten verschoben.";
+                }
+
+                break;
+            case Gesture.PendingRubberBand when _pressNodeId is int clickedNode:
+                // Strg/Cmd-Klick auf einen Knoten ohne Ziehen: wie ein Klick ohne Strg/Cmd (Shift schaltet um).
+                if (_pressModifiers.HasFlag(EditorModifiers.Shift))
+                {
+                    ToggleNodeSelection(clickedNode);
+                }
+                else
+                {
+                    SelectNodes([clickedNode]);
                 }
 
                 break;
@@ -223,6 +249,7 @@ public sealed partial class EditorViewModel
         }
 
         _pressNodeId = null;
+        _pressEdgeId = null;
         RefitIfDeferred();
     }
 
@@ -232,6 +259,7 @@ public sealed partial class EditorViewModel
         _gesture = Gesture.None;
         _gestureKey = null;
         _pressNodeId = null;
+        _pressEdgeId = null;
         if (RubberBand is not null || EdgePreview is not null)
         {
             RubberBand = null;
@@ -372,11 +400,31 @@ public sealed partial class EditorViewModel
     private void PressSelect(Node? node, WorldPoint world, EditorModifiers modifiers)
     {
         var shift = modifiers.HasFlag(EditorModifiers.Shift);
-        // Zellen füllen die Fläche lückenlos (Paket 7): Kanten sind dann nur über ihre Linienstücke am Zellrand und ihre
-        // Marke zu treffen und haben dort Vorrang vor der Zelle (Nr. 154).
+
+        // Strg/Cmd + Ziehen beginnt den Auswahlrahmen auch auf einem Knoten – in der Zelldarstellung gibt es innerhalb
+        // eines Rätsels sonst keine freie Stelle dafür (Nr. 159). Ohne Ziehen wirkt der Klick wie ohne Strg/Cmd.
+        if (node is not null && modifiers.HasFlag(EditorModifiers.Command))
+        {
+            _pressNodeId = node.Id;
+            _gesture = Gesture.PendingRubberBand;
+            return;
+        }
+
+        // Zellen füllen die Fläche lückenlos (Paket 7): Kanten sind dann nur über ihre Stege am Zellrand und ihre Marke
+        // zu treffen und haben dort beim Klick Vorrang vor der Zelle (Nr. 154). Wird gezogen, verschiebt das die Zelle
+        // darunter (Nr. 158).
         if (NodeShape == NodeShape.Cell && !shift && HitEdge(world) is { } cellEdge)
         {
-            SelectEdge(cellEdge.Id);
+            if (node is null)
+            {
+                SelectEdge(cellEdge.Id);
+                return;
+            }
+
+            _pressEdgeId = cellEdge.Id;
+            _pressNodeId = node.Id;
+            _pressedSelectedNode = IsNodeSelected(node.Id);
+            _gesture = Gesture.PendingMove;
             return;
         }
 
@@ -563,8 +611,11 @@ public sealed partial class EditorViewModel
 
     /// <summary>
     /// Kante in der Nähe des Weltpunkts (Toleranz in Pixeln). Bei Kreisen zählt die ganze Strecke zwischen den
-    /// Mittelpunkten; bei Zellen nur die sichtbaren Stege über den Zellrändern (<see cref="EditorGeometry.CellEdgeStubs"/>)
-    /// und die Marke, damit ein Klick ins Innere einer Zelle die Zelle trifft.
+    /// Mittelpunkten. Bei Zellen nur die Marke und die sichtbaren Stege über den Zellrändern
+    /// (<see cref="EditorGeometry.CellEdgeStubTargets"/>), und zwar nur rund um die Stelle, an der die Kante den Rand
+    /// kreuzt – höchstens eine halbe Steglänge weit, auch wenn die Toleranz in Pixeln größer wäre –, und nie im
+    /// Freihaltekreis um die Mitte der getroffenen Zelle. So trifft ein Klick ins Innere einer Zelle und in ihre Ecken
+    /// die Zelle, außer genau auf einem dort gezeichneten Steg (Nr. 158).
     /// </summary>
     public Edge? HitEdge(WorldPoint world)
     {
@@ -572,6 +623,8 @@ public sealed partial class EditorViewModel
         var cells = NodeShape == NodeShape.Cell;
         var clear = EditorGeometry.ClearRadius(Puzzle.Grid, NodeShape);
         var markRadius = Math.Max(tolerance, EditorGeometry.ContentRadius(Puzzle.Grid, NodeShape) * 0.32);
+        var stubReach = Math.Min(tolerance, EditorGeometry.CellEdgeStubLength(Puzzle.Grid) / 2);
+        var inClearZone = cells && HitNode(world) is { } cell && EditorGeometry.Center(Puzzle.Grid, cell).DistanceTo(world) <= clear;
         Edge? best = null;
         var bestDistance = double.MaxValue;
         foreach (var edge in Puzzle.Edges)
@@ -591,10 +644,13 @@ public sealed partial class EditorViewModel
             else
             {
                 var others = NodesNear(from, to, clear);
-                distance = EditorGeometry.CellEdgeStubs(Puzzle.Grid, from, to, others)
-                    .Select(s => EditorGeometry.DistanceToSegment(world, s.From, s.To))
-                    .DefaultIfEmpty(double.MaxValue)
-                    .Min();
+                distance = inClearZone
+                    ? double.MaxValue
+                    : EditorGeometry.CellEdgeStubTargets(Puzzle.Grid, from, to, others)
+                        .Where(s => s.Crossing.DistanceTo(world) <= stubReach)
+                        .Select(s => EditorGeometry.DistanceToSegment(world, s.From, s.To))
+                        .DefaultIfEmpty(double.MaxValue)
+                        .Min();
                 if (EdgeHasMark(edge.Rule))
                 {
                     var mark = EditorGeometry.EdgeMarkPosition(from, to, clear, others).Position;

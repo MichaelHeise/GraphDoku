@@ -103,6 +103,8 @@ public sealed partial class EditorViewModel : ViewModelBase
 
     public string ToolHint => Tool switch
     {
+        // Zellen füllen die Fläche: Der Rahmen beginnt dort mit Strg/Cmd auch auf einer Zelle (Nr. 159).
+        EditorTool.Select when NodeShape == NodeShape.Cell => "Auswahl: Klick wählt, Shift-Klick schaltet um, Strg/Cmd + Ziehen wählt per Rahmen, Zellen ziehen verschiebt. Ziffern tragen Givens ein, ⌫ löscht sie, Entf löscht die Auswahl.",
         EditorTool.Select => "Auswahl: Klick wählt, Shift-Klick schaltet um, Rahmen ziehen wählt mehrere, ausgewählte Knoten ziehen verschiebt. Ziffern tragen Givens ein, ⌫ löscht sie, Entf löscht die Auswahl.",
         EditorTool.PlaceNode => "Knoten setzen: Klick oder Ziehen setzt Knoten auf freie Gitterpunkte.",
         EditorTool.DrawEdge => "Kante ziehen: von einem Knoten zu einem anderen ziehen. Regel in der Werkzeugleiste wählen.",
