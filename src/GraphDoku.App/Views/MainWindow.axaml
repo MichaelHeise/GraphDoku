@@ -10,6 +10,7 @@
         x:Class="GraphDoku.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="{Binding Title}"
+        Icon="/Assets/GraphDoku-256.png"
         Width="1280" Height="800" MinWidth="900" MinHeight="560">
   <Design.DataContext>
     <vm:MainWindowViewModel />

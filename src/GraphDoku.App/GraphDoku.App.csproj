@@ -3,7 +3,15 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>GraphDoku.App</RootNamespace>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <AssemblyName>GraphDoku.App</AssemblyName>
+    <AssemblyTitle>GraphDoku</AssemblyTitle>
+    <!-- Programmsymbol der .exe unter Windows; macOS (.icns) und Linux (.png) bekommen es beim Paketieren. -->
+    <ApplicationIcon>Assets\GraphDoku.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Fenstersymbol (Titelleiste, Taskleiste). Die Icon-Dateien erzeugt tools/icon/build-icons.sh. -->
+    <AvaloniaResource Include="Assets\GraphDoku-256.png" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GraphDoku.Core\GraphDoku.Core.csproj" />
     <ProjectReference Include="..\GraphDoku.Solver\GraphDoku.Solver.csproj" />

@@ -231,6 +231,45 @@ Gitea Actions (`.gitea/workflows/ci.yml`) läuft bei jedem Push und Pull Request
 (`ubuntu-latest`): Restore, Release-Build und alle Tests; die Testergebnisse (TRX) werden als Artefakt hochgeladen.
 Für den headless Rendering-Rauchtest installiert die CI bei Bedarf `libfontconfig1` (von SkiaSharp benötigt).
 
+## Veröffentlichen (Release)
+
+Ein Versions-Tag baut auf dem Gitea-Runner alle Pakete und legt ein Release mit den Downloads an:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+`.gitea/workflows/release.yml` baut und testet dann, erzeugt mit `tools/package.sh` die Pakete, prüft das
+Linux-Paket mit einem Selbsttest und hängt alles an das Release:
+
+| Datei | Inhalt |
+| --- | --- |
+| `GraphDoku-<Version>-windows-x64.zip` | Ordner mit `GraphDoku.App.exe` |
+| `GraphDoku-<Version>-macos-arm64.zip`, `…-macos-x64.zip` | `GraphDoku.app` (Apple Silicon bzw. Intel), ad hoc signiert |
+| `GraphDoku-<Version>-linux-x64.tar.gz` | Ordner mit `GraphDoku.App`, Symbol und `.desktop`-Vorlage |
+| `SHA256SUMS-<Version>.txt` | Prüfsummen |
+
+- Alle Pakete sind eigenständig (kein installiertes .NET nötig) und enthalten Lizenz, Drittanbieter-Hinweise und die
+  Beispielrätsel (Ordner `Beispiele`).
+- Tags mit Zusatz (`v1.1.0-beta.1`) werden als Vorabversion markiert.
+- Probelauf ohne Release: in Gitea unter Actions → Release → „Workflow ausführen“; die Pakete liegen dann als Artefakt
+  am Lauf.
+- macOS: Die App ist nur ad hoc signiert (ohne Apple-Entwicklerkonto). Beim ersten Start meldet macOS einen nicht
+  verifizierten Entwickler; öffnen über Systemeinstellungen → Datenschutz & Sicherheit → „Dennoch öffnen“.
+- Legt der Token der Action kein Release an (HTTP 401/403), ein Repository-Secret `RELEASE_TOKEN` mit der Berechtigung
+  `write:repository` anlegen.
+
+Pakete lokal bauen (macOS signiert mit `codesign`, Linux braucht `rcodesign` für die macOS-Ziele):
+
+```bash
+tools/package.sh 1.0.0                     # alle Ziele nach artifacts/release
+tools/package.sh 1.0.0 artifacts/release win-x64 linux-x64
+```
+
+Ein fertiges Paket lässt sich ohne Fenster prüfen: `GraphDoku.App --selbsttest [Rätseldatei]` löst, prüft die
+Eindeutigkeit und erklärt (Exit-Code 0 bei Erfolg). Das App-Symbol erzeugt `tools/icon/build-icons.sh` (macOS).
+
 ## Lizenz
 
 Proprietär, alle Rechte vorbehalten – siehe `LICENSE`. Komponenten Dritter: `THIRD-PARTY-NOTICES.md`.

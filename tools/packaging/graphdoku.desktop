@@ -1,0 +1,12 @@
+[Desktop Entry]
+# Vorlage für Linux-Desktops; tools/package.sh ersetzt @VERSION@.
+# Installation: Ordner z. B. nach ~/.local/opt/graphdoku kopieren, Exec und Icon unten auf diesen Pfad setzen und die
+# Datei nach ~/.local/share/applications/ kopieren.
+Type=Application
+Version=1.0
+Name=GraphDoku
+Comment=Sudoku-Varianten als Graph bauen, lösen und erklären (@VERSION@)
+Exec=GraphDoku.App
+Icon=graphdoku
+Terminal=false
+Categories=Game;LogicGame;Education;

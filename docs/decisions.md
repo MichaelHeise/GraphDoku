@@ -1169,3 +1169,34 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      die Trefferfläche damit bis 6 px über den Umriss. Kropki-Punkte bleiben unverändert: Ihre Trefferfläche endet am
      gezeichneten Rand, wie bestehende Tests festlegen; ein Klick in den Punkt trifft ihn ohnehin schon vor den
      Knoten.
+
+## Release
+
+183. **Release über Versions-Tags** (Release): Ein Tag `vX.Y.Z` startet `.gitea/workflows/release.yml`: Build, alle
+     Tests, Pakete für Windows x64, Linux x64 und macOS (arm64 und x64), Selbsttest des Linux-Pakets und ein
+     Gitea-Release mit den Paketen und einer Prüfsummendatei. Tags mit Zusatz werden Vorabversionen; ein von Hand
+     gestarteter Lauf ist ein Probelauf und lädt die Pakete nur als Artefakt hoch. Das Release legt der Workflow über
+     die Gitea-API an (Token der Action, ersatzweise Secret `RELEASE_TOKEN`), ohne zusätzliche Release-Action. Die
+     Versionsnummer kommt aus dem Tag; lokale Builds tragen `0.0.0-dev` (`Directory.Build.props`).
+184. **Eigenständige Einzeldatei-Pakete** (Release): `tools/package.sh` veröffentlicht self-contained als Einzeldatei
+     (`PublishSingleFile`, native Bibliotheken daneben) und entfernt die Debug-Symbole der nativen NuGet-Bibliotheken
+     (unter Windows rund 100 MB). Pakete: 60–70 MB. Grund für die Einzeldatei: Im macOS-Bundle liegen in
+     `Contents/MacOS` sonst die verwalteten DLLs, deren Signatur `codesign` in erweiterten Dateiattributen ablegt –
+     nach dem Zippen war das Bundle ungültig. Mit Einzeldatei stehen dort nur Mach-O-Dateien mit eingebetteter
+     Signatur. Beispielrätsel liegen im Ordner `Beispiele` (ohne Umlaut, weil ZIP-Programme unter Windows Umlaute in
+     Namen oft falsch anzeigen).
+185. **macOS: Ad-hoc-Signatur mit rcodesign auf dem Linux-Runner** (Release): Das .NET-SDK signiert die ausführbare
+     Datei auch auf Linux ad hoc, ein daraus gebautes `.app`-Bundle ist für macOS aber ungültig (Info.plist und
+     Ressourcen nicht versiegelt), und eine heruntergeladene App würde als „beschädigt“ gemeldet. Der Release-Workflow
+     lädt deshalb `rcodesign` 0.29.0 (apple-platform-rs, MIT/Apache-2.0) mit fester Prüfsumme und signiert das Bundle
+     ad hoc; auf einem Mac nimmt `tools/package.sh` stattdessen `codesign` (mit `MACOS_SIGN_IDENTITY` auch ein echtes
+     Zertifikat). Ohne Apple-Entwicklerkonto und Notarisierung muss der Nutzer die App beim ersten Start einmal
+     freigeben. `rcodesign` ist nur Werkzeug im Build und wird nicht mitgeliefert. Die von `rcodesign` signierten
+     Bundles sind lokal nicht geprüft – erst der erste Lauf auf dem Runner zeigt, ob `codesign --verify` sie annimmt.
+186. **Selbsttest ohne Oberfläche und App-Symbol** (Release): `GraphDoku.App --selbsttest [Rätseldatei]` löst ein
+     Rätsel (Standard: „Klassisch leicht“), prüft die Eindeutigkeit und erklärt es, ohne Avalonia zu starten;
+     Exit-Code 0 bei Erfolg. So prüft der Workflow das fertige Linux-Paket (native Bibliotheken, Einzeldatei). Unter
+     Windows erscheint die Textausgabe nicht in der Konsole (`WinExe`), der Exit-Code gilt trotzdem. Neues App-Symbol
+     (sieben Knoten im Sechseck, Mitte hervorgehoben), erzeugt von `tools/icon/GenerateIcon.cs` (SkiaSharp) und
+     `tools/icon/build-icons.sh`; eingecheckt als `.icns`, `.ico` und PNG unter `src/GraphDoku.App/Assets`, gesetzt
+     als Programmsymbol der `.exe`, Fenstersymbol und im macOS-Bundle.

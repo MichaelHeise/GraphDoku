@@ -1,0 +1,170 @@
+name: Release
+
+# Ein Tag vX.Y.Z (z. B. `git tag v1.2.0 && git push origin v1.2.0`) baut, testet und paketiert GraphDoku und legt
+# ein Gitea-Release mit den Downloads an. Tags mit Zusatz (v1.2.0-beta.1) werden als Vorabversion markiert.
+# Von Hand gestartet (Actions → Release → Workflow ausführen) ist es ein Probelauf: Pakete als Artefakte, kein Release.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version für den Probelauf (ohne v)"
+        required: false
+        default: "0.0.0-probe"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+      AVALONIA_TELEMETRY_OPTOUT: "1"
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+      # rcodesign signiert das macOS-App-Bundle ad hoc auf Linux (ohne Signatur meldet macOS die App als „beschädigt“).
+      # Version und Prüfsumme sind fest; die Prüfsumme stammt aus dem GitHub-Release des Projekts.
+      RCODESIGN_VERSION: "0.29.0"
+      RCODESIGN_SHA256: "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002"
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+
+      - name: Version bestimmen
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tag="${{ github.ref_name }}"
+            version="${tag#v}"
+            publish="true"
+          else
+            version="${{ inputs.version }}"
+            publish="false"
+          fi
+          if ! echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "Ungültige Version „$version“ (Tag muss vX.Y.Z oder vX.Y.Z-zusatz sein)." >&2
+            exit 1
+          fi
+          case "$version" in *-*) prerelease="true" ;; *) prerelease="false" ;; esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "Version $version (Release anlegen: $publish, Vorabversion: $prerelease)"
+
+      - name: .NET SDK installieren (Version aus global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Systempakete (fontconfig für die Rendering-Tests, zip für die Pakete)
+        run: |
+          missing=""
+          ldconfig -p | grep -q 'libfontconfig\.so\.1' || missing="$missing libfontconfig1"
+          command -v zip >/dev/null 2>&1 || missing="$missing zip"
+          if [ -n "$missing" ]; then
+            SUDO=""
+            if [ "$(id -u)" != "0" ]; then SUDO="sudo"; fi
+            $SUDO apt-get update
+            $SUDO apt-get install -y --no-install-recommends $missing
+          fi
+
+      - name: rcodesign installieren (macOS-Signatur)
+        run: |
+          file="apple-codesign-${RCODESIGN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl -sSfL -o "/tmp/$file" \
+            "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign/${RCODESIGN_VERSION}/$file"
+          echo "${RCODESIGN_SHA256}  /tmp/$file" | sha256sum -c -
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf "/tmp/$file" -C /tmp
+          install -m 0755 "$(find /tmp -path "*apple-codesign-${RCODESIGN_VERSION}*" -name rcodesign -type f | head -n 1)" "$HOME/.local/bin/rcodesign"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/rcodesign" --version
+
+      - name: NuGet-Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj', 'nuget.config', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore GraphDoku.sln
+
+      - name: Build
+        run: dotnet build GraphDoku.sln -c Release --no-restore -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Test
+        run: dotnet test GraphDoku.sln -c Release --no-build
+
+      - name: Pakete bauen
+        run: tools/package.sh "${{ steps.version.outputs.version }}" artifacts/release
+
+      - name: Linux-Paket prüfen (Selbsttest ohne Oberfläche)
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          mkdir -p /tmp/selbsttest
+          tar -xzf "artifacts/release/GraphDoku-$version-linux-x64.tar.gz" -C /tmp/selbsttest
+          "/tmp/selbsttest/GraphDoku-$version-linux-x64/GraphDoku.App" --selbsttest
+
+      - name: Pakete als Artefakt hochladen (Probelauf)
+        if: steps.version.outputs.publish != 'true'
+        uses: actions/upload-artifact@v3
+        with:
+          name: graphdoku-${{ steps.version.outputs.version }}
+          path: artifacts/release/
+
+      - name: Gitea-Release anlegen und Pakete anhängen
+        if: steps.version.outputs.publish == 'true'
+        env:
+          # Ein eigener Token (Secret RELEASE_TOKEN, Berechtigung write:repository) hat Vorrang vor dem Token der Action.
+          TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITEA_TOKEN }}
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          body=$(python3 - <<'PY'
+          import json, os
+          v = os.environ["VERSION"]
+          text = "\n".join([
+              f"GraphDoku {v}",
+              "",
+              "## Downloads",
+              f"- **Windows (x64):** `GraphDoku-{v}-windows-x64.zip` entpacken, `GraphDoku.App.exe` starten.",
+              f"- **macOS (Apple Silicon):** `GraphDoku-{v}-macos-arm64.zip`, **Intel-Mac:** `GraphDoku-{v}-macos-x64.zip`. "
+              "`GraphDoku.app` in „Programme“ ziehen. Beim ersten Start meldet macOS einen nicht verifizierten Entwickler: "
+              "Systemeinstellungen → Datenschutz & Sicherheit → „Dennoch öffnen“.",
+              f"- **Linux (x64):** `GraphDoku-{v}-linux-x64.tar.gz` entpacken, `GraphDoku.App` starten.",
+              "",
+              "Kein .NET nötig, alles ist enthalten. Beispielrätsel liegen im Ordner `Beispiele`. "
+              f"Prüfsummen: `SHA256SUMS-{v}.txt`.",
+          ])
+          print(json.dumps({
+              "tag_name": os.environ["TAG"],
+              "name": f"GraphDoku {v}",
+              "body": text,
+              "draft": False,
+              "prerelease": os.environ["PRERELEASE"] == "true",
+          }))
+          PY
+          )
+          response=$(curl -sS -w '\n%{http_code}' -X POST -H "Authorization: token $TOKEN" \
+            -H "Content-Type: application/json" --data "$body" "$API/releases")
+          status=$(echo "$response" | tail -n 1)
+          if [ "$status" != "201" ]; then
+            echo "Release konnte nicht angelegt werden (HTTP $status):" >&2
+            echo "$response" | head -n -1 >&2
+            echo "Bei HTTP 401/403: Secret RELEASE_TOKEN mit Berechtigung write:repository anlegen." >&2
+            exit 1
+          fi
+          id=$(echo "$response" | head -n -1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+          for file in artifacts/release/*; do
+            name=$(basename "$file")
+            echo "Lade $name hoch …"
+            curl -sSf -X POST -H "Authorization: token $TOKEN" \
+              -F "attachment=@$file" "$API/releases/$id/assets?name=$name" > /dev/null
+          done
+          echo "Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG"

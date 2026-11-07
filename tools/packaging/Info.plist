@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Vorlage für das macOS-App-Bundle; tools/package.sh ersetzt @VERSION@. -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>GraphDoku</string>
+  <key>CFBundleDisplayName</key>
+  <string>GraphDoku</string>
+  <key>CFBundleIdentifier</key>
+  <string>de.hvis-software.graphdoku</string>
+  <key>CFBundleExecutable</key>
+  <string>GraphDoku.App</string>
+  <key>CFBundleIconFile</key>
+  <string>GraphDoku</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>@VERSION@</string>
+  <key>CFBundleVersion</key>
+  <string>@VERSION@</string>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>de</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSHumanReadableCopyright</key>
+  <string>Copyright (c) 2026 Michael Heise. Alle Rechte vorbehalten.</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.puzzle-games</string>
+</dict>
+</plist>

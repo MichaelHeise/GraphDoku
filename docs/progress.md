@@ -623,3 +623,14 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
   eingebettete Repositories eingecheckt und sofort wieder entfernt worden).
 - Stufe 0 des Erklär-Modus (Nr. 95) vom Projektinhaber bestätigt.
 - Offen: Handtest am Desktop, Mehrfachzeiger-Gesten (Nr. 177).
+
+## Release-Workflow (Branch `feature/release-workflow`)
+
+- Release über Versions-Tags (`.gitea/workflows/release.yml`), Pakete mit `tools/package.sh`, Selbsttest
+  `--selbsttest`, App-Symbol, Versionsnummer aus dem Tag (Nr. 183–186).
+- Lokal geprüft: Pakete für macOS arm64, Windows x64 und Linux x64 gebaut; macOS-Bundle nach Zippen und Entpacken
+  gültig signiert (`codesign --verify --deep --strict`), Selbsttest aus dem entpackten Bundle bestanden; im
+  Linux-x64-Container Windows- und Linux-Paket gebaut und Selbsttest des Linux-Pakets bestanden.
+- Tests: 821, alle grün (App 372 mit 4 neuen Selbsttest-Tests).
+- Nicht geprüft: Signatur mit `rcodesign` (erst auf dem Runner), Windows-Paket auf Windows, Anlegen des Releases mit dem
+  Token der Action.
