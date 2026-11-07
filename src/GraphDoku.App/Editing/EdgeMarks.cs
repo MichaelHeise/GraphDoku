@@ -99,14 +99,45 @@ public static class EdgeMarks
         ArgumentNullException.ThrowIfNull(edge);
         if (edge.Rule == "LessThan")
         {
-            var size = ArrowSize(nodeRadius, gap);
-            var along = ((dx * unitX) + (dy * unitY)) / size;
-            var across = ((dy * unitX) - (dx * unitY)) / size; // Querrichtung (-unitY, unitX) wie beim Zeichnen
-            return InPolygon(along, across, ArrowOutline);
+            return ArrowDistance(nodeRadius, gap, dx, dy, unitX, unitY) == 0;
         }
 
         var radius = Radius(edge, nodeRadius, gap, measureLabel);
         return (dx * dx) + (dy * dy) <= radius * radius;
+    }
+
+    /// <summary>
+    /// Abstand eines Punkts vom gezeichneten Pfeil in Pixeln: 0 in seinem Umriss (<see cref="ArrowOutline"/>), sonst bis
+    /// zum nächsten Rand des Umrisses – nicht bis zu seinem Umkreis (<see cref="Radius"/>), dessen leere Ecken sonst
+    /// nahe Linien überdeckten (Nachprüfung PR #1, A1). Parameter wie bei <see cref="Contains"/>.
+    /// </summary>
+    public static double ArrowDistance(double nodeRadius, double gap, double dx, double dy, double unitX, double unitY)
+    {
+        var size = ArrowSize(nodeRadius, gap);
+        var along = ((dx * unitX) + (dy * unitY)) / size;
+        var across = ((dy * unitX) - (dx * unitY)) / size; // Querrichtung (-unitY, unitX) wie beim Zeichnen
+        if (InPolygon(along, across, ArrowOutline))
+        {
+            return 0;
+        }
+
+        var nearest = double.MaxValue;
+        for (int i = 0, j = ArrowOutline.Count - 1; i < ArrowOutline.Count; j = i++)
+        {
+            nearest = Math.Min(nearest, DistanceToSegment(along, across, ArrowOutline[j], ArrowOutline[i]));
+        }
+
+        return nearest * size;
+    }
+
+    /// <summary>Abstand des Punkts (x, y) von der Strecke a–b.</summary>
+    private static double DistanceToSegment(double x, double y, (double X, double Y) a, (double X, double Y) b)
+    {
+        var (sx, sy) = (b.X - a.X, b.Y - a.Y);
+        var lengthSquared = (sx * sx) + (sy * sy);
+        var t = lengthSquared < 1e-18 ? 0 : Math.Clamp((((x - a.X) * sx) + ((y - a.Y) * sy)) / lengthSquared, 0, 1);
+        var (px, py) = (a.X + (t * sx) - x, a.Y + (t * sy) - y);
+        return Math.Sqrt((px * px) + (py * py));
     }
 
     /// <summary>Punkt im Vieleck (Strahlverfahren, gerade/ungerade Kreuzungszahl).</summary>

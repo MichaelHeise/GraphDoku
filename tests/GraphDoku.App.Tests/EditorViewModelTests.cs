@@ -508,6 +508,49 @@ public class EditorViewModelTests
     }
 
     [Fact]
+    public void Clicking_a_line_beside_a_large_arrow_selects_that_line()
+    {
+        // Nachprüfung PR #1, A1: Nach den Knoten zählte beim Pfeil sein Umkreis (1,25 halbe Pfeillängen) mit Abstand 0;
+        // ein genauer Klick auf die Linie einer nahen Kante in den leeren Ecken dieses Kreises wählte den Pfeil.
+        var puzzle = new Puzzle("Paar", GridType.Square);
+        puzzle.Nodes.Add(new Node(1, 0, 0));
+        puzzle.Nodes.Add(new Node(2, 1, 0));
+        puzzle.Nodes.Add(new Node(3, 8, 1));
+        puzzle.Edges.Add(new Edge(1, 1, 3, "NotEqual"));
+        puzzle.Edges.Add(new Edge(2, 1, 2, "LessThan"));
+        var editor = EditorDriver.CreateEditor(puzzle);
+        editor.Viewport.ZoomAt(new ScreenPoint(500, 400), 128 / editor.Viewport.Scale);
+        var scale = editor.Viewport.Scale;
+        var mark = editor.ScreenOf(0.5, 0);
+        var nodeRadius = EditorGeometry.NodeRadius(GridType.Square) * scale;
+        var gap = (1 - (2 * EditorGeometry.NodeRadius(GridType.Square))) * scale;
+        var size = EdgeMarks.ArrowSize(nodeRadius, gap);
+        size.Should().BeGreaterThan(12, "großer Pfeil");
+        var onLine = editor.ScreenOf(0.5, 0.5 / 8); // auf der Strecke (0, 0)–(8, 1)
+        var fromMark = onLine.Y - mark.Y;
+        fromMark.Should().BeLessThan(EdgeMarks.Radius(puzzle.Edges[1], nodeRadius, gap, null), "im Umkreis des Pfeils");
+        EdgeMarks.Contains(puzzle.Edges[1], nodeRadius, gap, null, 0, fromMark, 1, 0).Should().BeFalse("außerhalb des Umrisses");
+        editor.HitNode(editor.Viewport.ToWorld(onLine)).Should().BeNull();
+
+        editor.Click(onLine);
+        editor.SelectedEdgeId.Should().Be(1);
+
+        // Auch 1 px neben der Linie, weiterhin im Umkreis: die Linie liegt näher als der gezeichnete Pfeil.
+        editor.Click(new ScreenPoint(onLine.X, onLine.Y + 1));
+        editor.SelectedEdgeId.Should().Be(1);
+
+        // In der leeren Ecke des Umkreises auf der anderen Seite, weiter als die Toleranz vom Umriss: keine Kante.
+        var corner = 15.0;
+        corner.Should().BeLessThan(EdgeMarks.Radius(puzzle.Edges[1], nodeRadius, gap, null));
+        editor.HitEdge(editor.Viewport.ToWorld(new ScreenPoint(mark.X, mark.Y - corner))).Should().BeNull();
+
+        // Auf dem Pfeil und knapp (innerhalb der Toleranz) neben seiner Spitze weiterhin der Pfeil.
+        editor.Click(mark);
+        editor.SelectedEdgeId.Should().Be(2);
+        editor.HitEdge(editor.Viewport.ToWorld(new ScreenPoint(mark.X + size + EditorViewModel.EdgeHitTolerance - 1, mark.Y)))!.Id.Should().Be(2);
+    }
+
+    [Fact]
     public void Selecting_a_group_in_the_list_shows_its_properties()
     {
         var editor = EditorDriver.CreateEditor(ClassicSudoku.Create());

@@ -669,7 +669,9 @@ public sealed partial class EditorViewModel
 
     /// <summary>
     /// Kante in der Nähe des Weltpunkts (Toleranz in Pixeln). Bei Kreisen zählt die ganze Strecke zwischen den
-    /// Mittelpunkten und die gezeichnete Marke (<see cref="EdgeMarks.Radius"/>, mindestens die Toleranz), mit
+    /// Mittelpunkten und die gezeichnete Marke: ein Punkt in seinem Kreis (<see cref="EdgeMarks.Radius"/>, mindestens
+    /// die Toleranz), ein Pfeil in seinem Umriss und mit derselben Toleranz wie die Linien daneben
+    /// (<see cref="EdgeMarks.ArrowDistance"/>), mit
     /// <paramref name="marksOnly"/> (Prüfung vor den Knoten) nur die Marke genau so weit, wie sie gezeichnet ist
     /// (<see cref="EdgeMarks.Contains"/>, ohne Toleranz). Bei Zellen nur die Marke und die sichtbaren Stege über den Zellrändern
     /// (<see cref="EditorGeometry.CellEdgeStubTargets"/>), und zwar nur rund um die Stelle, an der die Kante den Rand
@@ -706,8 +708,19 @@ public sealed partial class EditorViewModel
             else if (!cells)
             {
                 distance = EditorGeometry.DistanceToSegment(world, from, to);
-                if (EdgeHasMark(edge.Rule))
+                if (edge.Rule == "LessThan")
                 {
+                    // Der Pfeil nach seinem Umriss, nicht nach seinem Umkreis: Dessen leere Ecken schlugen sonst eine
+                    // genau getroffene nahe Linie (A1). Dafür reicht er an Spitze und hinteren Ecken bis zur Toleranz
+                    // über den Umriss hinaus, also weiter als früher der Umkreis (klein gezoomt etwa 11 px vor der
+                    // Spitze); gegen nahe Linien gilt weiterhin der kleinste Abstand.
+                    distance = Math.Min(distance, DistanceToDrawnArrow(world, from, to, clear));
+                }
+                else if (EdgeHasMark(edge.Rule))
+                {
+                    // Punkte zählen bewusst nur bis zu ihrem gezeichneten Rand (mindestens die Toleranz), mit Abstand
+                    // 0 erst innerhalb von Radius minus Toleranz – so festgelegt in den Tests zu großen und beschrifteten
+                    // Punkten. Ein Klick in den Punkt wählt ihn ohnehin schon vor den Knoten (marksOnly).
                     var (mark, gap) = EditorGeometry.EdgeMarkPosition(from, to, clear, NodesNear(from, to, clear));
                     var radius = Math.Max(tolerance, EdgeMarks.Radius(edge, nodeRadius, gap * Viewport.Scale, MeasureMarkLabel) / Viewport.Scale);
                     distance = Math.Min(distance, Math.Max(0, mark.DistanceTo(world) - radius + tolerance));
@@ -762,6 +775,31 @@ public sealed partial class EditorViewModel
             (world.Y - mark.Y) * scale,
             (to.X - from.X) / length,
             (to.Y - from.Y) / length);
+    }
+
+    /// <summary>
+    /// Abstand des Weltpunkts vom gezeichneten Pfeil der Kante (Kreisdarstellung, <see cref="EdgeMarks.ArrowDistance"/>):
+    /// 0 im Umriss, sonst bis zu seinem Rand.
+    /// </summary>
+    private double DistanceToDrawnArrow(WorldPoint world, WorldPoint from, WorldPoint to, double clear)
+    {
+        var length = from.DistanceTo(to);
+        if (length < 1e-9)
+        {
+            return double.MaxValue;
+        }
+
+        var (mark, gap) = EditorGeometry.EdgeMarkPosition(from, to, clear, NodesNear(from, to, clear));
+        var scale = Viewport.Scale;
+        var nodeRadius = EditorGeometry.ContentRadius(Puzzle.Grid, NodeShape) * scale;
+        var pixels = EdgeMarks.ArrowDistance(
+            nodeRadius,
+            gap * scale,
+            (world.X - mark.X) * scale,
+            (world.Y - mark.Y) * scale,
+            (to.X - from.X) / length,
+            (to.Y - from.Y) / length);
+        return pixels / scale;
     }
 
     /// <summary>Regeln mit Marke auf der Kante (Kropki-Punkte, Pfeil); „Ungleich“ ist nur eine Linie.</summary>
