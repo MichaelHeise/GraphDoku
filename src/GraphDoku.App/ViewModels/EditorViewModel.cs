@@ -155,12 +155,12 @@ public sealed partial class EditorViewModel : ViewModelBase
         ArgumentNullException.ThrowIfNull(puzzle);
         CancelGesture();
         _history.Changed -= OnHistoryChanged;
-        var solutionWasShown = ClearSolutionForChange();
+        var shown = ClearDisplayForChange();
         _history = CreateHistory(puzzle);
         _observedRevision = _history.Revision;
         _hiddenGroups.Clear();
         AfterDocumentReplaced();
-        RaiseContentChanged(documentReplaced: true, solutionWasShown);
+        RaiseContentChanged(documentReplaced: true, shown);
     }
 
     /// <summary>Führt eine Bearbeitung als Undo-Schritt aus.</summary>
@@ -424,15 +424,15 @@ public sealed partial class EditorViewModel : ViewModelBase
 
     private void OnHistoryChanged(object? sender, EventArgs e)
     {
-        // Inhaltliche Änderung (nicht nur Speichern)? Dann passt eine angezeigte Lösung nicht mehr: vor dem Neuzeichnen
-        // ausblenden (siehe EditorViewModel.Solution.cs).
+        // Inhaltliche Änderung (nicht nur Speichern)? Dann passen eine angezeigte Lösung und eine Erklärung nicht mehr: vor
+        // dem Neuzeichnen ausblenden (siehe EditorViewModel.Solution.cs und EditorViewModel.Explanation.cs).
         var edited = _history.Revision != _observedRevision;
-        var solutionWasShown = edited && ClearSolutionForChange();
+        var shown = edited ? ClearDisplayForChange() : (false, false);
         _observedRevision = _history.Revision;
         OnModelChanged();
         if (edited)
         {
-            RaiseContentChanged(documentReplaced: false, solutionWasShown);
+            RaiseContentChanged(documentReplaced: false, shown);
         }
     }
 

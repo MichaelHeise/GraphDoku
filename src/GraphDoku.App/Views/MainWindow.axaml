@@ -105,6 +105,11 @@
         <MenuItem Header="{Binding Solve.ShowFirstSolutionText}" Command="{Binding Solve.ShowFirstSolutionCommand}" />
         <MenuItem Header="Lösung 2 anzeigen" Command="{Binding Solve.ShowSecondSolutionCommand}" />
         <MenuItem Header="Lösung ausblenden" Command="{Binding Solve.HideSolutionCommand}" />
+        <Separator />
+        <MenuItem Header="E_rklären" Command="{Binding Explain.ExplainCommand}" InputGesture="F7" />
+        <MenuItem Header="Erklärung abbrechen" Command="{Binding Explain.CancelCommand}" />
+        <MenuItem Header="Kandidaten anzeigen" ToggleType="CheckBox" IsChecked="{Binding Explain.ShowCandidates}" />
+        <MenuItem Header="Erklärung beenden" Command="{Binding Explain.CloseCommand}" />
       </MenuItem>
     </Menu>
 
@@ -145,6 +150,8 @@
                   ToolTip.Tip="Eine Lösung suchen und in die Knoten eintragen (F5)" />
           <Button Content="Eindeutigkeit prüfen" Command="{Binding Solve.CheckUniquenessCommand}" Padding="10,3"
                   ToolTip.Tip="Prüfen, ob es genau eine Lösung gibt (F6)" />
+          <Button Content="Erklären" Command="{Binding Explain.ExplainCommand}" Padding="10,3"
+                  ToolTip.Tip="Lösungsweg Schritt für Schritt erklären (F7)" />
           <TextBlock Text="Zeitlimit:" VerticalAlignment="Center" Margin="4,0,0,0" />
           <TextBox Text="{Binding Solve.TimeLimitText}" Width="56" MinWidth="0" MinHeight="0" Padding="6,3" HorizontalContentAlignment="Right"
                    VerticalContentAlignment="Center" ToolTip.Tip="Höchste Rechenzeit pro Solver-Aufruf in Sekunden (0,1 bis 3600)" />
@@ -174,7 +181,7 @@
                      ToolTip.Tip="{Binding Solve.ResultMessage}"
                      IsVisible="{Binding Solve.ResultMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
           <TextBlock Classes="hint" MaxLines="2" TextTrimming="WordEllipsis" IsVisible="{Binding !Solve.HasStatus}"
-                     Text="„Lösen“ trägt eine Lösung in die Knoten ein (ohne das Rätsel zu ändern); „Eindeutigkeit prüfen“ sucht nach einer zweiten Lösung." />
+                     Text="„Lösen“ trägt eine Lösung in die Knoten ein (ohne das Rätsel zu ändern); „Eindeutigkeit prüfen“ sucht nach einer zweiten Lösung; „Erklären“ zeigt den Lösungsweg Schritt für Schritt." />
           <ScrollViewer MaxHeight="72" IsVisible="{Binding Solve.HasResultDetails}">
             <ItemsControl ItemsSource="{Binding Solve.ResultDetails}">
               <ItemsControl.ItemTemplate>
@@ -188,6 +195,62 @@
                      ToolTip.Tip="{Binding Solve.Legend}" IsVisible="{Binding Solve.IsSolutionShown}" />
         </StackPanel>
       </Grid>
+    </Border>
+
+    <!-- Schrittleiste des Erklär-Modus (Entscheidungen Nr. 101–111): eine Zeile mit Anfang/Zurück/Vor/Ende, Schieberegler,
+         „Schritt n von N“, Kandidaten ein/aus und „Erklärung beenden“. Während der Berechnung Fortschritt mit Abbrechen;
+         ohne Erklärung (ungültig, Fehler, veraltet) die Meldung mit „Schließen“. Begründung und Ergebnis stehen im Panel
+         rechts. -->
+    <Border x:Name="StepBar" DockPanel.Dock="Top" Padding="8,5" BorderThickness="0,0,0,1" IsVisible="{Binding Explain.IsBarVisible}"
+            Background="{Binding Explain.BarSeverity, Converter={x:Static views:Converters.SeverityBackground}}"
+            BorderBrush="{Binding Explain.BarSeverity, Converter={x:Static views:Converters.SeverityBorder}}">
+      <Panel>
+        <DockPanel IsVisible="{Binding Explain.IsActive}">
+          <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="Erklärung" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <Button Content="« Anfang" Command="{Binding Explain.FirstCommand}" Padding="8,3" ToolTip.Tip="Zur Ausgangslage (Pos1)" />
+            <Button Content="‹ Zurück" Command="{Binding Explain.PreviousCommand}" Padding="8,3" ToolTip.Tip="Einen Schritt zurück (←)" />
+            <Button Content="Vor ›" Command="{Binding Explain.NextCommand}" Padding="8,3" FontWeight="SemiBold" ToolTip.Tip="Nächster Schritt (→)" />
+            <Button Content="Ende »" Command="{Binding Explain.LastCommand}" Padding="8,3" ToolTip.Tip="Zum letzten Schritt (Ende)" />
+          </StackPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="{Binding Explain.StepCounterText}" VerticalAlignment="Center" FontWeight="SemiBold" MinWidth="120" TextAlignment="Right" />
+            <CheckBox Content="Kandidaten" IsChecked="{Binding Explain.ShowCandidates}" MinWidth="0" ToolTip.Tip="Kandidaten in den offenen Knoten anzeigen" />
+            <Button Content="{Binding Explain.CloseText}" Command="{Binding Explain.CloseCommand}" Padding="10,3" />
+          </StackPanel>
+          <Slider x:Name="StepSlider" Minimum="0" Maximum="{Binding Explain.StepCount}" Value="{Binding Explain.SliderValue}"
+                  TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="10" Margin="12,0" MinWidth="80"
+                  VerticalAlignment="Center" ToolTip.Tip="Schritt wählen" />
+        </DockPanel>
+        <DockPanel IsVisible="{Binding Explain.IsBusy}">
+          <ProgressBar DockPanel.Dock="Left" IsIndeterminate="{Binding Explain.IsBusy}" Width="120" MinWidth="0" VerticalAlignment="Center" Margin="0,0,10,0" />
+          <Button DockPanel.Dock="Left" Content="Abbrechen" Command="{Binding Explain.CancelCommand}" Padding="10,3" Margin="0,0,10,0" />
+          <TextBlock Text="{Binding Explain.BusyText}" VerticalAlignment="Center" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+        <DockPanel>
+          <DockPanel.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="!Explain.IsActive" />
+              <Binding Path="!Explain.IsBusy" />
+            </MultiBinding>
+          </DockPanel.IsVisible>
+          <Button DockPanel.Dock="Right" Content="{Binding Explain.CloseText}" Command="{Binding Explain.CloseCommand}" Padding="10,3" Margin="10,0,0,0"
+                  VerticalAlignment="Top" />
+          <StackPanel Spacing="3" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Explain.StatusMessage}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" TextTrimming="WordEllipsis"
+                       ToolTip.Tip="{Binding Explain.StatusMessage}" />
+            <ScrollViewer MaxHeight="72" IsVisible="{Binding Explain.HasErrors}">
+              <ItemsControl ItemsSource="{Binding Explain.Errors}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <TextBlock Text="{Binding StringFormat='• {0}'}" Classes="error" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </StackPanel>
+        </DockPanel>
+      </Panel>
     </Border>
 
     <!-- Statusbereich: letzte Aktion, Werkzeughinweis und Prüfmeldungen des PuzzleValidator. -->
@@ -239,7 +302,52 @@
     <!-- Eigenschaften-Panel -->
     <Border DockPanel.Dock="Right" Width="300" BorderBrush="#dddddd" BorderThickness="1,0,0,0">
       <ScrollViewer Padding="10">
-        <ContentControl Content="{Binding Editor.Properties}">
+        <Panel>
+        <!-- Erklär-Modus: Ergebnis, aktueller Schritt mit Begründung, Legende. Ersetzt solange das Eigenschaften-Panel. -->
+        <StackPanel x:Name="ExplanationPanel" Spacing="6" IsVisible="{Binding Explain.IsActive}">
+          <TextBlock Text="Erklärung" Classes="header" />
+          <Border Padding="8,6" CornerRadius="4" BorderThickness="1"
+                  Background="{Binding Explain.Severity, Converter={x:Static views:Converters.SeverityBackground}}"
+                  BorderBrush="{Binding Explain.Severity, Converter={x:Static views:Converters.SeverityBorder}}">
+            <TextBlock Text="{Binding Explain.StatusMessage}" TextWrapping="Wrap" FontSize="12" />
+          </Border>
+          <TextBlock Text="{Binding Explain.BranchSummary}" Classes="hint" />
+          <Rectangle Height="1" Fill="#dddddd" Margin="0,4" />
+          <TextBlock Text="{Binding Explain.StepCounterText}" FontWeight="SemiBold" />
+          <Border HorizontalAlignment="Left" Padding="8,2" CornerRadius="9"
+                  Background="{Binding Explain.IsBranchStep, Converter={x:Static views:Converters.StepBadgeBackground}}">
+            <TextBlock Text="{Binding Explain.StepKindText}" FontWeight="SemiBold" FontSize="12"
+                       Foreground="{Binding Explain.IsBranchStep, Converter={x:Static views:Converters.StepBadgeForeground}}" />
+          </Border>
+          <TextBlock Text="{Binding Explain.TechniqueText, StringFormat='Schlussweise: {0}'}" Classes="hint"
+                     IsVisible="{Binding Explain.TechniqueText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <TextBlock Text="{Binding Explain.SummaryText}" FontWeight="SemiBold" TextWrapping="Wrap"
+                     IsVisible="{Binding Explain.SummaryText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <TextBlock Text="{Binding Explain.ReasonText}" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding Explain.RuleText, StringFormat='Regel: {0}'}" Classes="hint"
+                     IsVisible="{Binding Explain.RuleText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <Rectangle Height="1" Fill="#dddddd" Margin="0,4" />
+          <TextBlock Text="Legende" FontWeight="SemiBold" />
+          <Grid ColumnDefinitions="26,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="3">
+            <TextBlock Grid.Row="0" Text="5" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="Given" Classes="hint" VerticalAlignment="Center" />
+            <TextBlock Grid.Row="1" Text="5" Foreground="#1d4ed8" HorizontalAlignment="Center" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="hergeleiteter Wert" Classes="hint" VerticalAlignment="Center" />
+            <TextBlock Grid.Row="2" Text="5" Foreground="#c2410c" HorizontalAlignment="Center" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="geratener Wert (Verzweigung)" Classes="hint" VerticalAlignment="Center" />
+            <Ellipse Grid.Row="3" Width="14" Height="14" Fill="#fef08a" Stroke="#ca8a04" StrokeThickness="2" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="vom aktuellen Schritt geändert" Classes="hint" VerticalAlignment="Center" />
+            <Ellipse Grid.Row="4" Width="14" Height="14" Fill="#fed7aa" Stroke="#ea580c" StrokeThickness="2" />
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="Verzweigung: hier wird geraten" Classes="hint" VerticalAlignment="Center" />
+            <Ellipse Grid.Row="5" Width="14" Height="14" Fill="#bbf7d0" Stroke="#16a34a" StrokeThickness="2" />
+            <TextBlock Grid.Row="5" Grid.Column="1" Text="verantwortliche Regel (Gruppe/Kante grün)" Classes="hint" VerticalAlignment="Center" />
+            <TextBlock Grid.Row="6" Text="5" Foreground="#dc2626" TextDecorations="Strikethrough" HorizontalAlignment="Center" />
+            <TextBlock Grid.Row="6" Grid.Column="1" Text="in diesem Schritt gestrichener Kandidat" Classes="hint" VerticalAlignment="Center" />
+          </Grid>
+          <TextBlock Classes="hint" Margin="0,6,0,0"
+                     Text="Tasten (nach Klick in die Zeichenfläche): ← / → ein Schritt, Pos1 / Ende zum Anfang bzw. Ende. Jede Bearbeitung des Rätsels beendet die Erklärung." />
+        </StackPanel>
+        <ContentControl Content="{Binding Editor.Properties}" IsVisible="{Binding !Explain.IsActive}">
           <ContentControl.DataTemplates>
             <DataTemplate x:DataType="vm:PuzzlePropertiesViewModel">
               <StackPanel Spacing="6">
@@ -347,6 +455,7 @@
             </DataTemplate>
           </ContentControl.DataTemplates>
         </ContentControl>
+        </Panel>
       </ScrollViewer>
     </Border>
 

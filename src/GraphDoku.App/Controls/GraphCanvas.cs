@@ -6,6 +6,7 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Rendering;
 using GraphDoku.App.Editing;
+using GraphDoku.App.Explaining;
 using GraphDoku.App.ViewModels;
 using GraphDoku.Core.Geometry;
 using GraphDoku.Core.Model;
@@ -45,7 +46,36 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     private static readonly IBrush SolutionDifferenceBrush = new ImmutableSolidColorBrush(SolutionDifferenceColor);
     private static readonly IBrush SolutionDifferenceFill = new ImmutableSolidColorBrush(Color.Parse("#ffedd5"));
 
+    /// <summary>Erklär-Modus: Knoten des aktuellen Schritts (gelb), bei einer Verzweigung orange.</summary>
+    public static readonly Color ExplanationCurrentColor = Color.Parse("#ca8a04");
+
+    /// <summary>Erklär-Modus: Knoten, Kante bzw. Gruppe der verantwortlichen Regel (grün).</summary>
+    public static readonly Color ExplanationRuleColor = Color.Parse("#16a34a");
+
+    /// <summary>Erklär-Modus: durch eine Verzweigung (Raten) gesetzte Werte und der Verzweigungsknoten.</summary>
+    public static readonly Color ExplanationBranchColor = Color.Parse("#ea580c");
+
+    /// <summary>Erklär-Modus: vom aktuellen Schritt gestrichene Kandidaten (rot, durchgestrichen).</summary>
+    public static readonly Color ExplanationRemovedColor = Color.Parse("#dc2626");
+
+    private static readonly IBrush ExplanationCurrentFill = new ImmutableSolidColorBrush(Color.Parse("#fef08a"));
+    private static readonly IBrush ExplanationBranchFill = new ImmutableSolidColorBrush(Color.Parse("#fed7aa"));
+    private static readonly IBrush ExplanationRuleFill = new ImmutableSolidColorBrush(Color.Parse("#bbf7d0"));
+    private static readonly IBrush ExplanationRuleBrush = new ImmutableSolidColorBrush(ExplanationRuleColor);
+    private static readonly IBrush ExplanationBranchBrush = new ImmutableSolidColorBrush(ExplanationBranchColor);
+    private static readonly IBrush GuessedValueBrush = new ImmutableSolidColorBrush(Color.Parse("#c2410c"));
+    private static readonly IBrush RemovedCandidateBrush = new ImmutableSolidColorBrush(ExplanationRemovedColor);
+    private static readonly IBrush CandidateBrush = new ImmutableSolidColorBrush(Color.Parse("#475569"));
+    private static readonly IPen ExplanationCurrentPen = new ImmutablePen(new ImmutableSolidColorBrush(ExplanationCurrentColor), 3);
+    private static readonly IPen ExplanationBranchPen = new ImmutablePen(new ImmutableSolidColorBrush(ExplanationBranchColor), 3);
+    private static readonly IPen ExplanationRulePen = new ImmutablePen(new ImmutableSolidColorBrush(ExplanationRuleColor), 2.5);
+    private static readonly IPen EmptyNodePen = new ImmutablePen(new ImmutableSolidColorBrush(ExplanationRemovedColor), 2.5);
+    private static readonly IPen NormalNodePen = new ImmutablePen(new ImmutableSolidColorBrush(Color.Parse("#3a3a3a")), 1.5);
+
     private static readonly Dictionary<StandardCursorType, Cursor> Cursors = [];
+
+    /// <summary>Zwischenspeicher für die vielen kleinen Kandidatentexte (sonst bis zu 16 neue Texte pro Knoten und Bild).</summary>
+    private readonly Dictionary<(string Text, double Size, IBrush Brush), FormattedText> _candidateTexts = [];
 
     private EditorViewModel? _editor;
 
@@ -238,6 +268,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         DrawEdgePreview(context, puzzle, viewport, nodes);
         DrawNodes(context, puzzle, viewport, radius);
         DrawOrderBadges(context, puzzle, viewport, nodes, radius);
+        DrawBranchBadge(context, puzzle, viewport, nodes, radius);
         if (_editor.RubberBand is { } band)
         {
             context.DrawRectangle(RubberFill, new Pen(AccentBrush, 1), new Rect(band.Left, band.Top, band.Width, band.Height));
@@ -326,6 +357,20 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             if (!selected && editor.Registry.TryGet(group.Rule, out var rule) && rule.Kind.IsOrdered())
             {
                 DrawThermometer(context, puzzle.Grid, viewport, members, radius, color);
+            }
+        }
+
+        // Erklär-Modus: Gruppe der verantwortlichen Regel grün hervorheben (auch wenn ihre Hervorhebung ausgeblendet ist).
+        if (editor.Explanation?.Constraint is { Kind: ConstraintKind.Group, Id: var ruleGroupId })
+        {
+            foreach (var group in puzzle.Groups.Where(g => g.Id == ruleGroupId))
+            {
+                var members = group.Nodes.Where(nodes.ContainsKey).Select(id => nodes[id]).ToList();
+                if (members.Count > 0)
+                {
+                    context.DrawGeometry(new ImmutableSolidColorBrush(ExplanationRuleColor, 0.12), null, CellGeometry(puzzle.Grid, viewport, members));
+                    context.DrawGeometry(null, new Pen(ExplanationRuleBrush, 3.5, lineCap: PenLineCap.Round), OutlineGeometry(puzzle.Grid, viewport, members));
+                }
             }
         }
 
@@ -426,8 +471,9 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             var unit = vector / length;
             var known = _editor!.Registry.Contains(edge.Rule);
             var selected = _editor.SelectedEdgeId == edge.Id;
-            var brush = selected ? AccentBrush : EdgeBrush;
-            var pen = new Pen(brush, selected ? 3.2 : 1.8, known ? null : Dashed, PenLineCap.Round);
+            var ruleOfStep = _editor.Explanation?.Constraint is { Kind: ConstraintKind.Edge, Id: var ruleEdgeId } && ruleEdgeId == edge.Id;
+            var brush = ruleOfStep ? ExplanationRuleBrush : selected ? AccentBrush : EdgeBrush;
+            var pen = new Pen(brush, selected || ruleOfStep ? 3.2 : 1.8, known ? null : Dashed, PenLineCap.Round);
             if (length > 2 * radius)
             {
                 context.DrawLine(pen, a + (unit * radius), b - (unit * radius));
@@ -543,6 +589,12 @@ public sealed class GraphCanvas : Control, ICustomHitTest
                 context.DrawEllipse(HaloBrush, null, center, halo, halo);
             }
 
+            if (_editor.Explanation is { } explanation)
+            {
+                DrawExplainedNode(context, puzzle, node, center, radius, explanation, selected || endOfSelectedEdge ? selectedPen : null);
+                continue;
+            }
+
             var differs = node.Given is null && _editor.IsSolutionDifference(node.Id);
             var fill = selected ? NodeSelectedFill : differs ? SolutionDifferenceFill : NodeFill;
             var pen = selected || endOfSelectedEdge ? selectedPen : differs ? differencePen : normalPen;
@@ -564,6 +616,139 @@ public sealed class GraphCanvas : Control, ICustomHitTest
                 context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
             }
         }
+    }
+
+    /// <summary>
+    /// Knoten im Erklär-Modus: Hervorhebung nach Schritt (gelb = geändert, orange = Verzweigung, grün = Regel), Givens
+    /// schwarz, hergeleitete Werte blau, geratene orange; offene Knoten zeigen ihre Kandidaten als kleines Raster.
+    /// </summary>
+    private void DrawExplainedNode(DrawingContext context, Puzzle puzzle, Node node, Point center, double radius, ExplanationView explanation, IPen? selectionPen)
+    {
+        var highlight = explanation.GetHighlight(node.Id);
+        var empty = explanation.EmptyNodeIds.Contains(node.Id);
+        var fill = highlight switch
+        {
+            ExplanationHighlight.Current => ExplanationCurrentFill,
+            ExplanationHighlight.CurrentBranch => ExplanationBranchFill,
+            ExplanationHighlight.Rule => ExplanationRuleFill,
+            _ => selectionPen is not null ? NodeSelectedFill : NodeFill,
+        };
+        var pen = selectionPen ?? (highlight switch
+        {
+            ExplanationHighlight.Current => ExplanationCurrentPen,
+            ExplanationHighlight.CurrentBranch => ExplanationBranchPen,
+            ExplanationHighlight.Rule => ExplanationRulePen,
+            _ when empty => EmptyNodePen,
+            _ => NormalNodePen,
+        });
+        context.DrawEllipse(fill, pen, center, radius, radius);
+        if (radius < 5)
+        {
+            return;
+        }
+
+        var domain = puzzle.GetEffectiveDomain(node);
+        if (node.Given is int given)
+        {
+            var text = CreateText(ValueText.Format(given, domain), radius * 1.1, TextBrush, FontWeight.SemiBold);
+            context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
+        }
+        else if (explanation.GetSetValue(node.Id) is int value)
+        {
+            var brush = explanation.IsGuessed(node.Id) ? GuessedValueBrush : SolutionBrush;
+            var text = CreateText(ValueText.Format(value, domain), radius * 1.05, brush, FontWeight.Normal);
+            context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
+        }
+        else if (explanation.ShowCandidates)
+        {
+            DrawCandidates(context, center, radius, domain, explanation.GetCandidates(node.Id), explanation.GetRemovedCandidates(node.Id));
+        }
+    }
+
+    /// <summary>
+    /// Kandidaten als kleines Raster im Kreis, jeder Wert an fester Stelle (9 Werte 3 × 3, 16 Werte 4 × 4, bei 0–15 als
+    /// 0–F). Vom aktuellen Schritt gestrichene Werte erscheinen rot und durchgestrichen. Wird die Schrift zu klein, steht
+    /// stattdessen die Anzahl der Kandidaten im Knoten.
+    /// </summary>
+    private void DrawCandidates(DrawingContext context, Point center, double radius, ValueDomain domain, IReadOnlyList<int> candidates, IReadOnlyList<int> removed)
+    {
+        var count = (long)domain.Max - domain.Min + 1;
+        var columns = (int)Math.Ceiling(Math.Sqrt(count));
+        var rows = (int)Math.Ceiling(count / (double)columns);
+        // Raster etwa so groß wie das einbeschriebene Quadrat (1,41 r), damit die Ziffern in den Ecken den Rand nicht berühren.
+        var side = radius * (columns >= 4 ? 1.44 : 1.5);
+        var cell = side / Math.Max(columns, rows);
+        var size = Math.Round(cell * 2) / 2;
+        if (count > 36 || size < 5)
+        {
+            if (radius >= 8 && candidates.Count > 0)
+            {
+                var text = CandidateText(FormattableString.Invariant($"({candidates.Count})"), Math.Max(4, radius * 0.6), CandidateBrush);
+                context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
+            }
+
+            return;
+        }
+
+        var left = center.X - (columns * cell / 2);
+        var top = center.Y - (rows * cell / 2);
+        void Draw(int value, IBrush brush, bool strike)
+        {
+            var index = value - domain.Min;
+            var cellCenter = new Point(left + ((index % columns) + 0.5) * cell, top + ((index / columns) + 0.5) * cell);
+            var text = CandidateText(ValueText.Format(value, domain), size, brush);
+            context.DrawText(text, new Point(cellCenter.X - (text.Width / 2), cellCenter.Y - (text.Height / 2)));
+            if (strike)
+            {
+                var half = Math.Max(text.Width * 0.7, cell * 0.36);
+                context.DrawLine(new Pen(brush, Math.Max(1, size / 10), lineCap: PenLineCap.Round), new Point(cellCenter.X - half, cellCenter.Y + (half * 0.45)), new Point(cellCenter.X + half, cellCenter.Y - (half * 0.45)));
+            }
+        }
+
+        foreach (var value in candidates)
+        {
+            Draw(value, CandidateBrush, strike: false);
+        }
+
+        foreach (var value in removed)
+        {
+            Draw(value, RemovedCandidateBrush, strike: true);
+        }
+    }
+
+    private FormattedText CandidateText(string text, double size, IBrush brush)
+    {
+        var key = (text, size, brush);
+        if (!_candidateTexts.TryGetValue(key, out var formatted))
+        {
+            if (_candidateTexts.Count > 4000)
+            {
+                _candidateTexts.Clear();
+            }
+
+            formatted = CreateText(text, size, brush, FontWeight.Normal);
+            _candidateTexts[key] = formatted;
+        }
+
+        return formatted;
+    }
+
+    /// <summary>Verzweigung: orange Marke „Raten“ (bei kleinen Knoten „?“) am geratenen Knoten.</summary>
+    private void DrawBranchBadge(DrawingContext context, Puzzle puzzle, Viewport viewport, Dictionary<int, Node> nodes, double radius)
+    {
+        if (_editor!.Explanation is not { IsBranch: true, CurrentStep.NodeId: int nodeId } || !nodes.TryGetValue(nodeId, out var node) || radius < 5)
+        {
+            return;
+        }
+
+        var center = ToPoint(viewport.ToScreen(EditorGeometry.Center(puzzle.Grid, node)));
+        var badge = Math.Max(8, radius * 0.46);
+        var text = CreateText(radius >= 16 ? "Raten" : "?", badge * 1.1, Brushes.White, FontWeight.Bold);
+        var width = Math.Max(badge * 2, text.Width + (badge * 1.1));
+        var position = new Point(center.X + (radius * 0.55), center.Y - (radius * 0.95));
+        var rect = new Rect(position.X - (width / 2), position.Y - badge, width, badge * 2);
+        context.DrawRectangle(ExplanationBranchBrush, new Pen(Brushes.White, 1.5), new RoundedRect(rect, badge));
+        context.DrawText(text, new Point(position.X - (text.Width / 2), position.Y - (text.Height / 2)));
     }
 
     private void DrawOrderBadges(DrawingContext context, Puzzle puzzle, Viewport viewport, Dictionary<int, Node> nodes, double radius)

@@ -232,10 +232,7 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 
 **Offen**
 
-- UI des Erklär-Modus (Schrittleiste mit Vor/Zurück, Anfang/Ende, Schieberegler, Hervorhebung, Kandidatenanzeige
-  ein/aus) – kommt nach dem Zusammenführen mit dem Editor. Die Bibliothek liefert dafür alles Nötige:
-  `GetSnapshot(n)`, `step.NodeIds` (aktuelle Zellen), `step.InvolvedNodeIds` und `step.Constraint` (Regel zum
-  Hervorheben), `step.Text`/`Summary`, `snapshot.IsSet` (Wert oder Kandidaten anzeigen).
+- ~~UI des Erklär-Modus~~ – erledigt, siehe „Paket 6 – Erklär-Modus (Oberfläche)“.
 - Weitere Techniken (naked/hidden pairs, Pointing usw.) sind nicht Teil der Spezifikation; „mittel“ braucht deshalb
   drei Verzweigungen.
 
@@ -254,4 +251,61 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 - Eine eigene, nicht korrekte Regel (Registry-Erweiterung) kann zu einem Widerspruch nach einer Verzweigung, zu einem
   gestrichenen Lösungswert oder zu einer Solver-Lösung abweichend von der hergeleiteten Belegung führen; die Engine
   wirft dann eine `InvalidOperationException` mit deutscher Meldung („Interner Fehler …“), statt ein falsches Ergebnis
-  zu melden. Die Oberfläche sollte diese Ausnahme abfangen.
+  zu melden. Die Oberfläche fängt diese Ausnahme ab und zeigt sie als Meldung (Paket 6, Oberfläche).
+
+## Paket 6 – Erklär-Modus (Oberfläche)
+
+**Erledigt**
+
+- „Erklären“ in der Lösen-Leiste, im Menü „Lösen“ und per F7: Die Erklärung (`ExplanationEngine` über
+  `IPuzzleExplainer`/`EnginePuzzleExplainer`) läuft asynchron auf einer Kopie des Rätsels; Fortschritt und
+  „Abbrechen“ in der Schrittleiste; das Zeitlimit der Lösen-Leiste gilt auch für die Solver-Aufrufe der Erklärung.
+  Abbruch behält die bis dahin gefundenen Schritte (ansehbar).
+- `ExplainViewModel` (`MainWindowViewModel.Explain`): Position 0 (Ausgangslage) bis N, Vor/Zurück, Anfang/Ende,
+  Schieberegler (`SliderValue`, gerundet und begrenzt), „Schritt n von N“, Kandidatenanzeige ein/aus, „Erklärung
+  beenden“; Schrittart (Etikett, Verzweigung orange „Verzweigung – geraten“), Schlussweise, Kurzfassung, deutscher
+  Begründungstext und verantwortliche Regel („Gruppe 3 „Zeile 3“ · Alle verschieden“) im Panel rechts, dazu die
+  Meldung der Engine farbig (grün/gelb/rot) und die Liste der Verzweigungen.
+- Zeichenfläche (`ExplanationView` als Anzeigezustand im Editor): Givens schwarz, hergeleitete Werte blau, geratene
+  Werte orange; Knoten des aktuellen Schritts gelb, Verzweigungsknoten orange mit Marke „Raten“, Knoten der Begründung
+  grün, Gruppe bzw. Kante der Regel grün umrandet bzw. hervorgehoben; Kandidaten als kleines Raster im Kreis (3 × 3
+  bei 9 Werten, 4 × 4 bei 16, bei 0–15 als 0–F), vom aktuellen Schritt gestrichene Kandidaten rot durchgestrichen;
+  Knoten ohne Kandidaten (Widerspruch) rot umrandet.
+- Tasten: ← / → einen Schritt, Pos1 / Ende zum Anfang bzw. Ende, wenn die Zeichenfläche (oder eine Schaltfläche)
+  den Fokus hat.
+- Jede inhaltliche Änderung (Bearbeitung, Rückgängig/Wiederholen) beendet den Modus mit Hinweis in der Leiste; ein
+  neues Dokument beendet ihn ohne Hinweis; eine Bearbeitung während der Berechnung verwirft deren Ergebnis, ein
+  Dokumentwechsel und das Schließen des Fensters brechen sie ab. Lösung und Erklärung schließen sich auf der
+  Zeichenfläche aus.
+- Meldungen für alle Ausgänge (gelöst, mehrdeutig, unbestätigt, unlösbar, festgefahren, ungültig mit Fehlerliste,
+  abgebrochen) und für Ausnahmen der Engine („Die Erklärung ist fehlgeschlagen. Interner Fehler: …“).
+- Tests (App 207, davon neu 25): `ExplainViewModelTests` (20: Start, Navigation mit Grenzen und Schieberegler,
+  Hervorhebung für **jeden** Schritt von „leicht“, Kandidaten ein/aus, Ende nach Bearbeitung/Undo/neuem Dokument,
+  Auswahl und Ansicht lassen den Modus stehen, Beenden, Lösung ↔ Erklärung, Abbruch mit und ohne Schritte,
+  Bearbeitung und Dokumentwechsel während der Berechnung, „Interner Fehler“ der echten Engine, andere Ausnahmen,
+  ungültig, Widerspruch, mehrdeutig, festgefahren, Zeitlimit, Verzweigungen in „mittel“), `ExplanationWindowTests`
+  (F7, Pfeiltasten, Pos1/Ende, Schieberegler im echten Fenster), Rendering-Rauchtests (mittlerer Schritt mit und ohne
+  Kandidaten, Ende, Verzweigung in „mittel“, Hexadoku 16 × 16 mit 0–F, Mindestgröße, Berechnung läuft, abgebrochen,
+  veraltet, ungültig – alle Bilder angesehen, dabei Kandidatenraster, Durchstreichung, Farbe der Leiste und Texte
+  nachgebessert).
+- **Akzeptanz (auch auf ViewModel-Ebene):** `ExplainViewModelTests.Easy_classic_sudoku_is_explained_without_branching_and_ends_in_the_solution`
+  öffnet `puzzles/klassisch-leicht.json` über „Öffnen“, erklärt mit dem echten `OrToolsSolver`, geht jeden Schritt
+  mit „Vor“ durch (kein Schritt ist eine Verzweigung, kein gesetzter Wert weicht von der Solver-Lösung ab, kein
+  Lösungswert wird gestrichen) und prüft, dass der letzte Zustand genau die Lösung ist.
+- Gesamt: 530 Tests (Core 175, Solver 89, Explainer 59, App 207), alle grün in Release.
+
+**Offen**
+
+- Kein Sprung zur nächsten Verzweigung und keine Markierung der Verzweigungen am Schieberegler (die Schrittnummern
+  stehen im Panel).
+- Der Widerspruch einer unlösbaren Erklärung wird am Ende nur über die Meldung und den rot umrandeten Knoten ohne
+  Kandidaten gezeigt; die Knoten von `ExplanationResult.Contradiction` werden nicht eigens hervorgehoben.
+
+**Bekannte Probleme**
+
+- Bei Mindestgröße (900 × 560) bleibt der Zeichenfläche im Erklär-Modus etwa 245 px Höhe (Schrittleiste zusätzlich
+  zur Lösen-Leiste); die Kandidaten sind dann sehr klein (Zoomen hilft).
+- Beim 16 × 16-Hexadoku sind die Kandidaten bei 1280 × 800 ohne Zoom zu klein für das Raster; dann steht nur die
+  Anzahl „(n)“ im Knoten. Ab etwa 1920 × 1200 oder nach Vergrößern erscheint das 4 × 4-Raster mit 0–F.
+- Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel-Tests und
+  headless Tastatureingaben, Aussehen über die gerenderten Bilder belegt.

@@ -42,6 +42,15 @@ public static class Converters
         _ => NeutralBorder,
     });
 
+    private static readonly IBrush BranchBadge = new ImmutableSolidColorBrush(Color.Parse("#ea580c"));
+    private static readonly IBrush StepBadge = new ImmutableSolidColorBrush(Color.Parse("#fef08a"));
+    private static readonly IBrush DarkText = new ImmutableSolidColorBrush(Color.Parse("#111111"));
+
+    /// <summary>Etikett der Schrittart im Erklär-Modus: Verzweigung orange, sonst gelb wie der aktuelle Knoten.</summary>
+    public static FuncValueConverter<bool, IBrush> StepBadgeBackground { get; } = new(isBranch => isBranch ? BranchBadge : StepBadge);
+
+    public static FuncValueConverter<bool, IBrush> StepBadgeForeground { get; } = new(isBranch => isBranch ? Brushes.White : DarkText);
+
     /// <summary>true (es gibt Probleme) → Rot, sonst Grün.</summary>
     public static FuncValueConverter<bool, IBrush> ProblemBrush { get; } = new(hasProblems => hasProblems ? Problem : Ok);
 

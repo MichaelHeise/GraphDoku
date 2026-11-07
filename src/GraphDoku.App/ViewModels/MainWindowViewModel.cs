@@ -1,6 +1,7 @@
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GraphDoku.App.Explaining;
 using GraphDoku.App.Services;
 using GraphDoku.Core.Model;
 using GraphDoku.Core.Rules;
@@ -13,7 +14,7 @@ namespace GraphDoku.App.ViewModels;
 
 /// <summary>
 /// Hauptfenster: Datei-Befehle (Neu, Vorlage, Öffnen, Speichern, Speichern unter), Titel mit Dirty-Anzeige, der Editor
-/// und das Lösen (<see cref="Solve"/>).
+/// das Lösen (<see cref="Solve"/>) und der Erklär-Modus (<see cref="Explain"/>).
 /// </summary>
 public sealed partial class MainWindowViewModel : ViewModelBase
 {
@@ -32,7 +33,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <param name="dialogs">Dialoge und Meldungen.</param>
     /// <param name="solver">Solver für „Lösen“ und „Eindeutigkeit prüfen“ (in der App <see cref="OrToolsSolver"/>).</param>
     /// <param name="registry">Regeln; null = <see cref="RuleRegistry.Default"/>.</param>
-    public MainWindowViewModel(IFileDialogService files, IDialogService dialogs, ISolver solver, RuleRegistry? registry = null)
+    /// <param name="explainer">Erklär-Modus; null = <see cref="EnginePuzzleExplainer"/> mit <paramref name="solver"/> und den Regeln des Editors.</param>
+    public MainWindowViewModel(IFileDialogService files, IDialogService dialogs, ISolver solver, RuleRegistry? registry = null, IPuzzleExplainer? explainer = null)
     {
         ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(dialogs);
@@ -41,6 +43,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _dialogs = dialogs;
         Editor = new EditorViewModel(registry);
         Solve = new SolveViewModel(Editor, solver);
+        Explain = new ExplainViewModel(Editor, Solve, explainer ?? new EnginePuzzleExplainer(solver, Editor.Registry));
         Editor.DocumentChanged += (_, _) => UpdateTitle();
         Editor.StatusMessage = "Neues Rätsel. Mit „Knoten setzen“ Knoten auf das Gitter setzen oder eine Vorlage wählen.";
         UpdateTitle();
@@ -50,6 +53,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>Lösen, Eindeutigkeit prüfen, Abbrechen und Anzeige der Lösung.</summary>
     public SolveViewModel Solve { get; }
+
+    /// <summary>Erklär-Modus: Erklärung berechnen, Schritte ansehen, Kandidatenanzeige.</summary>
+    public ExplainViewModel Explain { get; }
 
     /// <summary>Pfad der aktuellen Datei (null = noch nie gespeichert).</summary>
     [ObservableProperty]

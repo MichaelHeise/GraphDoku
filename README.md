@@ -2,8 +2,8 @@
 
 GraphDoku ist eine Desktop-App (Avalonia, .NET 10), die beliebige Sudoku-Varianten als **Constraint-Graph** modelliert:
 Zellen sind **Knoten** mit Wertebereich, Beziehungen zwischen zwei Zellen sind **Kanten**, Regeln für Zellmengen hängen
-an **Gruppen**. Gelöst wird mit Google OR-Tools (CP-SAT); ein Erklär-Modus soll den Lösungsweg Schritt für Schritt
-nachvollziehbar machen. Anlass sind die Rätsel der Langen Nacht der Mathematik (Tridoku, Hexadoku, Sonderregeln).
+an **Gruppen**. Gelöst wird mit Google OR-Tools (CP-SAT); ein Erklär-Modus macht den Lösungsweg Schritt für Schritt
+nachvollziehbar. Anlass sind die Rätsel der Langen Nacht der Mathematik (Tridoku, Hexadoku, Sonderregeln).
 
 Die verbindliche Spezifikation liegt in `docs/spec/`.
 
@@ -16,7 +16,7 @@ Die verbindliche Spezifikation liegt in `docs/spec/`.
 | 3 – Editor | Zeichenfläche, Knoten/Kanten/Gruppen bearbeiten, Undo/Redo, Öffnen/Speichern | erledigt |
 | 4 – Lösen in der App | „Lösen“, „Eindeutigkeit prüfen“, asynchron mit Abbruch | erledigt |
 | 5 – Generator und alle Regeln im Editor | Kanten-Generator, Beispielrätsel (Killer, Kropki, Hexadoku, Dreiecksgitter) | offen |
-| 6 – Erklär-Modus | Kandidaten, Propagation mit Begründung, Schrittleiste | offen |
+| 6 – Erklär-Modus | Kandidaten, Propagation mit Begründung, Schrittleiste | erledigt |
 | 7 – optional: Zellformen | Dreieck, Quadrat, Sechseck als Darstellung | offen |
 
 Details: `docs/progress.md`; Abweichungen von der Spezifikation: `docs/decisions.md`.
@@ -97,8 +97,29 @@ Die **Lösen-Leiste** unter der Werkzeugleiste (auch Menü „Lösen“):
 Die Farbe der Leiste zeigt das Ergebnis: grün (gelöst, eindeutig), gelb (mehrdeutig, Zeitlimit, abgebrochen, veraltet),
 rot (unlösbar, ungültig – mit Liste der Probleme).
 
+## Erklär-Modus
+
+„Erklären“ (Lösen-Leiste, Menü „Lösen“ oder F7) berechnet einen menschlich nachvollziehbaren Lösungsweg: erst
+feststehende Werte streichen, dann einziger Kandidat, einziger Platz in einer Gruppe, dann Schlüsse der Kanten- und
+Gruppenregeln; nur wenn das nicht weiterhilft, wird verzweigt (der Wert kommt aus der Lösung des Solvers). Die
+Berechnung läuft im Hintergrund und lässt sich abbrechen (die bis dahin gefundenen Schritte bleiben ansehbar); das
+Zeitlimit der Lösen-Leiste gilt auch hier.
+
+| Aufgabe | So geht es |
+| --- | --- |
+| Schritte ansehen | Schrittleiste: « Anfang, ‹ Zurück, Vor ›, Ende » oder Schieberegler; „Schritt n von N“ (0 = Ausgangslage) |
+| Tasten | nach Klick in die Zeichenfläche: ← / → ein Schritt, Pos1 / Ende zum Anfang bzw. Ende |
+| Begründung | Panel rechts: Ergebnis, Art und Schlussweise des Schritts, Kurzfassung, Begründungstext, verantwortliche Regel |
+| Kandidaten | Häkchen „Kandidaten“ (auch Menü): kleine Ziffern im Kreis, 3 × 3 bei 1–9, 4 × 4 bei 16 Werten (0–F) |
+| Beenden | „Erklärung beenden“; jede Bearbeitung des Rätsels beendet die Erklärung ebenfalls |
+
+Farben auf der Zeichenfläche: **schwarz** Givens, **blau** hergeleitete Werte, **orange** geratene Werte;
+**gelb** hinterlegt die Knoten des aktuellen Schritts (rot durchgestrichen: gerade gestrichene Kandidaten),
+**orange** mit Marke „Raten“ eine Verzweigung, **grün** die Knoten, die Gruppe bzw. die Kante der verantwortlichen
+Regel. Wie die Lösung ist die Erklärung nur Anzeige: Sie ändert das Rätsel nicht und wird nicht gespeichert.
+
 Rendering-Rauchtest: `dotnet test tests/GraphDoku.App.Tests --filter Rendering` rendert das Hauptfenster headless
-(Skia, auch mit gelöstem und mehrdeutigem Sudoku) und legt PNGs in `$GRAPHDOKU_RENDER_DIR` bzw. im Temp-Verzeichnis unter `GraphDoku-Render` ab.
+(Skia, auch mit gelöstem und mehrdeutigem Sudoku und im Erklär-Modus) und legt PNGs in `$GRAPHDOKU_RENDER_DIR` bzw. im Temp-Verzeichnis unter `GraphDoku-Render` ab.
 
 ## Projektstruktur
 
@@ -107,13 +128,13 @@ GraphDoku.sln
 src/
   GraphDoku.Core/        Datenmodell, Regeln, Kandidaten, Geometrie, JSON (keine UI-, keine Solver-Abhängigkeit)
   GraphDoku.Solver/      ISolver, OrToolsSolver (CP-SAT) mit Regel-Adaptern
-  GraphDoku.Explainer/   Erklär-Modus (ab Paket 6)
+  GraphDoku.Explainer/   Erklär-Modus: ExplanationEngine (Schritte, Zustände, Begründungen)
   GraphDoku.App/         Avalonia-App (MVVM mit CommunityToolkit.Mvvm)
 tests/
   GraphDoku.Core.Tests/
   GraphDoku.Solver.Tests/
   GraphDoku.Explainer.Tests/
-  GraphDoku.App.Tests/   ViewModel-Tests, Akzeptanztests Editor und Lösen, Rendering-Rauchtests (headless)
+  GraphDoku.App.Tests/   ViewModel-Tests, Akzeptanztests Editor, Lösen und Erklären, Rendering-Rauchtests (headless)
 puzzles/                 Beispielrätsel als JSON (auch Testdaten): klassisch-leer, -leicht, -mittel, -schwer
 docs/
   spec/                  Spezifikation (Projektkonzept, Agenten-Anleitung)

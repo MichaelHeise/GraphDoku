@@ -1,13 +1,16 @@
 namespace GraphDoku.App.ViewModels;
 
 /// <summary>Angaben zu einer inhaltlichen Änderung des Rätsels (Bearbeitung, Rückgängig/Wiederholen oder neues Dokument).</summary>
-public sealed class PuzzleContentChangedEventArgs(bool documentReplaced, bool solutionWasShown) : EventArgs
+public sealed class PuzzleContentChangedEventArgs(bool documentReplaced, bool solutionWasShown, bool explanationWasShown = false) : EventArgs
 {
     /// <summary>true bei Neu, Öffnen oder Vorlage; false bei einer Bearbeitung.</summary>
     public bool DocumentReplaced { get; } = documentReplaced;
 
     /// <summary>true, wenn dadurch eine angezeigte Lösung ausgeblendet wurde.</summary>
     public bool SolutionWasShown { get; } = solutionWasShown;
+
+    /// <summary>true, wenn dadurch der Erklär-Modus beendet wurde (siehe <c>EditorViewModel.Explanation.cs</c>).</summary>
+    public bool ExplanationWasShown { get; } = explanationWasShown;
 }
 
 /// <summary>
@@ -50,6 +53,9 @@ public sealed partial class EditorViewModel
     public void ShowSolution(IReadOnlyDictionary<int, int> values, IEnumerable<int>? differences = null)
     {
         ArgumentNullException.ThrowIfNull(values);
+
+        // Lösung und Erklärung schließen sich auf der Zeichenfläche aus: Eine angezeigte Lösung beendet den Erklär-Modus.
+        ClearExplanationCore();
         SolutionValues = new Dictionary<int, int>(values);
         SolutionDifferences = differences is null ? NoNodes : differences.ToHashSet();
         OnPropertyChanged(nameof(SolutionValues));
@@ -66,11 +72,14 @@ public sealed partial class EditorViewModel
         }
     }
 
-    /// <summary>Vor einer inhaltlichen Änderung: Lösung ausblenden (ohne eigenes Neuzeichnen) und Version erhöhen.</summary>
-    private bool ClearSolutionForChange()
+    /// <summary>
+    /// Vor einer inhaltlichen Änderung: Lösung ausblenden und Erklär-Modus beenden (ohne eigenes Neuzeichnen) und Version
+    /// erhöhen.
+    /// </summary>
+    private (bool SolutionWasShown, bool ExplanationWasShown) ClearDisplayForChange()
     {
         _contentVersion++;
-        return ClearSolutionCore();
+        return (ClearSolutionCore(), ClearExplanationCore());
     }
 
     private bool ClearSolutionCore()
@@ -87,6 +96,6 @@ public sealed partial class EditorViewModel
         return true;
     }
 
-    private void RaiseContentChanged(bool documentReplaced, bool solutionWasShown) =>
-        ContentChanged?.Invoke(this, new PuzzleContentChangedEventArgs(documentReplaced, solutionWasShown));
+    private void RaiseContentChanged(bool documentReplaced, (bool Solution, bool Explanation) shown) =>
+        ContentChanged?.Invoke(this, new PuzzleContentChangedEventArgs(documentReplaced, shown.Solution, shown.Explanation));
 }

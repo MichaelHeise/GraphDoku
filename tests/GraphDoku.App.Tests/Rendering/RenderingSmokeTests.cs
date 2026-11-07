@@ -22,7 +22,7 @@ namespace GraphDoku.App.Tests.Rendering;
 /// (Verzeichnis: Umgebungsvariable GRAPHDOKU_RENDER_DIR, sonst Temp/GraphDoku-Render) und einfache Pixelprüfungen.
 /// </summary>
 [Collection(HeadlessTests.Name)]
-public sealed class RenderingSmokeTests(HeadlessSessionFixture fixture, ITestOutputHelper output)
+public sealed partial class RenderingSmokeTests(HeadlessSessionFixture fixture, ITestOutputHelper output)
 {
     private const string Givens =
         "53..7...." + "6..195..." + ".98....6." + "8...6...3" + "4..8.3..1" + "7...2...6" + ".6....28." + "...419..5" + "....8..79";
@@ -238,7 +238,7 @@ public sealed class RenderingSmokeTests(HeadlessSessionFixture fixture, ITestOut
         var running = viewModel.Solve.SolveCommand.ExecuteAsync(null);
         solver.WaitUntilStarted();
         Capture(window, "loesen-laeuft.png");
-        var cancel = window.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, "Abbrechen"));
+        var cancel = window.FindControl<Border>("SolveBar")!.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, "Abbrechen"));
         cancel.IsEffectivelyVisible.Should().BeTrue();
         cancel.IsEffectivelyEnabled.Should().BeTrue();
         viewModel.Solve.CancelCommand.Execute(null);

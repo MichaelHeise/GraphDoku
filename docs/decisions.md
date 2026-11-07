@@ -603,3 +603,72 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
     eigenen Knoten abhängen muss.
 100. **Abbruch zwischen den Constraints.** Stufe 3 prüft das Token vor jedem `Propagate`-Aufruf; ein Abbruch dort führt
     direkt zu `Cancelled`, ohne den Solver für eine Verzweigung zu fragen.
+
+### Erklär-Modus in der App (Paket 6, Oberfläche)
+
+101. **`ExplainViewModel` mit eigener Schnittstelle `IPuzzleExplainer`:** Die Oberfläche des Erklär-Modus liegt in
+    `MainWindowViewModel.Explain` (neben `Solve`). Gerechnet wird über `IPuzzleExplainer.ExplainAsync(puzzle,
+    solverOptions, token)`; die App nutzt `EnginePuzzleExplainer`, der pro Lauf eine `ExplanationEngine` mit dem
+    Solver der App, der Registry des Editors und dem **Zeitlimit der Lösen-Leiste** erzeugt (die Engine nimmt die
+    Solver-Optionen im Konstruktor). Ist das Zeitlimit ungültig, ist „Erklären“ wie „Lösen“ gesperrt. Grund für die
+    Schnittstelle: `ExplanationResult` hat keinen öffentlichen Konstruktor, und `ExplanationEngine` ist versiegelt;
+    für Tests mit blockierender Berechnung oder einer Ausnahme braucht es einen Ersatz (`FakeExplainer`, der das
+    Ergebnis selbst mit der echten Engine berechnet). Der Konstruktor `MainWindowViewModel(files, dialogs, solver,
+    registry = null, explainer = null)` bleibt quellkompatibel.
+102. **Erklärung als Anzeigezustand im Editor** (`EditorViewModel.Explanation` vom Typ `ExplanationView`, Datei
+    `EditorViewModel.Explanation.cs`), wie die Lösung (Nr. 71): nicht im Rätsel, kein Undo-Schritt, nie gespeichert.
+    `ExplanationView` enthält den Zustand nach n Schritten (`GetSnapshot(n)`), den aktuellen Schritt, die geänderten
+    Knoten, die übrigen Knoten der Begründung (`InvolvedNodeIds` ohne die geänderten), den Constraint, die bisher
+    geratenen Knoten und die vom Schritt gestrichenen Werte. Lösung und Erklärung schließen sich aus: „Erklären“
+    blendet eine angezeigte Lösung aus (sie bleibt über „Lösung anzeigen“ abrufbar), das Anzeigen einer Lösung beendet
+    den Erklär-Modus. `PuzzleContentChangedEventArgs` hat dafür zusätzlich `ExplanationWasShown` (optionaler
+    Konstruktorparameter).
+103. **Ende des Modus bei Änderungen** (wie veraltete Lösungen, Nr. 72): Jede inhaltliche Änderung (Bearbeitung,
+    Rückgängig, Wiederholen) beendet den Modus; die Schrittleiste bleibt mit gelber Meldung „Die Erklärung wurde
+    beendet, weil das Rätsel geändert wurde. „Erklären“ (F7) erklärt den neuen Stand.“ und „Schließen“ stehen. Ein neues
+    Dokument beendet ihn ohne Meldung. Auswahl, Zoom/Pan und Ein-/Ausblenden von Gruppen lassen ihn stehen. Während der
+    Berechnung: Bearbeitung → Ergebnis wird am Ende verworfen; Dokumentwechsel und Schließen des Fensters → Abbruch.
+    Solange der Modus aktiv ist, lässt sich weiter bearbeiten (keine Sperre); die erste Bearbeitung beendet ihn.
+104. **Position und „aktueller Schritt“:** Position n (0 bis N) zeigt den Zustand **nach** n Schritten; der „aktuelle“
+    Schritt ist der zuletzt angewendete (Schritt n), damit Wirkung und Begründung zusammen zu sehen sind (der gesetzte
+    Wert steht schon im Knoten, gestrichene Kandidaten erscheinen noch rot durchgestrichen). Position 0 heißt
+    „Ausgangslage“ (Givens und Wertebereiche). Anzeige „Schritt n von N“. Nach dem Berechnen beginnt der Modus bei 0.
+    Der Schieberegler ist an `SliderValue` (double) gebunden, gerundet; Werte außerhalb werden begrenzt.
+105. **Darstellung auf der Zeichenfläche:** Givens schwarz halbfett, hergeleitete Werte blau (#1d4ed8, wie
+    Lösungswerte), durch eine Verzweigung gesetzte Werte orange (#c2410c) auch in allen späteren Schritten. Knoten des
+    aktuellen Schritts gelb (#fef08a, Ring #ca8a04), bei einer Verzweigung orange (#fed7aa, Ring #ea580c) mit Marke
+    „Raten“ (bei kleinen Knoten „?“); Knoten der Begründung grün (#bbf7d0, Ring #16a34a); die Gruppe der Regel grün
+    umrandet und leicht grün hinterlegt (auch wenn ihre Hervorhebung ausgeblendet ist), eine Kante der Regel grün und
+    dick. Knoten ohne Kandidaten (Widerspruch) rot umrandet. Gewählte Knoten behalten den blauen Auswahlring.
+106. **Kandidatenraster:** Spaltenzahl = ⌈√(Anzahl Werte des Knotens)⌉ (9 → 3 × 3, 16 → 4 × 4, 4 → 2 × 2), jeder Wert an
+    fester Stelle (Versatz zum Minimum des Knotenbereichs), Raster etwa so groß wie das einbeschriebene Quadrat
+    (1,5 r bzw. 1,44 r ab vier Spalten). Werte über `ValueText` (bei 0–15 als 0–F, Nr. 32). Unter 5 px Schriftgröße
+    oder bei mehr als 36 Werten steht stattdessen die Anzahl „(n)“. Im ersten Entwurf (1,6 r) berührten die Ziffern in
+    den Ecken den Rand, die Durchstreichung war zu dick – im Rendering-Test gesehen und korrigiert. Kandidatentexte
+    werden in der Zeichenfläche zwischengespeichert (viele kleine Texte pro Bild).
+107. **Bedienelemente:** „Erklären“ in der ersten Zeile der Lösen-Leiste (rechts neben „Eindeutigkeit prüfen“), F7
+    und Menü „Lösen“ (Erklären, Erklärung abbrechen, Kandidaten anzeigen, Erklärung beenden). Darunter eine
+    **einzeilige Schrittleiste**, nur sichtbar bei Berechnung, aktivem Modus oder Meldung: « Anfang, ‹ Zurück, Vor ›,
+    Ende », Schieberegler, „Schritt n von N“, Häkchen „Kandidaten“ (Standard: an), „Erklärung beenden“. Im aktiven
+    Modus ist die Leiste neutral (`BarSeverity`); Ergebnis, Schritt und Begründung stehen im Panel rechts, das solange
+    das Eigenschaften-Panel ersetzt (mit Legende und Tastenhinweis). Ohne aktiven Modus (ungültig, Fehler, veraltet,
+    abgebrochen ohne Schritte) zeigt die Leiste die Meldung in der Ergebnisfarbe (wie Nr. 75) mit „Schließen“.
+    Pfeiltasten als Symbole (◀ ▶) wurden vermieden, weil unklar war, ob Inter sie enthält; Guillemets sind sicher.
+108. **Tasten:** ← / → einen Schritt zurück/vor, Pos1 / Ende zum Anfang/Ende – im Fenster abgefangen, wenn die
+    Zeichenfläche, eine Schaltfläche, ein Häkchen oder nichts den Fokus hat. Textfelder, Listen, Auswahllisten und
+    Menüs behalten ihre eigene Bedeutung der Tasten; der Schieberegler bewegt sich mit den Pfeiltasten ohnehin
+    schrittweise. Ohne Strg/Cmd/Alt/Shift.
+109. **Ergebnisse und Fehler:** Einstufung grün = gelöst (eindeutig); gelb = mehrdeutig, unbestätigt, festgefahren,
+    abgebrochen, veraltet; rot = unlösbar, ungültig, Fehler; blau = Berechnung läuft. Meldetext ist die Meldung der
+    Engine; bei Abbruch ergänzt um „Die ersten n Schritte können angesehen werden.“ (die Schritte bleiben im Modus
+    ansehbar; ohne Schritte nur die Meldung). Bei „ungültig“ ersetzt ein eigener Satz die Meldung der Engine, weil diese
+    die Fehler wiederholt, die ohnehin als Liste darunter stehen (im Rendering-Test gesehen). Eine
+    `InvalidOperationException` der Engine („Interner Fehler …“, Nr. 96/97) erscheint als „Die Erklärung ist
+    fehlgeschlagen. Interner Fehler: …“, jede andere Ausnahme als „Die Erklärung ist mit einem Fehler abgebrochen: …“
+    (CA1031 an dieser Stelle unterdrückt, wie Nr. 75). Ein Test erzeugt den internen Fehler mit der echten Engine
+    (Ersatzsolver mit falscher Lösung).
+110. **Lösen und Erklären sperren sich nicht gegenseitig:** Beide rechnen auf Kopien; was zuletzt fertig wird, wird
+    angezeigt (eine Lösung beendet den Modus, eine Erklärung blendet die Lösung aus). Eine gegenseitige Sperre hätte
+    Änderungen am `SolveViewModel` erfordert und keinen fachlichen Gewinn gebracht.
+111. **Bestehender Rendering-Test angepasst:** `Busy_and_error_states_render` sucht „Abbrechen“ jetzt nur in der
+    Lösen-Leiste, weil die Schrittleiste eine zweite (unsichtbare) Schaltfläche „Abbrechen“ enthält.

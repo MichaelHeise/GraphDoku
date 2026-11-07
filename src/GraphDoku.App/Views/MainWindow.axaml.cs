@@ -40,6 +40,44 @@ public partial class MainWindow : Window
 
         Add(Key.F5, KeyModifiers.None, vm => vm.Solve.SolveCommand.Execute(null));
         Add(Key.F6, KeyModifiers.None, vm => vm.Solve.CheckUniquenessCommand.Execute(null));
+        Add(Key.F7, KeyModifiers.None, vm => vm.Explain.ExplainCommand.Execute(null));
+        KeyDown += OnStepNavigationKey;
+    }
+
+    /// <summary>
+    /// Erklär-Modus: ← / → einen Schritt zurück bzw. vor, Pos1 / Ende zum Anfang bzw. Ende – wenn die Zeichenfläche oder
+    /// eine Schaltfläche (z. B. „Vor“) den Fokus hat. Textfelder, Listen, Auswahllisten und der Schieberegler behalten
+    /// ihre eigene Bedeutung dieser Tasten (der Schieberegler bewegt sich dabei ohnehin schrittweise).
+    /// </summary>
+    private void OnStepNavigationKey(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || ViewModel is not { Explain.IsActive: true } vm || e.KeyModifiers != KeyModifiers.None)
+        {
+            return;
+        }
+
+        if (FocusManager?.GetFocusedElement() is not (null or GraphCanvas or Button or CheckBox))
+        {
+            return;
+        }
+
+        var command = e.Key switch
+        {
+            Key.Left => vm.Explain.PreviousCommand,
+            Key.Right => vm.Explain.NextCommand,
+            Key.Home => vm.Explain.FirstCommand,
+            Key.End => vm.Explain.LastCommand,
+            _ => null,
+        };
+        if (command is not null)
+        {
+            if (command.CanExecute(null))
+            {
+                command.Execute(null);
+            }
+
+            e.Handled = true;
+        }
     }
 
     private void Add(Key key, KeyModifiers modifiers, Action<MainWindowViewModel> action)
@@ -86,13 +124,18 @@ public partial class MainWindow : Window
         action(null);
     }
 
-    /// <summary>Eine noch laufende Suche beim Schließen abbrechen (sie liefe sonst im Hintergrund weiter).</summary>
+    /// <summary>Eine noch laufende Suche oder Erklärung beim Schließen abbrechen (sie liefe sonst im Hintergrund weiter).</summary>
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
         if (ViewModel?.Solve.CancelCommand is { } cancel && cancel.CanExecute(null))
         {
             cancel.Execute(null);
+        }
+
+        if (ViewModel?.Explain.CancelCommand is { } cancelExplain && cancelExplain.CanExecute(null))
+        {
+            cancelExplain.Execute(null);
         }
     }
 
