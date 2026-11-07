@@ -35,6 +35,13 @@ jobs:
             $SUDO apt-get install -y --no-install-recommends libfontconfig1
           fi
 
+      # Nur zur Diagnose zeitabhängiger Tests: Kerne, die der Runner meldet, und ein mögliches CPU-Kontingent.
+      - name: Runner-Info
+        run: |
+          echo "nproc: $(nproc)"
+          echo "cgroup cpu.max: $(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo 'nicht verfügbar')"
+          lscpu | grep -E '^(Model name|CPU\(s\)|Thread)' || true
+
       - name: NuGet-Cache
         uses: actions/cache@v4
         with:

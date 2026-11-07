@@ -10,10 +10,32 @@ using static GraphDoku.Solver.Tests.Helpers.TestPuzzles;
 
 namespace GraphDoku.Solver.Tests;
 
+/// <summary>
+/// Die Tests mit Zeitlimit und Abbruch messen echte Laufzeit. Parallel laufende CP-SAT-Suchen anderer Testklassen
+/// (jede mit so vielen Workern, wie die Maschine Kerne meldet) können die Einzel-Worker-Suche beim Zählen auf einem
+/// geteilten CI-Runner so ausbremsen, dass im Zeitfenster keine Lösung gefunden wird. Deshalb läuft die Klasse nie
+/// parallel zu anderen Tests derselben Assembly.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class SolverTimingTests
+{
+    public const string Name = "Solver-Zeitmessung";
+}
+
 /// <summary>Zeitlimit, Abbruch, Wertebereiche, ungültige Rätsel und Erweiterbarkeit des OR-Tools-Solvers.</summary>
+[Collection(SolverTimingTests.Name)]
 public class SolverBehaviorTests
 {
     private static readonly SolverOptions LongRunning = new() { TimeLimit = TimeSpan.FromSeconds(60) };
+
+    /// <summary>
+    /// Zeitfenster für Tests, die innerhalb des Limits bzw. vor dem Abbruch schon Lösungen erwarten. 300 ms reichten
+    /// lokal und im Linux-Container, auf dem Gitea-Runner aber nicht (0 Lösungen, PR #1); 2 s lassen Luft.
+    /// </summary>
+    private static readonly TimeSpan SearchWindow = TimeSpan.FromSeconds(2);
+
+    private static string Diagnostics(Stopwatch stopwatch, string? message) =>
+        $"nach {stopwatch.ElapsedMilliseconds} ms, {Environment.ProcessorCount} Kerne (.NET-Sicht), Meldung: {message}";
 
     private readonly OrToolsSolver _solver = new();
 
@@ -66,11 +88,12 @@ public class SolverBehaviorTests
     public void CountSolutions_reports_timeout_with_the_solutions_found_so_far()
     {
         var puzzle = TestPuzzles.Load("klassisch-leer.json");
+        var stopwatch = Stopwatch.StartNew();
 
-        var result = _solver.CountSolutions(puzzle, int.MaxValue, new SolverOptions { TimeLimit = TimeSpan.FromMilliseconds(300) });
+        var result = _solver.CountSolutions(puzzle, int.MaxValue, new SolverOptions { TimeLimit = SearchWindow });
 
-        result.Status.Should().Be(CountStatus.Timeout);
-        result.Count.Should().BeGreaterThanOrEqualTo(2);
+        result.Status.Should().Be(CountStatus.Timeout, Diagnostics(stopwatch, result.Message));
+        result.Count.Should().BeGreaterThanOrEqualTo(2, Diagnostics(stopwatch, result.Message));
         result.IsAmbiguous.Should().BeTrue("zwei verschiedene Lösungen beweisen die Mehrdeutigkeit auch ohne vollständige Suche");
         result.IsUnique.Should().BeFalse();
         result.Solutions.Should().HaveCount(SolutionCountResult.MaxStoredSolutions);
@@ -125,13 +148,13 @@ public class SolverBehaviorTests
     [Fact]
     public void CountSolutions_can_be_cancelled_while_running()
     {
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        using var cancellation = new CancellationTokenSource(SearchWindow);
         var stopwatch = Stopwatch.StartNew();
 
         var result = _solver.CountSolutions(TestPuzzles.Load("klassisch-leer.json"), int.MaxValue, LongRunning, cancellation.Token);
 
-        result.Status.Should().Be(CountStatus.Cancelled);
-        result.Count.Should().BeGreaterThan(0);
+        result.Status.Should().Be(CountStatus.Cancelled, Diagnostics(stopwatch, result.Message));
+        result.Count.Should().BeGreaterThan(0, Diagnostics(stopwatch, result.Message));
         stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15));
     }
 

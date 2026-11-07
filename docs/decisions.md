@@ -1074,3 +1074,15 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      „Abschluss-Review – Repo“ und bei Nr. 164. Bekannte Probleme stehen nur bei dem Paket, in dem sie entstanden sind
      (Nr. 158/159 nur bei Paket 7). Nr. 9 ist in der Aussage zu Linux-Systempaketen durch Nr. 48 überholt und
      entsprechend markiert.
+
+## Review von PR #1
+
+170. **Zeitabhängige Solver-Tests robuster** (erster echter Gitea-Lauf, PR #1): Auf dem Gitea-Runner schlugen
+     `CountSolutions_reports_timeout_with_the_solutions_found_so_far` und `CountSolutions_can_be_cancelled_while_running`
+     in beiden Läufen fehl – im 300-ms-Fenster fand die Einzel-Worker-Aufzählung des leeren Sudokus keine einzige
+     Lösung. Lokal (macOS) und im Linux-x64-Container, auch mit nur einer CPU, liefen beide grün; die vermutete
+     Ursache sind parallel laufende CP-SAT-Suchen anderer Testklassen, die auf einem Runner mit vielen gemeldeten
+     Kernen entsprechend viele Worker starten. Gegenmaßnahmen: Die Klasse `SolverBehaviorTests` läuft in einer eigenen,
+     nicht parallelen Test-Collection, die beiden Tests bekommen 2 s statt 300 ms, und ihre Fehlermeldungen nennen
+     Laufzeit und Kernzahl. Die CI gibt zur Diagnose `nproc`, das CPU-Kontingent der cgroup und `lscpu` aus. Das
+     Verhalten des Solvers selbst ist unverändert.
