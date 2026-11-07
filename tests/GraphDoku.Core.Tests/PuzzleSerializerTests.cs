@@ -535,6 +535,46 @@ public class PuzzleSerializerTests
     }
 
     [Fact]
+    public void Save_through_a_relative_link_behind_a_directory_link_leaves_a_same_named_decoy_untouched()
+    {
+        // Regression (Nachprüfung PR #1), Variante mit stillem Datenverlust: Existiert root/shared/p.json, wurde
+        // dorthin geschrieben, die echte Datei behielt ihren alten Inhalt.
+        if (OperatingSystem.IsWindows())
+        {
+            return; // Symbolische Links erfordern unter Windows besondere Rechte.
+        }
+
+        var root = CreateTempDirectory();
+        try
+        {
+            var sub = Directory.CreateDirectory(Path.Combine(root, "real", "sub")).FullName;
+            var shared = Directory.CreateDirectory(Path.Combine(root, "real", "shared")).FullName;
+            var target = Path.Combine(shared, "p.json");
+            File.WriteAllText(target, "old");
+            var decoyDirectory = Directory.CreateDirectory(Path.Combine(root, "shared")).FullName;
+            var decoy = Path.Combine(decoyDirectory, "p.json");
+            File.WriteAllText(decoy, "decoy");
+            var fileLink = Path.Combine(sub, "l.json");
+            File.CreateSymbolicLink(fileLink, Path.Combine("..", "shared", "p.json"));
+            var alias = Path.Combine(root, "alias");
+            Directory.CreateSymbolicLink(alias, sub);
+            var puzzle = CreateFullPuzzle();
+
+            PuzzleSerializer.Save(puzzle, Path.Combine(alias, "l.json"));
+
+            File.ReadAllText(target).Should().Be(PuzzleSerializer.Serialize(puzzle));
+            File.ReadAllText(decoy).Should().Be("decoy");
+            Directory.GetFileSystemEntries(decoyDirectory).Should().Equal(decoy);
+            new FileInfo(fileLink).LinkTarget.Should().Be(Path.Combine("..", "shared", "p.json"));
+            Directory.GetFileSystemEntries(shared).Should().Equal(target);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Save_through_a_directory_link_replaces_the_real_file()
     {
         if (OperatingSystem.IsWindows())
