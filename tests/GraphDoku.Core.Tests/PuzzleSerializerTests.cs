@@ -497,6 +497,138 @@ public class PuzzleSerializerTests
     }
 
     [Fact]
+    public void Save_through_a_relative_link_behind_a_directory_link_updates_the_real_target()
+    {
+        // Regression (Nachprüfung PR #1): .NET hängt ein relatives Linkziel textuell an den Pfad des Aufrufers an,
+        // das Betriebssystem löst „..“ aber vom echten Verzeichnis des Links aus auf. Gespeichert wurde deshalb
+        // nach root/shared/p.json (oder es gab eine DirectoryNotFoundException), die echte Datei blieb alt.
+        if (OperatingSystem.IsWindows())
+        {
+            return; // Symbolische Links erfordern unter Windows besondere Rechte.
+        }
+
+        var root = CreateTempDirectory();
+        try
+        {
+            var sub = Directory.CreateDirectory(Path.Combine(root, "real", "sub")).FullName;
+            var shared = Directory.CreateDirectory(Path.Combine(root, "real", "shared")).FullName;
+            var target = Path.Combine(shared, "p.json");
+            File.WriteAllText(target, "old");
+            var fileLink = Path.Combine(sub, "l.json");
+            File.CreateSymbolicLink(fileLink, Path.Combine("..", "shared", "p.json"));
+            var alias = Path.Combine(root, "alias");
+            Directory.CreateSymbolicLink(alias, sub);
+            var puzzle = CreateFullPuzzle();
+
+            PuzzleSerializer.Save(puzzle, Path.Combine(alias, "l.json"));
+
+            File.ReadAllText(target).Should().Be(PuzzleSerializer.Serialize(puzzle));
+            new FileInfo(fileLink).LinkTarget.Should().Be(Path.Combine("..", "shared", "p.json"));
+            Directory.Exists(Path.Combine(root, "shared")).Should().BeFalse();
+            Directory.GetFileSystemEntries(sub).Should().Equal(fileLink);
+            Directory.GetFileSystemEntries(shared).Should().Equal(target);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_through_a_relative_link_behind_a_directory_link_leaves_a_same_named_decoy_untouched()
+    {
+        // Regression (Nachprüfung PR #1), Variante mit stillem Datenverlust: Existiert root/shared/p.json, wurde
+        // dorthin geschrieben, die echte Datei behielt ihren alten Inhalt.
+        if (OperatingSystem.IsWindows())
+        {
+            return; // Symbolische Links erfordern unter Windows besondere Rechte.
+        }
+
+        var root = CreateTempDirectory();
+        try
+        {
+            var sub = Directory.CreateDirectory(Path.Combine(root, "real", "sub")).FullName;
+            var shared = Directory.CreateDirectory(Path.Combine(root, "real", "shared")).FullName;
+            var target = Path.Combine(shared, "p.json");
+            File.WriteAllText(target, "old");
+            var decoyDirectory = Directory.CreateDirectory(Path.Combine(root, "shared")).FullName;
+            var decoy = Path.Combine(decoyDirectory, "p.json");
+            File.WriteAllText(decoy, "decoy");
+            var fileLink = Path.Combine(sub, "l.json");
+            File.CreateSymbolicLink(fileLink, Path.Combine("..", "shared", "p.json"));
+            var alias = Path.Combine(root, "alias");
+            Directory.CreateSymbolicLink(alias, sub);
+            var puzzle = CreateFullPuzzle();
+
+            PuzzleSerializer.Save(puzzle, Path.Combine(alias, "l.json"));
+
+            File.ReadAllText(target).Should().Be(PuzzleSerializer.Serialize(puzzle));
+            File.ReadAllText(decoy).Should().Be("decoy");
+            Directory.GetFileSystemEntries(decoyDirectory).Should().Equal(decoy);
+            new FileInfo(fileLink).LinkTarget.Should().Be(Path.Combine("..", "shared", "p.json"));
+            Directory.GetFileSystemEntries(shared).Should().Equal(target);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_through_a_directory_link_replaces_the_real_file()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return; // Symbolische Links erfordern unter Windows besondere Rechte.
+        }
+
+        var root = CreateTempDirectory();
+        try
+        {
+            var real = Directory.CreateDirectory(Path.Combine(root, "echt")).FullName;
+            var target = Path.Combine(real, "raetsel.json");
+            File.WriteAllText(target, "bisher gespeichert");
+            var alias = Path.Combine(root, "verweis");
+            Directory.CreateSymbolicLink(alias, real);
+            var puzzle = CreateFullPuzzle();
+
+            PuzzleSerializer.Save(puzzle, Path.Combine(alias, "raetsel.json"));
+
+            File.ReadAllText(target).Should().Be(PuzzleSerializer.Serialize(puzzle));
+            new FileInfo(target).LinkTarget.Should().BeNull();
+            new DirectoryInfo(alias).LinkTarget.Should().Be(real);
+            Directory.GetFileSystemEntries(real).Should().Equal(target);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_with_a_very_long_file_name_works_and_leaves_no_temporary_files()
+    {
+        // Regression (Nachprüfung PR #1): Der Name der temporären Datei enthielt den Zielnamen und war 38 Zeichen
+        // länger; bei langen Namen überschritt er die Grenze des Dateisystems und das Speichern schlug fehl.
+        var directory = CreateTempDirectory();
+        try
+        {
+            var path = Path.Combine(directory, new string('a', 240) + ".json");
+            var puzzle = CreateFullPuzzle();
+
+            PuzzleSerializer.Save(puzzle, path);
+            PuzzleSerializer.Save(puzzle, path);
+
+            File.ReadAllText(path).Should().Be(PuzzleSerializer.Serialize(puzzle));
+            Directory.GetFileSystemEntries(directory).Should().Equal(path);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Save_over_a_read_only_file_fails_without_touching_it()
     {
         var directory = CreateTempDirectory();
