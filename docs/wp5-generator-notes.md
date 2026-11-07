@@ -8,7 +8,7 @@ Notizen aus dem Worktree `feature/wp5-generator`. Beim Zusammenführen werden si
 **Erledigt**
 
 - Kanten-Generator in Core (`GraphDoku.Core.Generation`): `DistanceRule`, `EdgeGenerator`, `EdgeGenerationRequest`,
-  `EdgeGenerationResult`, `EdgeDirectionPolicy`. 53 Unit-Tests (`tests/GraphDoku.Core.Tests/EdgeGeneratorTests.cs`) auf
+  `EdgeGenerationResult`, `EdgeDirectionPolicy`. 55 Unit-Tests (`tests/GraphDoku.Core.Tests/EdgeGeneratorTests.cs`) auf
   allen drei Gittertypen.
 - Fünf neue Beispielrätsel in `puzzles/` (alle eindeutig und ohne Verzweigung erklärbar):
 
@@ -26,7 +26,7 @@ Notizen aus dem Worktree `feature/wp5-generator`. Beim Zusammenführen werden si
   für jede Datei konsistent mit der Lösung, Laufzeit gemessen; die neuen Beispiele ohne Verzweigung; die typische Regel
   jedes Beispiels begründet mindestens einen Schritt).
 - Erzeugungscode als Testcode: `tests/GraphDoku.Explainer.Tests/Generation/ExamplePuzzleGenerator.cs` (nicht in der App).
-- Build und alle Tests grün (Core 228, Solver 104, Explainer 81, App 192). Die App-Tests, die jede Datei in `puzzles/`
+- Build und alle Tests grün (Core 230, Solver 104, Explainer 81, App 192). Die App-Tests, die jede Datei in `puzzles/`
   öffnen, lösen und auf Eindeutigkeit prüfen (`SolveIntegrationTests`, `MainWindowViewModelTests`), laufen mit den neuen
   Dateien ohne Änderung durch.
 
@@ -36,7 +36,10 @@ Notizen aus dem Worktree `feature/wp5-generator`. Beim Zusammenführen werden si
   Auftrag ein späterer Schritt nach dem Merge. Vorgesehene Nutzung siehe Entscheidung G1.
 - **Käfigsummen werden auf der Zeichenfläche nicht angezeigt.** `GraphCanvas` zeichnet keine Gruppenbeschriftung und keinen
   `target`-Wert; das Killer-Sudoku ist im Editor deshalb nur über das Eigenschaften-Panel (Zielsumme je Käfig) lesbar.
-  Empfehlung für den UI-Schritt: Summe klein in die linke obere Zelle eines `Sum`-Käfigs schreiben.
+  Empfehlung für den UI-Schritt: Summe klein in die linke obere Zelle eines `Sum`-Käfigs schreiben. Im Review bestätigt
+  (Daten korrekt, nur die Anzeige fehlt); ohne sichtbare Summen ist das Killer-Sudoku auf der Zeichenfläche nicht
+  spielbar. Bewusst hier nicht behoben, weil `src/GraphDoku.App` in diesem Worktree tabu ist – **muss** im UI-Schritt
+  nach dem Merge erledigt werden.
 - Der Kommentar in `SolveIntegrationTests` („alle Beispielrätsel bestehen bisher nur aus AllDifferent“) ist veraltet; die
   dortige allgemeine Prüfung (Lösung als Givens bleibt lösbar) deckt die neuen Regeln trotzdem ab. Nicht geändert, weil
   `tests/GraphDoku.App.Tests` in diesem Worktree tabu war.
@@ -51,7 +54,8 @@ Notizen aus dem Worktree `feature/wp5-generator`. Beim Zusammenführen werden si
 ## Entscheidungen Kanten-Generator
 
 - **G1 – Reine Funktion plus Anwenden in einem Schritt.** `EdgeGenerator.Generate(puzzle, request)` verändert das Rätsel
-  nicht und liefert ein `EdgeGenerationResult` mit den neuen Kanten (fortlaufende Ids ab `Puzzle.NextEdgeId()`),
+  nicht und liefert ein `EdgeGenerationResult` mit den neuen Kanten (fortlaufende Ids ab `Puzzle.NextEdgeId()`,
+  mindestens ab 1 – siehe G17),
   Anzahl passender und übersprungener Paare, Fehlern und einer deutschen Meldung. `result.ApplyTo(puzzle)` fügt Kopien
   ein (wirft, wenn das Ergebnis Fehler hat oder eine Id inzwischen vergeben ist). Grund: Der Editor kann Vorschau und
   Meldung zeigen und die Kanten in **einem** Undo-Befehl einfügen (Execute = `ApplyTo` bzw. Kanten hinzufügen, Undo =
@@ -90,10 +94,22 @@ Notizen aus dem Worktree `feature/wp5-generator`. Beim Zusammenführen werden si
   Dreieck/Sechseck, ungültiger Abstand, unbekannte Knoten) werden gesammelt und gemeinsam gemeldet; es entstehen dann
   keine Kanten. Nur `null`-Argumente werfen. Grund: wie Solver und Erklär-Modus (Nr. 37, 93) – die Oberfläche zeigt
   Meldungen, statt Ausnahmen abzufangen.
-- **G8 – Reihenfolge und Meldungen.** Kanten sind nach dem From-Knoten, dann dem To-Knoten in Leserichtung sortiert.
+- **G8 – Reihenfolge und Meldungen.** Kanten sind nach dem Knoten des Paars sortiert, der in Leserichtung zuerst kommt,
+  dann nach dem zweiten – unabhängig von der Richtungsregel (bei `ReverseReadingOrder` also nach To, dann From).
   Meldungen: „12 Kanten „Ungleich“ erzeugt (direkte Nachbarn (gemeinsame Kante)). 4 Knotenpaare hatten bereits eine
   solche Kante.“, „Keine Kanten erzeugt: Kein Knotenpaar erfüllt die Abstandsregel „Abstand 1,5“.“ (Dezimalkomma wie
   Nr. 45, ohne ICU-Kulturdaten). `DistanceRule.Description` liefert die Texte für die spätere Auswahlliste.
+
+- **G17 – Kanten-Ids mindestens 1 (Review-Befund).** `Puzzle.NextEdgeId()` ist „größte Id + 1“ und kann bei einer
+  ungeprüft geöffneten Datei (Nr. 57) mit Kanten-Ids ≤ 0 selbst eine Id ≤ 0 liefern (z. B. −4 bei einer vorhandenen Id
+  −5); `PuzzleValidator` behandelt Ids ≤ 0 als Fehler (Nr. 66). Der Generator beginnt deshalb bei
+  `Math.Max(1, NextEdgeId())`. Vorhandene ungültige Ids werden **nicht** gemeldet oder verweigert (anders als doppelte
+  Knoten-Ids, G3): Die neuen Ids sind auch dann eindeutig und gültig (alle liegen über der größten vorhandenen Id),
+  die Prüfmeldungen zeigen den alten Fehler weiterhin an, und der Generator erzeugt
+  keinen neuen. Doppelte Kanten-Ids stören den Generator nicht, weil er nur über die Endknoten vergleicht.
+  `Puzzle.NextEdgeId()` selbst wurde nicht geändert, weil der Editor (App, in diesem Worktree tabu) es ebenfalls nutzt;
+  dort besteht dieselbe Lücke für einzeln gezogene Kanten sowie für `NextNodeId`/`NextGroupId` (Hinweis für den
+  Merge-Schritt).
 
 ## Entscheidungen Beispielrätsel
 

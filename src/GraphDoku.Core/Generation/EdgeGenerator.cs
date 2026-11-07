@@ -47,7 +47,9 @@ public sealed class EdgeGenerationResult
         Message = message;
     }
 
-    /// <summary>Die neuen Kanten mit fortlaufenden Ids ab <see cref="Puzzle.NextEdgeId"/> (leer bei Fehlern).</summary>
+    /// <summary>
+    /// Die neuen Kanten mit fortlaufenden Ids ab <see cref="Puzzle.NextEdgeId"/>, mindestens aber ab 1 (leer bei Fehlern).
+    /// </summary>
     public IReadOnlyList<Edge> Edges { get; }
 
     /// <summary>Anzahl der Knotenpaare, die die Abstandsregel erfüllen (mit und ohne bestehende Kante).</summary>
@@ -102,7 +104,11 @@ public sealed class EdgeGenerationResult
 /// demselben Regeltyp besteht – ungerichtet verglichen, auch bei „Kleiner als“ (eine Gegenkante würde dort sofort einen
 /// Widerspruch erzeugen) und unabhängig von den Parametern.</item>
 /// <item>Knoten an derselben Gitterposition werden nie verbunden.</item>
-/// <item>Reihenfolge der Kanten: nach dem From-Knoten, dann dem To-Knoten in Leserichtung.</item>
+/// <item>Reihenfolge der Kanten: nach dem Knoten des Paars, der in Leserichtung zuerst kommt, dann nach dem zweiten –
+/// unabhängig von der <see cref="EdgeDirectionPolicy"/> (bei <see cref="EdgeDirectionPolicy.ReverseReadingOrder"/> also
+/// nach To, dann From).</item>
+/// <item>Kanten-Ids beginnen bei <see cref="Puzzle.NextEdgeId"/>, mindestens bei 1: Auch wenn eine ungeprüft geöffnete
+/// Datei Kanten mit Ids ≤ 0 enthält, erzeugt der Generator keine weitere ungültige Id.</item>
 /// </list>
 /// </summary>
 public sealed class EdgeGenerator
@@ -138,7 +144,8 @@ public sealed class EdgeGenerator
 
         var edges = new List<Edge>();
         var skipped = 0;
-        var nextId = puzzle.NextEdgeId();
+        // Ids ≤ 0 sind ungültig (PuzzleValidator); NextEdgeId() kann sie liefern, wenn alle vorhandenen Ids ≤ 0 sind.
+        var nextId = Math.Max(1, puzzle.NextEdgeId());
         foreach (var (first, second) in pairs)
         {
             if (!existing.Add(PairKey(first.Id, second.Id)))

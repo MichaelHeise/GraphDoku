@@ -303,6 +303,31 @@ public class EdgeGeneratorTests
     }
 
     [Fact]
+    public void Edge_ids_start_at_one_when_existing_edges_have_invalid_ids()
+    {
+        var puzzle = Patch(GridType.Square, 3, 1);
+        puzzle.Edges.Add(new Edge(-5, 1, 2, RatioRule.Name));
+
+        var result = Generate(puzzle, DistanceRule.Orthogonal);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Edges.Select(e => e.Id).Should().Equal(1, 2);
+        var errorsBefore = PuzzleValidator.Validate(puzzle);
+        errorsBefore.Should().NotBeEmpty("die vorhandene Kante mit Id −5 ist ungültig");
+        result.ApplyTo(puzzle);
+        PuzzleValidator.Validate(puzzle).Should().BeEquivalentTo(errorsBefore, "der Generator darf keine neuen Fehler erzeugen");
+    }
+
+    [Fact]
+    public void Edge_ids_continue_after_the_largest_existing_id()
+    {
+        var puzzle = Patch(GridType.Square, 3, 1);
+        puzzle.Edges.Add(new Edge(7, 1, 2, RatioRule.Name));
+
+        Generate(puzzle, DistanceRule.Orthogonal).Edges.Select(e => e.Id).Should().Equal(8, 9);
+    }
+
+    [Fact]
     public void Nodes_at_the_same_position_are_never_connected_with_each_other()
     {
         var puzzle = Patch(GridType.Square, 2, 1);
