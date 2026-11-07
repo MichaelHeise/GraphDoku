@@ -60,7 +60,7 @@ public sealed class SolveResult
         new(SolveStatus.Unsolvable, null, [], "Das Rätsel ist unlösbar: Es gibt keine Belegung, die alle Regeln erfüllt.", elapsed);
 
     public static SolveResult Timeout(TimeSpan timeLimit, TimeSpan elapsed) =>
-        new(SolveStatus.Timeout, null, [], $"Das Zeitlimit von {SolverText.Seconds(timeLimit)} wurde erreicht, ohne dass eine Lösung gefunden wurde.", elapsed);
+        new(SolveStatus.Timeout, null, [], $"Das Zeitlimit von {SolverText.Duration(timeLimit)} wurde erreicht, ohne dass eine Lösung gefunden wurde.", elapsed);
 
     public static SolveResult Cancelled(TimeSpan elapsed) =>
         new(SolveStatus.Cancelled, null, [], "Die Suche wurde abgebrochen.", elapsed);

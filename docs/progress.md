@@ -60,14 +60,17 @@
 - Zeitlimit über `max_time_in_seconds`, Abbruch: `CancellationToken` ruft `StopSearch` des laufenden CP-SAT auf.
 - Beispielrätsel `puzzles/klassisch-leicht.json` (nur mit Singles lösbar), `klassisch-mittel.json`,
   `klassisch-schwer.json`, alle eindeutig.
-- Tests (Solver 83): drei klassische Sudokus mit hinterlegter Lösung (unabhängig geprüft), unlösbares und
+- Tests (Solver 89): drei klassische Sudokus mit hinterlegter Lösung (unabhängig geprüft), unlösbares und
   mehrdeutiges Sudoku (genau 2 Lösungen), je Regeltyp positive und negative Fälle mit Abgleich gegen vollständiges
   Durchprobieren (unabhängiger Lösungsprüfer in den Testhilfen), Zusammenspiel aller Regeln, Zeitlimit und Abbruch
   (synchron und asynchron), Wertebereich pro Knoten, Given außerhalb des Wertebereichs, unbekannte Regel, fehlender
   Adapter, eigene Regel über beide Registries.
 - OR-Tools lädt auf macOS arm64 (lokal getestet); das Paket bringt die nativen Bibliotheken für linux-x64 (CI),
-  linux-arm64, osx-x64 und win-x64 mit (Ausgabeverzeichnis `runtimes/<rid>/native`).
-- Gesamt: 241 Tests (Core 144, Solver 83, Explainer 2, App 12), alle grün in Release.
+  linux-arm64, osx-arm64, osx-x64 und win-x64 mit (Ausgabeverzeichnis `runtimes/<rid>/native`).
+- Review-Befunde behoben: Lösungszählung zählt verschiedene Knotenbelegungen (unabhängig von freien
+  Hilfsvariablen eigener Adapter), Zeitlimit in Meldungen im deutschen Format („300 ms“, „1,5 s“, nie „0 s“),
+  Lizenzen der nativen OR-Tools-Bibliotheken (u. a. COIN-OR, EPL-2.0) in `THIRD-PARTY-NOTICES.md`.
+- Gesamt: 247 Tests (Core 144, Solver 89, Explainer 2, App 12), alle grün in Release.
 
 **Offen**
 

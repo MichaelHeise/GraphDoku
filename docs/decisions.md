@@ -218,3 +218,20 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
 43. **Zeitlimit- und Abbruchtests** verwenden ein Färbungsrätsel auf dem Mycielski-Graphen M6 (47 Knoten,
     236 `NotEqual`-Kanten, 5 Farben): unlösbar, für CP-SAT aber schwer zu widerlegen. Der Zähl-Abbruch nutzt das leere
     klassische Sudoku mit unbegrenztem Limit.
+44. **Lösungszählung zählt verschiedene Knotenbelegungen** (Review Paket 2). CP-SAT meldet mit
+    `enumerate_all_solutions` jede Belegung *aller* Modellvariablen. Ein Adapter mit freien Hilfsvariablen (etwa eine
+    Boolesche Variable mit `OnlyEnforceIf`) würde dieselbe Knotenbelegung mehrfach melden und ein eindeutiges Rätsel
+    als mehrdeutig erscheinen lassen. Der Zähl-Callback verwirft deshalb Wiederholungen über das Wertetupel der
+    Knoten (`HashSet` mit strukturellem Vergleich). Die mitgelieferten Adapter brauchen das nicht (siehe Nr. 40), die
+    Zählung hängt so aber nicht mehr von Adapter-Interna ab. Die Empfehlung „Hilfsvariablen durch die Knotenwerte
+    festlegen“ steht weiterhin in der Doku von `IOrToolsRuleAdapter` und im README (Laufzeit). Kosten: Der Callback
+    merkt sich alle gezählten Belegungen; bei üblichen Limits (2 für die Eindeutigkeit) ist das vernachlässigbar.
+45. **Zeitangaben in Solver-Meldungen** im deutschen Format mit Dezimalkomma. Ab 1 s in Sekunden („1,5 s“), darunter
+    in Millisekunden („300 ms“, „0,0001 ms“), damit ein positives Zeitlimit nie als „0 s“ erscheint. Das Zahlenformat
+    wird als eigenes `NumberFormatInfo` (Dezimalkomma) erzeugt statt über `CultureInfo("de-DE")`, damit die Texte
+    auch ohne ICU-Kulturdaten (z. B. schlanke Linux-Container) gleich sind. (Vorher: invariante Kultur mit
+    Dezimalpunkt, „0.3 s“.)
+46. **Native Bibliotheken der OR-Tools-Runtime-Pakete** stehen in `THIRD-PARTY-NOTICES.md` mit ihren eigenen
+    Lizenzen (u. a. COIN-OR unter EPL-2.0). Die nuspec nennt nur pauschal Apache-2.0. Die Lizenzen wurden nach den
+    Projektangaben der Komponenten zugeordnet, nicht aus den Paketen selbst gelesen (die Pakete enthalten keine
+    Lizenztexte der Komponenten); vor einer Auslieferung sollte das juristisch geprüft werden.

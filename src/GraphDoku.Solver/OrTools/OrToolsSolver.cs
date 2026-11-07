@@ -131,10 +131,16 @@ public sealed class OrToolsSolver : ISolver
     private static string UnexpectedStatus(CpSolverResponse response) =>
         $"OR-Tools meldet den Status {response.Status}{(string.IsNullOrEmpty(response.SolutionInfo) ? "" : $" ({response.SolutionInfo})")}.";
 
-    /// <summary>Zählt Lösungen und hält die Suche beim Limit an. CP-SAT ruft ihn mit einem Worker nacheinander auf.</summary>
+    /// <summary>
+    /// Zählt Lösungen und hält die Suche beim Limit an. CP-SAT ruft ihn mit einem Worker nacheinander auf.
+    /// Gezählt werden verschiedene <b>Knotenbelegungen</b>: CP-SAT meldet mit <c>enumerate_all_solutions</c> jede
+    /// Belegung aller Modellvariablen, also auch jede Variante freier Hilfsvariablen eines Adapters. Solche
+    /// Wiederholungen derselben Knotenbelegung werden verworfen, damit die Zählung nicht von Adapter-Interna abhängt.
+    /// </summary>
     private sealed class CountingCallback(OrToolsModel model, int limit) : CpSolverSolutionCallback
     {
         private readonly List<IReadOnlyDictionary<int, int>> _solutions = [];
+        private readonly HashSet<int[]> _seen = new(NodeValuesComparer.Instance);
 
         public int Count { get; private set; }
 
@@ -148,13 +154,24 @@ public sealed class OrToolsSolver : ISolver
                 return;
             }
 
+            var nodeValues = new int[model.NodeVariables.Count];
+            for (var i = 0; i < nodeValues.Length; i++)
+            {
+                nodeValues[i] = checked((int)Value(model.NodeVariables[i].Variable));
+            }
+
+            if (!_seen.Add(nodeValues))
+            {
+                return;
+            }
+
             Count++;
             if (_solutions.Count < SolutionCountResult.MaxStoredSolutions)
             {
-                var values = new Dictionary<int, int>(model.NodeVariables.Count);
-                foreach (var (nodeId, variable) in model.NodeVariables)
+                var values = new Dictionary<int, int>(nodeValues.Length);
+                for (var i = 0; i < nodeValues.Length; i++)
                 {
-                    values[nodeId] = (int)Value(variable);
+                    values[model.NodeVariables[i].NodeId] = nodeValues[i];
                 }
 
                 _solutions.Add(values);
@@ -164,6 +181,21 @@ public sealed class OrToolsSolver : ISolver
             {
                 StopSearch();
             }
+        }
+    }
+
+    /// <summary>Struktureller Vergleich der Wertetupel (gleiche Knotenreihenfolge innerhalb eines Modells).</summary>
+    private sealed class NodeValuesComparer : IEqualityComparer<int[]>
+    {
+        public static readonly NodeValuesComparer Instance = new();
+
+        public bool Equals(int[]? x, int[]? y) => ReferenceEquals(x, y) || (x is not null && y is not null && x.AsSpan().SequenceEqual(y));
+
+        public int GetHashCode(int[] obj)
+        {
+            var hash = new HashCode();
+            hash.AddBytes(System.Runtime.InteropServices.MemoryMarshal.AsBytes(obj.AsSpan()));
+            return hash.ToHashCode();
         }
     }
 }

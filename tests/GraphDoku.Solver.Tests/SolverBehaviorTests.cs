@@ -36,7 +36,7 @@ public class SolverBehaviorTests
 
         result.Status.Should().Be(SolveStatus.Timeout, result.Message);
         result.Values.Should().BeNull();
-        result.Message.Should().Contain("Zeitlimit von 0.3 s");
+        result.Message.Should().Contain("Zeitlimit von 300 ms");
         stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15));
     }
 
@@ -341,6 +341,48 @@ public class SolverBehaviorTests
     }
 
     [Fact]
+    public void Counting_ignores_free_auxiliary_variables_of_adapters()
+    {
+        // Ersatz-Adapter für NotEqual mit einer freien Hilfsvariablen: CP-SAT meldet jede Knotenbelegung doppelt.
+        var defaults = OrToolsAdapterRegistry.Default;
+        var adapters = defaults.TypeNames
+            .Where(name => name != "NotEqual")
+            .Select(name => defaults.TryGet(name, out var adapter) ? adapter : throw new InvalidOperationException(name))
+            .Append(new NotEqualWithFreeBoolAdapter());
+        var solver = new OrToolsSolver(adapters: new OrToolsAdapterRegistry(adapters));
+        var puzzle = WithEdge("NotEqual", min: 1, max: 3);
+
+        var all = solver.CountSolutions(puzzle, limit: 100);
+        var uniqueness = solver.CountSolutions(Puzzle(1, 1, 2));
+
+        all.Status.Should().Be(CountStatus.Completed);
+        all.Count.Should().Be(6, "es gibt 3 · 2 verschiedene Knotenbelegungen");
+        all.Message.Should().Be("Das Rätsel ist mehrdeutig: Es gibt genau 6 Lösungen.");
+        uniqueness.IsUnique.Should().BeTrue("Hilfsvariablen dürfen ein eindeutiges Rätsel nicht mehrdeutig machen");
+        uniqueness.Solutions.Should().ContainSingle();
+
+        Puzzle Puzzle(int given, int min, int max) => WithEdge("NotEqual", min: min, max: max).Given(1, given);
+    }
+
+    [Theory]
+    [InlineData(30_000, "30 s")]
+    [InlineData(1_500, "1,5 s")]
+    [InlineData(300, "300 ms")]
+    [InlineData(0.5, "0,5 ms")]
+    public void Timeout_message_shows_the_limit_in_german_format(double milliseconds, string expected)
+    {
+        var result = SolveResult.Timeout(TimeSpan.FromMilliseconds(milliseconds), TimeSpan.Zero);
+
+        result.Message.Should().Be($"Das Zeitlimit von {expected} wurde erreicht, ohne dass eine Lösung gefunden wurde.");
+    }
+
+    [Fact]
+    public void Timeout_message_never_shows_a_positive_limit_as_zero()
+    {
+        SolveResult.Timeout(TimeSpan.FromTicks(1), TimeSpan.Zero).Message.Should().Contain("Zeitlimit von 0,0001 ms");
+    }
+
+    [Fact]
     public void Default_adapter_registry_covers_every_catalog_rule()
     {
         OrToolsAdapterRegistry.Default.TypeNames.Should().BeEquivalentTo(RuleRegistry.Default.TypeNames);
@@ -391,6 +433,20 @@ public class SolverBehaviorTests
         public IReadOnlyList<string> Validate(IConstraint constraint, Puzzle puzzle) => [];
 
         public IReadOnlyList<CandidateChange> Propagate(CandidateState state, IConstraint constraint) => [];
+    }
+
+    /// <summary>NotEqual mit zusätzlicher, durch die Knotenwerte nicht festgelegter Boolescher Hilfsvariablen.</summary>
+    private sealed class NotEqualWithFreeBoolAdapter : IOrToolsRuleAdapter
+    {
+        public string TypeName => "NotEqual";
+
+        public void AddToModel(OrToolsModelContext context, IConstraint constraint)
+        {
+            var variables = context.Variables(constraint);
+            var free = context.Model.NewBoolVar("free");
+            context.Model.Add(variables[0] != variables[1]);
+            context.Model.Add(variables[0] != variables[1]).OnlyEnforceIf(free);
+        }
     }
 
     private sealed class EvenAdapter : IOrToolsRuleAdapter

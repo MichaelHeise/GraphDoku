@@ -13,6 +13,29 @@ abrufbar.
 | Avalonia.Fonts.Inter | 12.1.5 | MIT (Paket); Schrift Inter: SIL Open Font License 1.1 | Standardschrift | https://github.com/rsms/inter |
 | CommunityToolkit.Mvvm | 8.4.2 | MIT | MVVM | https://github.com/CommunityToolkit/dotnet |
 
+### Native Bibliotheken in `Google.OrTools.runtime.*`
+
+Die Runtime-Pakete von OR-Tools (linux-x64, linux-arm64, osx-arm64, osx-x64, win-x64) bringen neben OR-Tools selbst
+weitere native Bibliotheken mit, die mit jeder Ausgabe unter `runtimes/<rid>/native` ausgeliefert werden. Die nuspec
+nennt pauschal Apache-2.0; die Komponenten stehen jedoch unter ihren eigenen Lizenzen:
+
+| Komponente | Dateien (Linux-Namen) | Lizenz | Quellcode |
+| --- | --- | --- | --- |
+| OR-Tools (nativer Kern und C#-Brücke) | `libortools`, `google-ortools-native` | Apache-2.0 | https://github.com/google/or-tools |
+| COIN-OR CBC, CLP, CGL, OSI, CoinUtils | `libCbc`, `libCbcSolver`, `libClp`, `libClpSolver`, `libCgl`, `libOsi`, `libOsiCbc`, `libOsiClp`, `libCoinUtils` | **EPL-2.0** | https://github.com/coin-or |
+| SCIP 10 | `libscip` | Apache-2.0 | https://github.com/scipopt/scip |
+| HiGHS | `libhighs` | MIT | https://github.com/ERGO-Code/HiGHS |
+| Abseil | `libabsl_*` (Windows: `abseil_dll`) | Apache-2.0 | https://github.com/abseil/abseil-cpp |
+| Protocol Buffers (nativ) | `libprotobuf`, `libutf8_validity` | BSD-3-Clause | https://github.com/protocolbuffers/protobuf |
+| RE2 | `libre2` | BSD-3-Clause | https://github.com/google/re2 |
+| zlib | `libz` (Windows: `zlib1`) | zlib-Lizenz | https://zlib.net |
+| bzip2 | `libbz2` (Windows: `bz2`) | bzip2-Lizenz (BSD-artig) | https://sourceware.org/bzip2/ |
+
+Das win-x64-Paket enthält keine COIN-OR-Bibliotheken. EPL-2.0 verlangt bei der Weitergabe von Binärdateien einen
+Hinweis, wo der Quellcode erhältlich ist; das leistet die Spalte „Quellcode“. GraphDoku nutzt nur CP-SAT, die übrigen
+Solver werden lediglich mitgeliefert. Die Zuordnung der Lizenzen beruht auf den Angaben der jeweiligen Projekte
+(siehe `docs/decisions.md`, Nr. 46).
+
 ## Nur für Tests (werden nicht ausgeliefert)
 
 | Paket | Version | Lizenz | Projekt |
