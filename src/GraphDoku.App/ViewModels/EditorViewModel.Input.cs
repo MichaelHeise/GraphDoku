@@ -28,6 +28,7 @@ public sealed partial class EditorViewModel
     private (int Dx, int Dy) _appliedDelta;
     private GridPoint? _lastPlacedPoint;
     private bool _spaceHeld;
+    private bool _refitAfterGesture;
 
     // Laufende Eingabe eines (mehrstelligen) Givens.
     private string _entryBuffer = string.Empty;
@@ -62,15 +63,39 @@ public sealed partial class EditorViewModel
     /// <summary>
     /// Neue Größe der Zeichenfläche. War die Ansicht eingepasst (seither nicht gezoomt oder verschoben), wird neu
     /// eingepasst – z. B. wenn die Lösen-Leiste eine Meldung bekommt und die Zeichenfläche dadurch niedriger wird.
+    /// Während einer Ziehgeste bleibt die Ansicht stehen (sonst landen Knoten nicht unter dem Mauszeiger); das
+    /// Einpassen folgt dann am Ende der Geste, sofern die Ansicht weiterhin eingepasst ist.
     /// </summary>
     public void SetViewSize(double width, double height)
     {
         var wasFitted = IsViewFitted;
         var changed = width != Viewport.Width || height != Viewport.Height;
         Viewport.SetSize(width, height);
-        if (wasFitted && changed && Viewport.HasSize)
+        if (!wasFitted || !changed || !Viewport.HasSize)
+        {
+            return;
+        }
+
+        if (_gesture != Gesture.None)
+        {
+            _refitAfterGesture = true;
+        }
+        else
         {
             FitView();
+        }
+    }
+
+    /// <summary>Holt ein während der Geste zurückgestelltes Einpassen nach (siehe <see cref="SetViewSize"/>).</summary>
+    private void RefitIfDeferred()
+    {
+        if (_refitAfterGesture)
+        {
+            _refitAfterGesture = false;
+            if (IsViewFitted)
+            {
+                FitView();
+            }
         }
     }
 
@@ -197,6 +222,7 @@ public sealed partial class EditorViewModel
         }
 
         _pressNodeId = null;
+        RefitIfDeferred();
     }
 
     /// <summary>Bricht eine laufende Geste ab (Auswahlrahmen, Kantenvorschau). Bereits ausgeführte Schritte bleiben im Verlauf.</summary>
@@ -211,6 +237,8 @@ public sealed partial class EditorViewModel
             EdgePreview = null;
             RaiseVisualChanged();
         }
+
+        RefitIfDeferred();
     }
 
     /// <summary>Escape: laufende Geste abbrechen, sonst Auswahl aufheben.</summary>

@@ -1,6 +1,8 @@
+using GraphDoku.App.Editing;
 using GraphDoku.App.Solving;
 using GraphDoku.App.Tests.Helpers;
 using GraphDoku.App.ViewModels;
+using GraphDoku.Core.Geometry;
 using GraphDoku.Core.Model;
 using GraphDoku.Core.Serialization;
 using GraphDoku.Core.Templates;
@@ -399,6 +401,57 @@ public sealed class SolveViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Ambiguous_check_after_solve_replaces_the_shown_solution_by_solution_one_with_differences()
+    {
+        await Solve.SolveCommand.ExecuteAsync(null);
+        Editor.HasSolution.Should().BeTrue();
+        _solver.CountResult = (puzzle, limit) => SolutionCountResult.Completed(
+            2, limit, [FakeSolver.FillAll(puzzle, offset: 1), FakeSolver.FillAll(puzzle, offset: 2)], TimeSpan.FromMilliseconds(40));
+
+        await Solve.CheckUniquenessCommand.ExecuteAsync(null);
+
+        Solve.Outcome.Should().Be(SolveOutcome.Ambiguous);
+        var empty = ClassicSudoku.NodeId(0, 2);
+        Editor.SolutionValue(empty).Should().Be(2, "die Lösung aus „Lösen“ wurde durch Lösung 1 ersetzt");
+        Editor.IsSolutionDifference(empty).Should().BeTrue();
+        Solve.Legend.Should().Contain("Orange");
+        Solve.ResultMessage.Should().Contain("mehrdeutig").And.Contain("51 Knoten").And.Contain("nur eine davon");
+    }
+
+    [Fact]
+    public async Task Ambiguous_check_without_shown_solution_still_enters_nothing()
+    {
+        _solver.CountResult = (puzzle, limit) => SolutionCountResult.Completed(
+            2, limit, [FakeSolver.FillAll(puzzle), FakeSolver.FillAll(puzzle, offset: 1)], TimeSpan.FromMilliseconds(40));
+
+        await Solve.CheckUniquenessCommand.ExecuteAsync(null);
+
+        Editor.HasSolution.Should().BeFalse();
+        Solve.ResultMessage.Should().Contain("Beim Anzeigen werden diese Knoten orange markiert");
+    }
+
+    [Fact]
+    public async Task Ambiguous_message_uses_singular_for_one_differing_node()
+    {
+        var differing = ClassicSudoku.NodeId(0, 2);
+        _solver.CountResult = (puzzle, limit) =>
+        {
+            var first = FakeSolver.FillAll(puzzle);
+            var second = new Dictionary<int, int>(first) { [differing] = first[differing] + 1 };
+            return SolutionCountResult.Completed(2, limit, [first, second], TimeSpan.FromMilliseconds(5));
+        };
+
+        await Solve.CheckUniquenessCommand.ExecuteAsync(null);
+        Solve.SolutionDifferences.Should().Equal(differing);
+        Solve.ResultMessage.Should().Contain("verschieden in einem Knoten").And.Contain("wird dieser Knoten orange markiert")
+            .And.NotContain("diese Knoten");
+
+        Solve.ShowFirstSolutionCommand.Execute(null);
+        await Solve.CheckUniquenessCommand.ExecuteAsync(null);
+        Solve.ResultMessage.Should().Contain("der abweichende Knoten ist orange markiert");
+    }
+
+    [Fact]
     public void Constructor_requires_editor_and_solver()
     {
         var act = () => new SolveViewModel(Editor, null!);
@@ -458,6 +511,57 @@ public sealed class ViewRefitTests
 
         editor.SetViewSize(1000, 600);
 
+        (editor.Viewport.Scale, editor.Viewport.OffsetX, editor.Viewport.OffsetY).Should().Be((scale, x, y));
+    }
+
+    [Fact]
+    public void Refit_waits_until_the_gesture_ends_so_nodes_land_under_the_pointer()
+    {
+        var editor = EditorDriver.CreateEditor(ClassicSudoku.Create());
+        editor.Tool = EditorTool.PlaceNode;
+        var start = editor.ScreenOf(new GridPoint(9, 4));
+        var end = editor.ScreenOf(new GridPoint(11, 4));
+        var view = (editor.Viewport.Scale, editor.Viewport.OffsetX, editor.Viewport.OffsetY);
+
+        editor.PointerPressed(start, PointerButton.Left);
+        editor.SetViewSize(1000, 600); // z. B. weil die Lösen-Leiste nach der ersten Bearbeitung anders aussieht
+        (editor.Viewport.Scale, editor.Viewport.OffsetX, editor.Viewport.OffsetY).Should().Be(view, "während der Geste springt die Ansicht nicht");
+        editor.PointerMoved(end);
+        editor.PointerReleased(end);
+
+        editor.Puzzle.Nodes.Select(n => (n.X, n.Y)).Should().Contain([(9, 4), (10, 4), (11, 4)]);
+        editor.IsViewFitted.Should().BeTrue();
+        editor.Viewport.Scale.Should().BeLessThan(view.Scale, "nach der Geste wird das zurückgestellte Einpassen nachgeholt");
+    }
+
+    [Fact]
+    public void Deferred_refit_also_runs_when_the_gesture_is_cancelled()
+    {
+        var editor = EditorDriver.CreateEditor(ClassicSudoku.Create());
+        var scale = editor.Viewport.Scale;
+        editor.PointerPressed(editor.ScreenOf(-0.4, -0.4), PointerButton.Left); // Auswahlrahmen beginnt
+        editor.SetViewSize(1000, 600);
+        editor.Viewport.Scale.Should().Be(scale);
+
+        editor.Escape();
+
+        editor.Viewport.Scale.Should().BeLessThan(scale);
+        editor.IsViewFitted.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Deferred_refit_is_dropped_when_the_gesture_panned_the_view()
+    {
+        var editor = EditorDriver.CreateEditor(ClassicSudoku.Create());
+        var start = new ScreenPoint(500, 400);
+        editor.PointerPressed(start, PointerButton.Middle);
+        editor.SetViewSize(1000, 600);
+        editor.PointerMoved(new ScreenPoint(540, 420));
+        editor.PointerReleased(new ScreenPoint(540, 420), PointerButton.Middle);
+        var (scale, x, y) = (editor.Viewport.Scale, editor.Viewport.OffsetX, editor.Viewport.OffsetY);
+
+        editor.IsViewFitted.Should().BeFalse("der Nutzer hat die Ansicht verschoben");
+        editor.SetViewSize(1000, 500);
         (editor.Viewport.Scale, editor.Viewport.OffsetX, editor.Viewport.OffsetY).Should().Be((scale, x, y));
     }
 }

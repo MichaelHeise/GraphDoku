@@ -186,6 +186,46 @@ public sealed class RenderingSmokeTests(HeadlessSessionFixture fixture, ITestOut
         return true;
     }, CancellationToken.None);
 
+    [Theory]
+    [InlineData(900, 560)]
+    [InlineData(1280, 800)]
+    public Task Solve_bar_keeps_its_height_and_leaves_the_canvas_usable(int width, int height) => fixture.Session.Dispatch(async () =>
+    {
+        var (window, viewModel) = OpenWindow(ClassicSudoku.Create(Givens.Remove(25, 1).Insert(25, ".")));
+        window.Width = width;
+        window.Height = height;
+        var bar = window.FindControl<Border>("SolveBar")!;
+        var canvas = window.FindControl<GraphCanvas>("Canvas")!;
+        var solve = viewModel.Solve;
+        var heights = new List<(string State, double Bar, double Canvas)>();
+        void Record(string state)
+        {
+            Capture(window, $"leiste-{width}x{height}-{state}.png");
+            heights.Add((state, bar.Bounds.Height, canvas.Bounds.Height));
+            output.WriteLine($"{state}: Leiste {bar.Bounds.Height:0.#} px, Zeichenfläche {canvas.Bounds.Height:0.#} px");
+        }
+
+        Record("ohne-ergebnis");
+        await solve.SolveCommand.ExecuteAsync(null);
+        Record("geloest");
+        await solve.CheckUniquenessCommand.ExecuteAsync(null);
+        solve.Outcome.Should().Be(SolveOutcome.Ambiguous);
+        Record("geloest-dann-mehrdeutig");
+        solve.ShowSecondSolutionCommand.Execute(null);
+        Record("mehrdeutig-loesung2");
+        viewModel.Editor.SelectNodes([ClassicSudoku.NodeId(8, 0)]);
+        viewModel.Editor.EnterValueCharacter('3');
+        viewModel.Editor.ClearSelection();
+        Record("bearbeitet");
+        await solve.CheckUniquenessCommand.ExecuteAsync(null);
+        Record("eindeutig");
+
+        heights.Select(h => h.Bar).Distinct().Should().ContainSingle("die Lösen-Leiste darf ihre Höhe nicht mit dem Ergebnis ändern");
+        canvas.Bounds.Height.Should().BeGreaterThan(height * 0.5, "die Zeichenfläche bleibt auch bei Mindestgröße gut nutzbar");
+        window.Close();
+        return true;
+    }, CancellationToken.None);
+
     [Fact]
     public Task Busy_and_error_states_render() => fixture.Session.Dispatch(async () =>
     {

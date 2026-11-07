@@ -149,7 +149,7 @@ public sealed partial class SolveViewModel : ViewModelBase
 
     /// <summary>Erklärt die Farben der angezeigten Lösung.</summary>
     public string Legend => _editor.SolutionDifferences.Count > 0
-        ? "Blau: Lösungswerte · Schwarz: Givens · Orange: Knoten, in denen sich die beiden Lösungen unterscheiden"
+        ? "Blau: Lösungswerte · Schwarz: Givens · Orange: abweichende Knoten"
         : "Blau: Lösungswerte · Schwarz: Givens";
 
     private bool CanStart => !IsBusy && TimeLimit is not null;
@@ -247,7 +247,7 @@ public sealed partial class SolveViewModel : ViewModelBase
             case SolveStatus.Solved:
                 SetSolutions([result.Values!]);
                 ShowSolution(0);
-                SetResult(SolveOutcome.Solved, $"Lösung gefunden ({SolverTimeText.Duration(result.Elapsed)}) und in die Knoten eingetragen. Ob sie die einzige ist, zeigt „Eindeutigkeit prüfen“.");
+                SetResult(SolveOutcome.Solved, $"Lösung gefunden ({SolverTimeText.Duration(result.Elapsed)}) und eingetragen. Ob sie die einzige ist, zeigt „Eindeutigkeit prüfen“.");
                 break;
             case SolveStatus.Unsolvable:
                 DiscardSolutions();
@@ -275,10 +275,20 @@ public sealed partial class SolveViewModel : ViewModelBase
         else if (result.IsAmbiguous)
         {
             SetSolutions(result.Solutions.Take(2).ToList());
-            SetResult(SolveOutcome.Ambiguous,
-                $"Das Rätsel ist mehrdeutig: Es gibt mindestens zwei verschiedene Lösungen ({elapsed}). Sie unterscheiden sich in "
-                + $"{(_differences.Count == 1 ? "einem Knoten" : $"{_differences.Count} Knoten")}; „Lösung 1 anzeigen“ bzw. „Lösung 2 anzeigen“ trägt eine davon ein "
-                + "und markiert diese Knoten orange.");
+
+            // War schon eine Lösung (aus „Lösen“) eingetragen, wird sie durch Lösung 1 mit markierten Unterschieden ersetzt,
+            // damit die Anzeige zur Meldung passt und nicht wie ein eindeutig gelöstes Rätsel aussieht.
+            var replaced = _editor.HasSolution;
+            if (replaced)
+            {
+                ShowSolution(0);
+            }
+
+            var single = _differences.Count == 1;
+            var start = $"Das Rätsel ist mehrdeutig: mindestens zwei Lösungen, verschieden in {(single ? "einem Knoten" : $"{_differences.Count} Knoten")} ({elapsed}).";
+            SetResult(SolveOutcome.Ambiguous, replaced
+                ? $"{start} Die eingetragene Lösung ist nur eine davon; {(single ? "der abweichende Knoten ist" : "die abweichenden Knoten sind")} orange markiert."
+                : $"{start} Beim Anzeigen {(single ? "wird dieser Knoten" : "werden diese Knoten")} orange markiert.");
         }
         else if (result.IsUnique)
         {

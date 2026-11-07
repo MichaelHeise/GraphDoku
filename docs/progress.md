@@ -168,6 +168,12 @@
   über das Hauptfenster-ViewModel und löst sie mit dem Lösen-Befehl und dem echten `OrToolsSolver` (Lösung geprüft);
   dazu Tests für unlösbar, mehrdeutig, Abbruch und veraltete Lösung nach Bearbeitung.
 - Gesamt: 409 Tests (Core 144, Solver 89, Explainer 2, App 174), alle grün in Release.
+- **Review-Befunde behoben (Nr. 79–81):** Neu-Einpassen wartet bis zum Ende einer Ziehgeste; Lösen-Leiste mit fester
+  Höhe (68 px in allen Zuständen außer „ungültig“ mit Fehlerliste), dadurch bei Mindestgröße 900 × 560 Zeichenfläche
+  307 statt ca. 230 px hoch; „Eindeutigkeit prüfen“ nach „Lösen“ ersetzt die angezeigte Lösung bei Mehrdeutigkeit durch
+  Lösung 1 mit orange markierten Unterschieden; Meldung im Singular bei einem abweichenden Knoten. Neue Tests: 3 zum
+  Einpassen während Gesten, 3 zur Mehrdeutig-Meldung/-Anzeige, Rendering-Test der Leistenhöhe bei 900 × 560 und
+  1280 × 800 (Bilder angesehen). Gesamt jetzt 417 Tests (App 182), alle grün in Release.
 
 **Offen**
 
@@ -178,6 +184,8 @@
 
 **Bekannte Probleme**
 
+- Lange Meldungen der Lösen-Leiste werden nach zwei Zeilen mit „…“ gekürzt (Volltext als Tooltip), vor allem bei
+  Mindestbreite; die Kernaussage steht jeweils am Anfang (Nr. 80).
 - Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel-Tests, Aussehen
   über die headless gerenderten Bilder belegt.
 - Der Abbruch einer laufenden Suche wirkt über `StopSearch` von CP-SAT; bei sehr großen Modellen kann der Modellaufbau

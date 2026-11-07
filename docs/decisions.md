@@ -443,3 +443,22 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
     Lösung nach Bearbeitung. Rendering-Rauchtests: gelöstes Sudoku (blaue Lösungswerte, schwarze Givens per Pixelprüfung,
     nach einer Bearbeitung keine blauen Werte mehr), mehrdeutiges Sudoku (orange Unterschiede), laufende Suche mit
     sichtbarer „Abbrechen“-Schaltfläche, Abbruch, ungültiges Rätsel, falsches Zeitlimit; alle Bilder wurden angesehen.
+79. **Neu-Einpassen (Nr. 77) nicht während einer Ziehgeste:** Ändert sich die Größe der Zeichenfläche, während eine Geste
+    läuft (z. B. weil die erste Bearbeitung beim Knotensetzen die Lösung ausblendet und sich die Lösen-Leiste ändert),
+    bleibt die Ansicht stehen und `SetViewSize` merkt sich das Einpassen. Es wird beim Loslassen (`PointerReleased`)
+    bzw. Abbrechen (`CancelGesture`) nachgeholt, aber nur, wenn die Ansicht dann noch eingepasst ist (nach Verschieben
+    der Ansicht entfällt es).
+80. **Lösen-Leiste mit stabiler Höhe:** Links stehen in der ersten Zeile „Lösen“, „Eindeutigkeit prüfen“ und das
+    Zeitlimit, in einer zweiten, immer reservierten Zeile die Schaltflächen „Lösung (1) anzeigen“, „Lösung 2 anzeigen“,
+    „Lösung ausblenden“ (vorher rechts unter der Meldung). Rechts stehen Meldung (höchstens zwei Zeilen, sonst gekürzt,
+    Volltext als Tooltip) und eine einzeilige Legende. Dadurch ist die Leiste in allen Zuständen gleich hoch (68 px);
+    nur die Fehlerliste eines ungültigen Rätsels (und eine zusätzliche Zeitlimit-Fehlerzeile) macht sie höher – das ist
+    bewusst so, denn dort wird keine Lösung angezeigt. Die Meldungen wurden dafür gekürzt, die Kernaussage steht vorn
+    (z. B. „Das Rätsel ist mehrdeutig: mindestens zwei Lösungen, verschieden in 12 Knoten (2 ms). …“), die Legende lautet
+    „Blau: Lösungswerte · Schwarz: Givens · Orange: abweichende Knoten“. Ein Rendering-Test prüft die gleiche Höhe in
+    sechs Zuständen bei 900 × 560 und 1280 × 800.
+81. **„Eindeutigkeit prüfen“ bei angezeigter Lösung:** Ist das Ergebnis mehrdeutig und war bereits eine Lösung
+    eingetragen (aus „Lösen“), wird sie durch Lösung 1 mit orange markierten Unterschieden ersetzt; die Meldung sagt,
+    dass die eingetragene Lösung nur eine davon ist. Ohne angezeigte Lösung trägt die Prüfung weiterhin nichts ein
+    (Nr. 73). Bei eindeutigem Ergebnis bleibt eine angezeigte Lösung stehen (sie ist dann die einzige). Bei genau einem
+    abweichenden Knoten steht die Meldung im Singular.
