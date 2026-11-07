@@ -65,10 +65,10 @@ sign_macos() { # <App-Bundle>
     codesign --verify --deep --strict "$1"
   elif command -v rcodesign >/dev/null 2>&1; then
     rcodesign sign "$1" >/dev/null
-    # Mindestprüfung auf Linux (codesign gibt es hier nicht): Ressourcen versiegelt, Hauptprogramm gültig signiert.
+    # Mindestprüfung auf Linux (codesign gibt es hier nicht): Ressourcen versiegelt. `rcodesign verify` taugt dafür
+    # nicht – es gilt laut eigener Meldung als fehlerhaft und scheitert an Ad-hoc-Signaturen („CMS error“).
     # Die volle Prüfung mit codesign --verify geht nur auf einem Mac (README, Abschnitt „Veröffentlichen“).
     [[ -f "$1/Contents/_CodeSignature/CodeResources" ]] || { echo "rcodesign hat das Bundle nicht versiegelt." >&2; exit 1; }
-    rcodesign verify "$1/Contents/MacOS/GraphDoku.App"
   else
     echo "Weder codesign noch rcodesign gefunden – macOS-Pakete können nicht signiert werden." >&2
     exit 1
