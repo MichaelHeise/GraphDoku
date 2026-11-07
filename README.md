@@ -12,7 +12,7 @@ Die verbindliche Spezifikation liegt in `docs/spec/`.
 | Paket | Inhalt | Stand |
 | --- | --- | --- |
 | 1 – Gerüst und Kernmodell | Solution, Datenmodell, Regel-Registry, Parameterprüfung, JSON laden/speichern, Vorlage „Klassisch 9×9“, CI | erledigt |
-| 2 – OR-Tools-Solver | `ISolver`, Lösen, Eindeutigkeit prüfen, Zeitlimit, Abbruch | offen |
+| 2 – OR-Tools-Solver | `ISolver`, Lösen, Eindeutigkeit prüfen, Zeitlimit, Abbruch | erledigt |
 | 3 – Editor | Zeichenfläche, Knoten/Kanten/Gruppen bearbeiten, Undo/Redo, Öffnen/Speichern | offen |
 | 4 – Lösen in der App | „Lösen“, „Eindeutigkeit prüfen“, asynchron mit Abbruch | offen |
 | 5 – Generator und alle Regeln im Editor | Kanten-Generator, Beispielrätsel (Killer, Kropki, Hexadoku, Dreiecksgitter) | offen |
@@ -64,7 +64,7 @@ Hinweis: Avalonia bringt eine Build-Telemetrie mit (`Avalonia.BuildServices`). S
 GraphDoku.sln
 src/
   GraphDoku.Core/        Datenmodell, Regeln, Kandidaten, Geometrie, JSON (keine UI-, keine Solver-Abhängigkeit)
-  GraphDoku.Solver/      ISolver, OrToolsSolver (ab Paket 2)
+  GraphDoku.Solver/      ISolver, OrToolsSolver (CP-SAT) mit Regel-Adaptern
   GraphDoku.Explainer/   Erklär-Modus (ab Paket 6)
   GraphDoku.App/         Avalonia-App (MVVM mit CommunityToolkit.Mvvm)
 tests/
@@ -72,7 +72,7 @@ tests/
   GraphDoku.Solver.Tests/
   GraphDoku.Explainer.Tests/
   GraphDoku.App.Tests/   ViewModel-Tests
-puzzles/                 Beispielrätsel als JSON (auch Testdaten)
+puzzles/                 Beispielrätsel als JSON (auch Testdaten): klassisch-leer, -leicht, -mittel, -schwer
 docs/
   spec/                  Spezifikation (Projektkonzept, Agenten-Anleitung)
   decisions.md           Entscheidungen und Abweichungen
@@ -91,6 +91,18 @@ Wichtige Typen in `GraphDoku.Core`:
 - `Serialization`: `PuzzleSerializer`, `PuzzleFormatException`
 - `Validation`: `PuzzleValidator`
 - `Templates`: `ClassicSudoku`
+
+Wichtige Typen in `GraphDoku.Solver`:
+
+- `ISolver` mit `Solve(puzzle, options, token)` → `SolveResult` (gelöst mit Wert pro Knoten-Id / unlösbar / Zeitlimit /
+  abgebrochen / ungültig) und `CountSolutions(puzzle, limit = 2, …)` → `SolutionCountResult` (Eindeutigkeit).
+  Die Methoden arbeiten synchron; `SolveAsync`/`CountSolutionsAsync` (`SolverExtensions`) laufen im Hintergrund.
+- `SolverOptions` (Zeitlimit, Standard 30 s); Abbruch per `CancellationToken`.
+- `OrTools.OrToolsSolver`: eine Integer-Variable pro Knoten, Givens fixiert, jede Regel über einen Adapter
+  (`IOrToolsRuleAdapter`, Registry `OrToolsAdapterRegistry`, Schlüssel = Typname der Regel).
+
+Neue Regel einbinden: `IRule` implementieren und in `RuleRegistry` aufnehmen (Core) sowie einen
+`IOrToolsRuleAdapter` in `OrToolsAdapterRegistry` (Solver) – das JSON-Format bleibt gleich.
 
 ## JSON-Format (Kurzfassung)
 

@@ -5,4 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GraphDoku.Solver\GraphDoku.Solver.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\puzzles\*.json" LinkBase="puzzles" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

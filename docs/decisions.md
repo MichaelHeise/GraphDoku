@@ -161,3 +161,60 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
 34. Die App zeigt in Paket 1 ein Platzhalterfenster (Titel, Hinweis, Liste der registrierten Regeln, Knopf
     „Klassisches 9×9 erzeugen“). MVVM über CommunityToolkit.Mvvm (partielle `[ObservableProperty]`-Eigenschaften,
     `[RelayCommand]`), kompilierte Bindungen sind Standard.
+
+## Solver (Paket 2)
+
+35. **`ISolver` ist synchron und blockierend**, asynchron wird über die Erweiterungsmethoden `SolveAsync` und
+    `CountSolutionsAsync` (`SolverExtensions`, `Task.Run`) gearbeitet. Grund: Ein späterer eigener Lern-Solver muss nur
+    zwei einfache Methoden implementieren und bekommt die asynchrone Nutzung in der App geschenkt. Die asynchronen
+    Varianten kopieren das Rätsel vor dem Start (`Puzzle.Clone()`), damit Bearbeitungen im Editor die laufende Suche
+    nicht stören, und liefern bei Abbruch ein Ergebnis mit Status `Cancelled` statt einer `OperationCanceledException`.
+    Die Schnittstelle verwendet nur Core-Typen.
+36. **Signatur erweitert gegenüber der Spezifikation** („`Solve(puzzle)` → Lösung oder unlösbar“): `Solve(puzzle,
+    options, token)` liefert `SolveResult` mit den Status `Solved`, `Unsolvable`, `Timeout`, `Cancelled` und
+    `Invalid`; `CountSolutions(puzzle, limit = 2, options, token)` liefert `SolutionCountResult` mit `Count` (höchstens
+    `limit`), Status `Completed`/`Timeout`/`Cancelled`/`Invalid` und bis zu zwei Beispiellösungen. `IsUnique` gilt nur
+    nach vollständiger Suche (bei `limit` = 1 also nie), `IsAmbiguous` schon, sobald zwei Lösungen gefunden sind (auch
+    nach Zeitlimit). Lösungen sind `IReadOnlyDictionary<int, int>` (Knoten-Id → Wert).
+37. **Ungültige Rätsel werfen keine Ausnahme**, sondern liefern `Invalid` mit den deutschen Meldungen des
+    `PuzzleValidator` (unbekannte Regeltypen, Parameter, Ids …). Das gilt auch für einen **Given außerhalb des
+    (eigenen oder globalen) Wertebereichs** – der Validator meldet ihn bereits als Fehler, deshalb nicht „unlösbar“.
+    Ein Given innerhalb eines eigenen Knotenbereichs, der über den globalen Bereich hinausgeht, ist gültig.
+    Programmierfehler (null-Argumente, `limit` < 1, Zeitlimit ≤ 0) werfen dagegen `ArgumentException`s.
+38. **`SolverOptions`** enthält nur das Zeitlimit (`TimeLimit`, Standard 30 s, Wanduhr). Weitere CP-SAT-Parameter
+    (Worker-Anzahl, Seed) werden bewusst nicht nach außen gegeben (kein Scope Creep). Lösen nutzt die
+    Standard-Worker-Anzahl von CP-SAT; Zählen nutzt `enumerate_all_solutions` mit einem Worker.
+39. **OR-Tools-Übersetzung als Adapter-Registry** (`OrToolsAdapterRegistry`, Typname → `IOrToolsRuleAdapter`), analog
+    zur `RuleRegistry` in Core. Eine Regel, die in der `RuleRegistry` steht, aber keinen Adapter hat, ergibt `Invalid`
+    mit Meldung („Gruppe 1: Der Solver kann die Regel „X“ nicht übersetzen …“). `OrToolsModelBuilder` ist öffentlich,
+    damit das Modell ohne Lösen geprüft werden kann.
+40. **Übersetzung der Regeln:**
+    - `AllDifferent`: `AddAllDifferent`.
+    - `CoverRange`: jeder Knoten in [min, max] (Standard: Rätselbereich, wie in Core) plus `AddAllDifferent`. Da der
+      Validator Knotenanzahl = Bereichsgröße erzwingt, folgt daraus „jeder Wert genau einmal“; eine zusätzliche
+      Zählbedingung pro Wert ist nicht nötig.
+    - `Sum`: lineare Gleichung; mit `allowRepeats = false` zusätzlich `AddAllDifferent`.
+    - `Thermometer`: `v[i] < v[i+1]` in Listenreihenfolge. `LessThan`: `from < to`. `NotEqual`: `a ≠ b`.
+    - `Difference`: Hilfsvariable `d = |a − b|` (`AddAbsEquality`), dann `d = k` bzw. `d ≥ k`.
+    - `Ratio`: **Tabellen-Constraint** (`AddAllowedAssignments`) über alle erlaubten Wertepaare statt Reifikation mit
+      Booleschen Variablen. Grund: Ohne freie Hilfsvariablen bleibt die Lösungsanzahl beim Zählen exakt (bei
+      `factor = 1` wären sonst beide Richtungs-Booleans wahr und dieselbe Belegung würde doppelt gezählt). Die Tabelle
+      ist klein (Wertebereiche ≤ 4096). Gibt es kein erlaubtes Paar, wird das Modell unerfüllbar gemacht.
+    - Alle Hilfsvariablen sind durch die Knotenwerte eindeutig bestimmt; Tests vergleichen die gezählten Lösungen
+      mit vollständigem Durchprobieren.
+41. **Abbruch:** Der Solver verwendet `SolveWrapper` direkt statt `CpSolver`. Grund: `CpSolver` legt seinen nativen
+    Wrapper erst in `Solve` an und gibt ihn danach frei; ein `StopSearch` kurz vor dem Start ginge verloren, eines
+    kurz nach dem Ende könnte einen freigegebenen Wrapper treffen. Mit eigenem `SolveWrapper` wird die
+    Token-Registrierung (ruft `StopSearch`) vor dem Wrapper aufgelöst; ein `StopSearch` vor dem Start wirkt
+    (lokal geprüft: Status sofort `Unknown`). `Unknown` wird bei angefordertem Abbruch als `Cancelled`, sonst als
+    `Timeout` gemeldet; eine bereits gefundene Lösung wird auch bei gleichzeitigem Abbruch zurückgegeben.
+42. **Beispielrätsel** `puzzles/klassisch-leicht.json` (das bekannte Beispiel-Sudoku aus der Wikipedia, 30 Givens,
+    nur mit „naked/hidden single“ lösbar – Voraussetzung für die Akzeptanz von Paket 6), `klassisch-mittel.json`
+    (Project Euler 96, Gitter 06, 24 Givens) und `klassisch-schwer.json` (Arto Inkala, 21 Givens). Die erwarteten
+    Lösungen, die Eindeutigkeit und die Einstufung (Singles genügen / genügen nicht) wurden vorab mit einem
+    unabhängigen Backtracking-Programm ermittelt und werden in den Tests zusätzlich mit einem eigenen
+    Sudoku-Prüfer und einem Singles-Löser abgesichert. Unlösbares und mehrdeutiges Testrätsel sind Abwandlungen von
+    „leicht“ und stehen nur in den Tests, nicht in `puzzles/`.
+43. **Zeitlimit- und Abbruchtests** verwenden ein Färbungsrätsel auf dem Mycielski-Graphen M6 (47 Knoten,
+    236 `NotEqual`-Kanten, 5 Farben): unlösbar, für CP-SAT aber schwer zu widerlegen. Der Zähl-Abbruch nutzt das leere
+    klassische Sudoku mit unbegrenztem Limit.
