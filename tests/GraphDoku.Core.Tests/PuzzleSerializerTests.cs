@@ -349,7 +349,7 @@ public class PuzzleSerializerTests
     }
 
     [Fact]
-    public void Save_into_a_read_only_directory_fails_without_touching_the_existing_file()
+    public void Save_over_a_writable_file_in_a_read_only_directory_overwrites_it_directly()
     {
         if (OperatingSystem.IsWindows())
         {
@@ -368,15 +368,130 @@ public class PuzzleSerializerTests
                 return; // z. B. als root: Der Schreibschutz greift nicht, der Fehlerfall lässt sich nicht erzeugen.
             }
 
-            var act = () => PuzzleSerializer.Save(CreateFullPuzzle(), path);
+            var puzzle = CreateFullPuzzle();
+            PuzzleSerializer.Save(puzzle, path);
 
-            act.Should().Throw<UnauthorizedAccessException>();
-            File.ReadAllText(path).Should().Be("bisher gespeichert");
+            // Keine temporäre Datei möglich: Rückfall auf das direkte Überschreiben wie vor dem atomaren Speichern.
+            File.ReadAllText(path).Should().Be(PuzzleSerializer.Serialize(puzzle));
             Directory.GetFileSystemEntries(directory).Should().Equal(path);
         }
         finally
         {
             File.SetUnixFileMode(directory, original);
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_of_a_new_file_into_a_read_only_directory_fails()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var directory = CreateTempDirectory();
+        var path = Path.Combine(directory, "raetsel.json");
+        var original = File.GetUnixFileMode(directory);
+        try
+        {
+            File.SetUnixFileMode(directory, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+            if (CanCreateFileIn(directory))
+            {
+                return;
+            }
+
+            var act = () => PuzzleSerializer.Save(CreateFullPuzzle(), path);
+
+            act.Should().Throw<UnauthorizedAccessException>();
+            Directory.GetFileSystemEntries(directory).Should().BeEmpty();
+        }
+        finally
+        {
+            File.SetUnixFileMode(directory, original);
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_that_fails_partway_through_the_write_leaves_the_target_untouched_and_no_temporary_files()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "raetsel.json");
+            File.WriteAllText(path, "bisher gespeichert");
+            string? temporary = null;
+
+            var act = () => PuzzleSerializer.Save(CreateFullPuzzle(), path, tempPath =>
+            {
+                temporary = tempPath;
+                return new FailingAfterPartialWriteStream(new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write));
+            });
+
+            act.Should().Throw<IOException>().WithMessage("*voll*");
+            temporary.Should().NotBeNull();
+            Path.GetDirectoryName(temporary).Should().Be(directory);
+            File.ReadAllText(path).Should().Be("bisher gespeichert");
+            Directory.GetFileSystemEntries(directory).Should().Equal(path);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_keeps_the_unix_file_mode_of_the_existing_file()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var directory = CreateTempDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "raetsel.json");
+            File.WriteAllText(path, "bisher gespeichert");
+            const UnixFileMode privateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            File.SetUnixFileMode(path, privateMode);
+
+            PuzzleSerializer.Save(CreateFullPuzzle(), path);
+
+            File.GetUnixFileMode(path).Should().Be(privateMode);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_through_a_symbolic_link_replaces_the_link_target_and_keeps_the_link()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return; // Symbolische Links erfordern unter Windows besondere Rechte.
+        }
+
+        var directory = CreateTempDirectory();
+        try
+        {
+            var target = Path.Combine(directory, "echt.json");
+            File.WriteAllText(target, "bisher gespeichert");
+            var link = Path.Combine(directory, "verweis.json");
+            File.CreateSymbolicLink(link, target);
+            var puzzle = CreateFullPuzzle();
+
+            PuzzleSerializer.Save(puzzle, link);
+
+            new FileInfo(link).LinkTarget.Should().Be(target);
+            File.ReadAllText(target).Should().Be(PuzzleSerializer.Serialize(puzzle));
+            Directory.GetFileSystemEntries(directory).Should().BeEquivalentTo(target, link);
+        }
+        finally
+        {
             Directory.Delete(directory, recursive: true);
         }
     }
@@ -405,6 +520,51 @@ public class PuzzleSerializerTests
 
     private static string CreateTempDirectory() =>
         Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"graphdoku-{Guid.NewGuid():N}")).FullName;
+
+    /// <summary>Schreibt die erste Hälfte der Daten durch und meldet dann eine volle Platte.</summary>
+    private sealed class FailingAfterPartialWriteStream(Stream inner) : Stream
+    {
+        public override bool CanRead => false;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => true;
+
+        public override long Length => inner.Length;
+
+        public override long Position
+        {
+            get => inner.Position;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            inner.Write(buffer[..(buffer.Length / 2)]);
+            inner.Flush();
+            throw new IOException("Auf dem Datenträger ist nicht genug Speicherplatz (Platte voll).");
+        }
+
+        public override void Flush() => inner.Flush();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+    }
 
     private static bool CanCreateFileIn(string directory)
     {

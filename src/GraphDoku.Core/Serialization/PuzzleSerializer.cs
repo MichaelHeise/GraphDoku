@@ -105,26 +105,57 @@ public static class PuzzleSerializer
     /// <summary>
     /// Speichert ein Rätsel als UTF-8-Datei (ohne BOM). Geschrieben wird zuerst in eine temporäre Datei im selben
     /// Verzeichnis, die dann das Ziel ersetzt: Scheitert das Schreiben (z. B. volle Platte), bleibt die bisherige
-    /// Datei unverändert.
+    /// Datei unverändert. Ein symbolischer Link wird aufgelöst (ersetzt wird die Datei, auf die er zeigt), und unter
+    /// Unix übernimmt die neue Datei die Zugriffsrechte der bisherigen. Lässt sich im Verzeichnis keine Datei anlegen,
+    /// die bestehende Datei aber beschreiben, wird sie wie früher direkt (nicht atomar) überschrieben.
     /// </summary>
-    public static void Save(Puzzle puzzle, string path)
+    public static void Save(Puzzle puzzle, string path) => Save(puzzle, path, OpenTemporaryFile);
+
+    /// <summary>Wie <see cref="Save(Puzzle, string)"/>; <paramref name="openTemporary"/> öffnet die temporäre Datei (Testnaht).</summary>
+    internal static void Save(Puzzle puzzle, string path, Func<string, Stream> openTemporary)
     {
         ArgumentNullException.ThrowIfNull(path);
         var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(Serialize(puzzle));
-        var fullPath = Path.GetFullPath(path);
-        if (File.Exists(fullPath) && File.GetAttributes(fullPath).HasFlag(FileAttributes.ReadOnly))
+        var fullPath = ResolveLinks(Path.GetFullPath(path));
+        var exists = File.Exists(fullPath);
+        if (exists && File.GetAttributes(fullPath).HasFlag(FileAttributes.ReadOnly))
         {
             // Das Ersetzen per Umbenennen würde den Schreibschutz unter Unix übergehen.
             throw new UnauthorizedAccessException($"Die Datei „{fullPath}“ ist schreibgeschützt.");
         }
 
+        UnixFileMode? mode = exists && !OperatingSystem.IsWindows() ? File.GetUnixFileMode(fullPath) : null;
         var tempPath = Path.Combine(Path.GetDirectoryName(fullPath)!, $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
+        Stream stream;
         try
         {
-            using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            stream = openTemporary(tempPath);
+        }
+        catch (UnauthorizedAccessException) when (exists)
+        {
+            // Verzeichnis nicht beschreibbar, die Datei selbst aber schon: wie bisher direkt überschreiben.
+            File.WriteAllBytes(fullPath, bytes);
+            return;
+        }
+
+        try
+        {
+            using (stream)
             {
+                if (mode is { } unixMode && !OperatingSystem.IsWindows())
+                {
+                    File.SetUnixFileMode(tempPath, unixMode);
+                }
+
                 stream.Write(bytes);
-                stream.Flush(flushToDisk: true);
+                if (stream is FileStream fileStream)
+                {
+                    fileStream.Flush(flushToDisk: true);
+                }
+                else
+                {
+                    stream.Flush();
+                }
             }
 
             File.Move(tempPath, fullPath, overwrite: true);
@@ -134,6 +165,16 @@ public static class PuzzleSerializer
             TryDelete(tempPath);
             throw;
         }
+    }
+
+    private static FileStream OpenTemporaryFile(string path) =>
+        new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+
+    /// <summary>Löst symbolische Links auf, damit das Ersetzen die Zieldatei trifft und nicht den Link.</summary>
+    private static string ResolveLinks(string fullPath)
+    {
+        var info = new FileInfo(fullPath);
+        return info.LinkTarget is null ? fullPath : info.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? fullPath;
     }
 
     /// <summary>Löscht eine temporäre Datei, ohne den eigentlichen Fehler zu überdecken.</summary>
