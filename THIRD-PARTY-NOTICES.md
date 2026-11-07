@@ -57,7 +57,7 @@ FluentAssertions wird bewusst in Version 7 verwendet: Ab Version 8 steht das Pak
 | SkiaSharp, SkiaSharp.NativeAssets.* (enthält Skia, BSD-3-Clause) | MIT | Avalonia |
 | HarfBuzzSharp, HarfBuzzSharp.NativeAssets.* (enthält HarfBuzz, „Old MIT“) | MIT | Avalonia |
 | Avalonia.Angle.Windows.Natives (ANGLE) | BSD-3-Clause | Avalonia (nur Windows) |
-| Avalonia.Native, Avalonia.X11, Avalonia.Win32, Avalonia.FreeDesktop, Avalonia.Skia, Avalonia.HarfBuzz, Avalonia.Remote.Protocol | MIT | Avalonia |
+| Avalonia.Native, Avalonia.X11, Avalonia.Win32, Avalonia.FreeDesktop, Avalonia.FreeDesktop.AtSpi, Avalonia.Skia, Avalonia.HarfBuzz, Avalonia.Remote.Protocol | MIT | Avalonia |
 | Avalonia.BuildServices (Build-Telemetrie, im Repo deaktiviert, siehe `docs/decisions.md`) | MIT | Avalonia |
 | Tmds.DBus.Protocol | MIT | Avalonia (Linux) |
 | MicroCom.Runtime | MIT | Avalonia |

@@ -37,8 +37,9 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
    `actions/cache@v4` für NuGet (Schlüssel aus `Directory.Packages.props`, allen `.csproj`, `nuget.config` und
    `global.json`; `NUGET_PACKAGES` liegt dafür im Workspace). Für das Hochladen der TRX-Dateien wird
    **`actions/upload-artifact@v3`** statt v4 verwendet, weil v4 von älteren Gitea-Versionen nicht unterstützt wird.
-   Auf Linux sind keine zusätzlichen Systempakete nötig (die App-Tests starten keine Oberfläche; OR-Tools bringt
-   seine nativen Bibliotheken mit).
+   ~~Auf Linux sind keine zusätzlichen Systempakete nötig (die App-Tests starten keine Oberfläche; OR-Tools bringt
+   seine nativen Bibliotheken mit).~~ Überholt durch Nr. 47/48: Seit Paket 3 laufen headless Rendering-Tests, und die
+   CI installiert dafür `libfontconfig1`. OR-Tools bringt seine nativen Bibliotheken weiterhin selbst mit.
 
 ## Projektstruktur (Paket 1)
 
@@ -247,9 +248,10 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
     holen das Bild mit `CaptureRenderedFrame()` und legen PNGs ab (Verzeichnis aus `GRAPHDOKU_RENDER_DIR`, sonst
     `<Temp>/GraphDoku-Render`). Geprüft werden einfache Pixelmerkmale (Schrift in einem Knoten mit Given, keine in
     einem leeren Knoten); die Bilder wurden während der Entwicklung angesehen und Darstellungsfehler behoben.
-48. **CI: `libfontconfig1`** (ergänzt Nr. 9): `libSkiaSharp.so` aus `SkiaSharp.NativeAssets.Linux` ist gegen
-    `libfontconfig.so.1` gelinkt (ELF-`NEEDED`-Eintrag geprüft). Die CI installiert das Paket per `apt-get`, falls es
-    fehlt (mit `sudo`, wenn der Runner nicht als root läuft). Ein X-Server wird nicht gebraucht. Die Variante
+48. **CI: `libfontconfig1`** (ersetzt die Aussage zu Systempaketen in Nr. 9): `libSkiaSharp.so` aus
+    `SkiaSharp.NativeAssets.Linux` ist gegen `libfontconfig.so.1` gelinkt (ELF-`NEEDED`-Eintrag geprüft). Die CI
+    installiert das Paket per `apt-get`, falls es fehlt (mit `sudo`, wenn der Runner nicht als root läuft). Ein
+    X-Server wird nicht gebraucht. Die Variante
     `SkiaSharp.NativeAssets.Linux.NoDependencies` wurde verworfen, weil sie dieselbe Datei wie das von Avalonia.Skia
     mitgebrachte Paket liefert.
 49. **ViewModels ohne Avalonia-Typen:** Die Zeichenfläche `GraphCanvas` (eigenes `Control` mit `Render`-Override und
@@ -1065,3 +1067,10 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      ungenutzten `EditorGeometry.FreeSegments` und `GraphCanvas.NodeStrokeBrush` (die Code-Stil-Analyse im Build,
      `EnforceCodeStyleInBuild`, bleibt aus – sie wäre eine Änderung an den Build-Regeln aller Projekte und gehört nicht
      zu diesem Review).
+169. **Abschluss-Review (Repo): Fortschrittsprotokoll bereinigt, Aussagen nicht nachträglich umgeschrieben.** Erledigte
+     Punkte unter „Offen“ werden wie bisher durchgestrichen und mit dem Paket versehen, in dem sie erledigt wurden;
+     die Testzahlen „alle grün in Release“ der einzelnen Pakete bleiben als Stand des jeweiligen Pakets stehen (lokal
+     auf macOS gemessen) – dass auf Linux bis zum Abschluss-Review zwei Rendering-Tests rot waren, steht im Abschnitt
+     „Abschluss-Review – Repo“ und bei Nr. 164. Bekannte Probleme stehen nur bei dem Paket, in dem sie entstanden sind
+     (Nr. 158/159 nur bei Paket 7). Nr. 9 ist in der Aussage zu Linux-Systempaketen durch Nr. 48 überholt und
+     entsprechend markiert.

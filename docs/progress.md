@@ -32,7 +32,7 @@
 **Offen**
 
 - ~~`ISolver` und OR-Tools-Adapter pro Regel (Paket 2).~~ Erledigt in Paket 2.
-- Erklär-Modus (Paket 6); `Propagate` ist vorhanden, wird dort ggf. verfeinert.
+- ~~Erklär-Modus (Paket 6); `Propagate` ist vorhanden, wird dort ggf. verfeinert.~~ Erledigt in Paket 6.
 - Validierungsmeldungen sind reine Texte (die Element-Id steht nur im Text). Der Editor (Paket 3) zeigt sie als
   Liste im Statusbereich; ein strukturierter Meldungstyp zum Markieren des Elements ist weiterhin offen.
 
@@ -81,7 +81,8 @@
 **Bekannte Probleme**
 
 - Der Linux-Lauf der Solver-Tests (native OR-Tools-Bibliothek auf Ubuntu) ist erst mit dem nächsten CI-Lauf belegt;
-  lokal gab es keine Linux-Umgebung.
+  lokal gab es keine Linux-Umgebung. (Abschluss-Review: in einem Linux-Container nachgestellt, die Solver-Tests
+  sind dort grün, siehe „Abschluss-Review – App“; der Lauf auf dem echten Gitea-Runner steht weiterhin aus.)
 - Zeitlimit- und Abbruchtests nutzen ein unlösbares Färbungsrätsel (Mycielski-Graph M6 mit 5 Farben), das CP-SAT
   9.15 lokal nicht in 20 s widerlegen kann. Sollte eine künftige OR-Tools-Version es schnell widerlegen, müssen diese
   Tests ein anderes schweres Rätsel bekommen.
@@ -130,7 +131,8 @@
 
 - ~~Eigene Wertebereiche pro Knoten im Editor bearbeiten~~ – erledigt in Paket 5 (Editor-Teil), Nr. 144.
 - Prüfmeldungen markieren das betroffene Element noch nicht auf der Zeichenfläche.
-- ~~Lösungswerte in den Knoten (Paket 4)~~ erledigt in Paket 4; Kanten-Generator und Beispielrätsel (Paket 5).
+- ~~Lösungswerte in den Knoten (Paket 4)~~ erledigt in Paket 4; ~~Kanten-Generator und Beispielrätsel (Paket 5)~~
+  erledigt in Paket 5.
 - Kein Kopieren/Einfügen (nicht gefordert). ~~Summenbeschriftung von Käfigen~~ – erledigt in Paket 5 (Editor-Teil).
 
 **Bekannte Probleme**
@@ -188,9 +190,6 @@
 
 - Lange Meldungen der Lösen-Leiste werden nach zwei Zeilen mit „…“ gekürzt (Volltext als Tooltip), vor allem bei
   Mindestbreite; die Kernaussage steht jeweils am Anfang (Nr. 80).
-- Kantenstege sind bei eingepasster Ansicht im Dreiecks-Sudoku kleine Ziele (Fangbereich etwa 3–4 px um die
-  Randkreuzung); Zoomen vergrößert sie. Der Preis dafür, dass Ecken und Inneres der Zellen frei bleiben (Nr. 158).
-- Die Rahmenauswahl über Zellen braucht Strg/Cmd; ohne Taste verschiebt Ziehen wie bisher (Nr. 159).
 - Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel-Tests, Aussehen
   über die headless gerenderten Bilder belegt.
 - Der Abbruch einer laufenden Suche wirkt über `StopSearch` von CP-SAT; bei sehr großen Modellen kann der Modellaufbau
@@ -199,7 +198,8 @@
 ## Paket 5 – Generator (Core) und Beispielrätsel
 
 Entstand parallel zu Paket 6 (Oberfläche) im Branch `feature/wp5-generator` (nur Core, Tests und `puzzles/`) und wurde
-danach zusammengeführt. **Die Editor-Oberfläche für den Generator folgt als eigener Schritt** (siehe „Offen“).
+danach zusammengeführt. Die Editor-Oberfläche für den Generator kam als eigener Schritt dazu (siehe „Paket 5 –
+Editor-Teil“).
 Entscheidungen: Nr. 116–132.
 
 **Erledigt**
@@ -322,9 +322,6 @@ Beispiele zusammen dauert etwa eine Sekunde. Erzeugung (einmalig): Killer ≈ 25
 **Bekannte Probleme**
 
 - Der Generator-Dialog ist modal; Auswahl und Rätsel lassen sich während der Vorschau nicht ändern (gewollt, Nr. 133).
-- Kantenstege sind bei eingepasster Ansicht im Dreiecks-Sudoku kleine Ziele (Fangbereich etwa 3–4 px um die
-  Randkreuzung); Zoomen vergrößert sie. Der Preis dafür, dass Ecken und Inneres der Zellen frei bleiben (Nr. 158).
-- Die Rahmenauswahl über Zellen braucht Strg/Cmd; ohne Taste verschiebt Ziehen wie bisher (Nr. 159).
 - Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel-Tests, Aussehen
   über die headless gerenderten Bilder.
 - Haben Knoten zugleich Kanten mit Marke zum direkten und zum übernächsten Nachbarn, liegen beide Marken im selben
@@ -467,9 +464,6 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
   Kandidaten sind dann sehr klein“ war falsch – sie verschwanden ganz.)
 - Beim 16 × 16-Hexadoku sind die Kandidaten bei 1280 × 800 ohne Zoom zu klein für das Raster; dann steht nur die
   Anzahl „(n)“ im Knoten. Ab etwa 1920 × 1200 oder nach Vergrößern erscheint das 4 × 4-Raster mit 0–F.
-- Kantenstege sind bei eingepasster Ansicht im Dreiecks-Sudoku kleine Ziele (Fangbereich etwa 3–4 px um die
-  Randkreuzung); Zoomen vergrößert sie. Der Preis dafür, dass Ecken und Inneres der Zellen frei bleiben (Nr. 158).
-- Die Rahmenauswahl über Zellen braucht Strg/Cmd; ohne Taste verschiebt Ziehen wie bisher (Nr. 159).
 - Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel-Tests und
   headless Tastatureingaben, Aussehen über die gerenderten Bilder belegt.
 
@@ -593,3 +587,16 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 - Toter Code entfernt: `EditorGeometry.FreeSegments`, `GraphCanvas.NodeStrokeBrush`.
 - Tests (+30 in App: `EditorLimitTests`, zwei Fenstertests): Core 244, Solver 105, Explainer 82, App 348 = 779, alle
   grün in Release (macOS).
+
+## Abschluss-Review – Repo
+
+- `docs/progress.md`: erledigte Punkte unter „Offen“ einheitlich durchgestrichen (Erklär-Modus in Paket 1,
+  Kanten-Generator und Beispielrätsel in Paket 3), Einleitung von Paket 5 (Core) aktualisiert (Editor-Teil ist fertig),
+  die Bekannten Probleme zu Nr. 158/159 nur noch bei Paket 7 (waren in Paket 4, 5 und 6 hineinkopiert), Linux-Hinweis
+  bei Paket 2 ergänzt.
+- Die Angaben „alle grün in Release“ der einzelnen Pakete sind lokal auf macOS gemessen. Auf Linux waren bis zum
+  Abschluss-Review (App) zwei Rendering-Tests rot; seit Nr. 164 sind im Linux-Container alle Tests grün. Der erste Lauf
+  auf dem echten Gitea-Runner (`ubuntu-latest`) steht weiterhin aus (Nr. 169).
+- `docs/decisions.md` Nr. 9: Aussage „keine zusätzlichen Systempakete auf Linux“ als durch Nr. 48 überholt markiert.
+- `THIRD-PARTY-NOTICES.md`: transitive Abhängigkeit `Avalonia.FreeDesktop.AtSpi` 12.1.5 (MIT, Linux-Desktop) ergänzt.
+- Keine Code-Änderungen, daher keine neuen Tests.
