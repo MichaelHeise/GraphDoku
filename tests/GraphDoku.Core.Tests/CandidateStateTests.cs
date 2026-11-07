@@ -66,4 +66,54 @@ public class CandidateStateTests
         var state = CandidateState.FromPuzzle(TestPuzzles.WithNodes(1));
         state.Invoking(s => s.GetCandidates(99)).Should().Throw<KeyNotFoundException>().WithMessage("Knoten 99*");
     }
+
+    [Fact]
+    public void Clone_shares_unchanged_sets_and_is_cheap()
+    {
+        var state = CandidateState.FromPuzzle(TestPuzzles.WithNodes(3));
+        var copy = state.Clone();
+
+        copy.GetCandidates(2).Should().BeSameAs(state.GetCandidates(2), "unveränderliche Mengen werden geteilt");
+        copy.Remove(2, 5).Should().BeTrue();
+        copy.GetCandidates(2).Should().NotBeSameAs(state.GetCandidates(2));
+        state.GetCandidates(2).Should().Contain(5);
+        copy.HasSameCandidates(state).Should().BeFalse();
+        state.Clone().HasSameCandidates(state).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Returned_candidate_sets_do_not_change_afterwards()
+    {
+        var state = CandidateState.FromPuzzle(TestPuzzles.WithNodes(1, 1, 3));
+        var before = state.GetCandidates(1);
+
+        state.Assign(1, 2);
+
+        before.Should().Equal(1, 2, 3);
+        state.GetCandidates(1).Should().Equal(2);
+    }
+
+    [Fact]
+    public void Node_ids_keep_puzzle_order_and_apply_reports_changes()
+    {
+        var puzzle = TestPuzzles.WithNodes(0);
+        puzzle.Nodes.Add(new Node(7, 0, 0));
+        puzzle.Nodes.Add(new Node(3, 1, 0, given: 2));
+        var state = CandidateState.FromPuzzle(puzzle);
+        var reason = new Reason(null, [7], "Test");
+
+        state.NodeIds.Should().Equal(7, 3);
+        state.Apply(CandidateChange.Assign(3, 2, reason)).Should().BeFalse("der Knoten hat bereits nur diesen Wert");
+        state.Apply(CandidateChange.Eliminate(7, [10, 11], reason)).Should().BeFalse("die Werte sind keine Kandidaten");
+        state.Apply(CandidateChange.Eliminate(7, [1, 10], reason)).Should().BeTrue();
+        state.GetCandidates(7).Should().Equal(2, 3, 4, 5, 6, 7, 8, 9);
+    }
+
+    [Fact]
+    public void Reason_without_constraint_prints_only_the_text()
+    {
+        new Reason(null, [1], "Knoten 1 hat nur noch den Kandidaten 5.").ToString()
+            .Should().Be("Knoten 1 hat nur noch den Kandidaten 5.");
+        new Reason(ConstraintRef.ForGroup(2), [1], "Text").ToString().Should().Be("Gruppe 2: Text");
+    }
 }

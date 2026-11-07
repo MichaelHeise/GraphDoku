@@ -31,10 +31,21 @@ public sealed class RatioRule : RuleBase
     protected override IReadOnlyList<CandidateChange> PropagateCore(CandidateState state, IConstraint constraint)
     {
         long factor = constraint.Params.GetInt("factor", 2);
+        if (factor < 1)
+        {
+            throw new RuleParamsException($"Parameter „factor“ muss mindestens 1 sein, ist aber {factor}.");
+        }
+
+        // Partner von a: a·factor oder (falls ganzzahlig) a / factor. Die Relation ist symmetrisch.
+        bool Supported(int a, CandidateSet other) =>
+            ContainsValue(other, a * factor) || (a % factor == 0 && ContainsValue(other, a / factor));
+
         return EliminateUnsupported(
             state,
             constraint,
-            (a, b) => a == factor * b || b == factor * a,
-            $"Faktor {factor}");
+            Supported,
+            Supported,
+            (target, other, removed) => UnsupportedText(
+                constraint, state, target, other, removed, $"ein Wert ist das {factor}-Fache des anderen"));
     }
 }

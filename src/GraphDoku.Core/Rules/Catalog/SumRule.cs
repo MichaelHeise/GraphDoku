@@ -22,47 +22,194 @@ public sealed class SumRule : RuleBase
         new("allowRepeats", RuleParameterType.Boolean, "dürfen sich Werte wiederholen? Standard: false", DefaultValue: false),
     ];
 
+    /// <summary>
+    /// Höchstzahl der Suchschritte pro <see cref="RuleBase.Propagate"/>-Aufruf für die vollständige Prüfung.
+    /// Ist sie erschöpft, bleiben die übrigen Kandidaten stehen (nur sichere Schlüsse).
+    /// </summary>
+    public const int SearchBudget = 200_000;
+
     protected override IReadOnlyList<CandidateChange> PropagateCore(CandidateState state, IConstraint constraint)
     {
         var target = constraint.Params.GetIntOrNull("target")
             ?? throw new RuleParamsException("Pflichtparameter „target“ fehlt.");
         var allowRepeats = constraint.Params.GetBool("allowRepeats", false);
         var nodes = constraint.NodeIds;
+        var sets = nodes.Select(state.GetCandidates).ToArray();
         var changes = new List<CandidateChange>();
 
-        long totalMin = 0;
-        long totalMax = 0;
-        foreach (var nodeId in nodes)
+        // 1. Schranken: Die übrigen Knoten liefern zusammen mindestens die Summe ihrer Minima und höchstens die
+        //    Summe ihrer Maxima.
+        long totalMin = sets.Sum(s => (long)s.MinValue);
+        long totalMax = sets.Sum(s => (long)s.MaxValue);
+        var lowest = new long[nodes.Count];
+        var highest = new long[nodes.Count];
+        for (var i = 0; i < nodes.Count; i++)
         {
-            var candidates = state.GetCandidates(nodeId);
-            totalMin += candidates.Min();
-            totalMax += candidates.Max();
-        }
-
-        foreach (var nodeId in nodes)
-        {
-            var candidates = state.GetCandidates(nodeId);
-            var othersMin = totalMin - candidates.Min();
-            var othersMax = totalMax - candidates.Max();
-            var impossible = candidates.Where(v => target - (long)v < othersMin || target - (long)v > othersMax).ToList();
+            var othersMin = totalMin - sets[i].MinValue;
+            var othersMax = totalMax - sets[i].MaxValue;
+            lowest[i] = target - othersMax;
+            highest[i] = target - othersMin;
+            var impossible = sets[i].Where(v => v < lowest[i] || v > highest[i]).ToList();
             if (impossible.Count > 0)
             {
                 var others = nodes.Count == 1
                     ? "der Knoten allein muss die Summe ergeben"
-                    : $"die übrigen Knoten ergeben zusammen {othersMin} bis {othersMax}";
+                    : othersMin == othersMax
+                        ? $"die übrigen Knoten ergeben zusammen genau {othersMin}"
+                        : $"die übrigen Knoten ergeben zusammen {othersMin} bis {othersMax}";
                 var reason = MakeReason(
                     constraint,
                     nodes,
-                    $"{DisplayName} {target} in {Describe(constraint)}: Knoten {nodeId} kann nicht {FormatValues(impossible)} sein, denn {others}.");
-                changes.Add(CandidateChange.Eliminate(nodeId, impossible, reason));
+                    $"{DisplayName} {target} in {Describe(constraint)}: Knoten {nodes[i]} kann nicht {FormatValues(impossible)} sein, denn {others}.");
+                changes.Add(CandidateChange.Eliminate(nodes[i], impossible, reason));
             }
         }
 
+        // 2. Festgelegte Werte dürfen sich ohne allowRepeats nicht wiederholen.
         if (!allowRepeats)
         {
-            EliminateFixedValues(state, constraint, changes);
+            EliminateFixedValues(state, constraint, changes, "In der Summe wiederholen sich keine Werte.");
+        }
+
+        // 3. Vollständige Prüfung: Jeder Kandidat braucht eine Belegung der übrigen Knoten, die die Summe erreicht.
+        if (nodes.Count > 1)
+        {
+            new SupportSearch(sets, target, allowRepeats).Run((index, impossible) =>
+            {
+                var repeats = allowRepeats ? string.Empty : " (ohne Wiederholung)";
+                var reason = MakeReason(
+                    constraint,
+                    nodes,
+                    $"{DisplayName} {target} in {Describe(constraint)}: Knoten {nodes[index]} kann nicht {FormatValues(impossible)} sein, denn mit den Kandidaten der übrigen Knoten{repeats} lässt sich die Summe dann nicht erreichen.");
+                changes.Add(CandidateChange.Eliminate(nodes[index], impossible, reason));
+            }, lowest, highest);
         }
 
         return changes;
+    }
+
+    /// <summary>Tiefensuche nach einer Belegung der übrigen Knoten pro Kandidat, mit Schrankenabschneiden und Budget.</summary>
+    private sealed class SupportSearch(CandidateSet[] sets, long target, bool allowRepeats)
+    {
+        private readonly HashSet<(int Index, int Value)> _supported = [];
+        private readonly HashSet<int> _used = [];
+        private readonly int[] _assignment = new int[sets.Length];
+        private int _budget = SearchBudget;
+        private int[] _order = [];
+        private long[] _suffixMin = [];
+        private long[] _suffixMax = [];
+
+        /// <summary>Meldet pro Knoten-Index die unmöglichen Kandidaten (ohne die schon über Schranken gestrichenen).</summary>
+        public void Run(Action<int, List<int>> report, long[] lowest, long[] highest)
+        {
+            for (var i = 0; i < sets.Length; i++)
+            {
+                var impossible = new List<int>();
+                foreach (var value in sets[i])
+                {
+                    if (value < lowest[i] || value > highest[i] || _supported.Contains((i, value)))
+                    {
+                        continue;
+                    }
+
+                    var found = HasSupport(i, value);
+                    if (found is null)
+                    {
+                        return; // Budget erschöpft: keine weiteren (unsicheren) Schlüsse.
+                    }
+
+                    if (found == false)
+                    {
+                        impossible.Add(value);
+                    }
+                }
+
+                if (impossible.Count > 0)
+                {
+                    report(i, impossible);
+                }
+            }
+        }
+
+        private bool? HasSupport(int index, int value)
+        {
+            _order = [.. Enumerable.Range(0, sets.Length).Where(j => j != index).OrderBy(j => sets[j].Count)];
+            _suffixMin = new long[_order.Length + 1];
+            _suffixMax = new long[_order.Length + 1];
+            for (var d = _order.Length - 1; d >= 0; d--)
+            {
+                _suffixMin[d] = _suffixMin[d + 1] + sets[_order[d]].MinValue;
+                _suffixMax[d] = _suffixMax[d + 1] + sets[_order[d]].MaxValue;
+            }
+
+            _used.Clear();
+            if (!allowRepeats)
+            {
+                _used.Add(value);
+            }
+
+            _assignment[index] = value;
+            var result = Search(0, target - value);
+            if (result == true)
+            {
+                for (var j = 0; j < sets.Length; j++)
+                {
+                    _supported.Add((j, _assignment[j]));
+                }
+            }
+
+            return result;
+        }
+
+        private bool? Search(int depth, long remaining)
+        {
+            if (--_budget < 0)
+            {
+                return null;
+            }
+
+            if (depth == _order.Length)
+            {
+                return remaining == 0;
+            }
+
+            if (remaining < _suffixMin[depth] || remaining > _suffixMax[depth])
+            {
+                return false;
+            }
+
+            var node = _order[depth];
+            foreach (var candidate in sets[node])
+            {
+                if (candidate > remaining - _suffixMin[depth + 1])
+                {
+                    break; // aufsteigend: größere Werte sind erst recht zu groß
+                }
+
+                if (candidate < remaining - _suffixMax[depth + 1] || (!allowRepeats && _used.Contains(candidate)))
+                {
+                    continue;
+                }
+
+                _assignment[node] = candidate;
+                if (!allowRepeats)
+                {
+                    _used.Add(candidate);
+                }
+
+                var result = Search(depth + 1, remaining - candidate);
+                if (!allowRepeats)
+                {
+                    _used.Remove(candidate);
+                }
+
+                if (result != false)
+                {
+                    return result;
+                }
+            }
+
+            return false;
+        }
     }
 }
