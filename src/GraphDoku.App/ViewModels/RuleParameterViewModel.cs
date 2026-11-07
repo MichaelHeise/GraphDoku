@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
+using GraphDoku.App.Editing;
 using GraphDoku.Core.Model;
 using GraphDoku.Core.Rules;
 
@@ -13,6 +14,7 @@ namespace GraphDoku.App.ViewModels;
 /// </summary>
 public sealed partial class RuleParameterViewModel : ViewModelBase
 {
+    private static readonly IReadOnlyList<string> NoChoices = [];
     private readonly Action<RuleParameterViewModel> _changed;
     private bool _loading;
 
@@ -23,15 +25,19 @@ public sealed partial class RuleParameterViewModel : ViewModelBase
         ArgumentNullException.ThrowIfNull(changed);
         Definition = definition;
         _changed = changed;
-        Choices = definition.AllowedValues ?? [];
+        Choices = definition.AllowedValues ?? NoChoices;
         Load(current);
     }
 
     public RuleParameter Definition { get; }
 
+    /// <summary>JSON-Name des Parameters (Schlüssel in <c>params</c>).</summary>
     public string Name => Definition.Name;
 
-    public string Label => Definition.IsRequired ? $"{Definition.Name} (Pflicht)" : Definition.Name;
+    /// <summary>Deutscher Anzeigename (siehe <see cref="ParameterTexts"/>).</summary>
+    public string DisplayName => ParameterTexts.Label(Definition.Name);
+
+    public string Label => Definition.IsRequired ? $"{DisplayName} (Pflicht)" : DisplayName;
 
     public string Description => Definition.Description;
 
@@ -41,6 +47,11 @@ public sealed partial class RuleParameterViewModel : ViewModelBase
 
     public bool IsChoice => Definition.Type == RuleParameterType.Choice;
 
+    /// <summary>
+    /// Erlaubte Werte (JSON-Werte; die Oberfläche zeigt sie über <see cref="ParameterTexts.ChoiceLabel"/> deutsch an).
+    /// Dieselbe Listeninstanz wie in der Regelbeschreibung, damit die wiederverwendete Panel-Vorlage beim
+    /// Auswahlwechsel keine Liste austauscht und keine Werte zurückschreibt.
+    /// </summary>
     public IReadOnlyList<string> Choices { get; }
 
     /// <summary>Text einer ganzzahligen Eingabe.</summary>

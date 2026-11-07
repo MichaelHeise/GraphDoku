@@ -88,7 +88,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        if (await _files.PickOpenPathAsync().ConfigureAwait(true) is { } path)
+        if (await PickPathAsync(_files.PickOpenPathAsync, "Öffnen fehlgeschlagen").ConfigureAwait(true) is { } path)
         {
             await OpenFileAsync(path).ConfigureAwait(true);
         }
@@ -133,7 +133,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     public async Task<bool> SaveDocumentAsAsync()
     {
-        var path = await _files.PickSavePathAsync(SuggestFileName()).ConfigureAwait(true);
+        var suggested = SuggestFileName();
+        var path = await PickPathAsync(() => _files.PickSavePathAsync(suggested), "Speichern fehlgeschlagen").ConfigureAwait(true);
         return path is not null && await SaveToFileAsync(path).ConfigureAwait(true);
     }
 
@@ -181,6 +182,23 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         FilePath = path;
         Editor.LoadPuzzle(puzzle);
         UpdateTitle();
+    }
+
+    /// <summary>
+    /// Dateiauswahl; Fehler der Auswahl (z. B. eine Datei ohne lokalen Pfad) werden als Meldung gezeigt statt als
+    /// unbehandelte Ausnahme aus dem Befehl (die App beenden würde). null = abgebrochen oder fehlgeschlagen.
+    /// </summary>
+    private async Task<string?> PickPathAsync(Func<Task<string?>> pick, string errorTitle)
+    {
+        try
+        {
+            return await pick().ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
+        {
+            await ReportErrorAsync(errorTitle, ex.Message).ConfigureAwait(true);
+            return null;
+        }
     }
 
     private async Task ReportErrorAsync(string title, string message)

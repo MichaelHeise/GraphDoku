@@ -11,12 +11,29 @@ internal sealed class FakeFileDialogService : IFileDialogService
 
     public List<string> SuggestedNames { get; } = [];
 
-    public Task<string?> PickOpenPathAsync() => Task.FromResult(OpenPaths.Count > 0 ? OpenPaths.Dequeue() : null);
+    /// <summary>Wird von der nächsten Auswahl geworfen (z. B. Datei ohne lokalen Pfad), danach zurückgesetzt.</summary>
+    public Exception? NextFailure { get; set; }
+
+    public Task<string?> PickOpenPathAsync()
+    {
+        ThrowIfFailing();
+        return Task.FromResult(OpenPaths.Count > 0 ? OpenPaths.Dequeue() : null);
+    }
 
     public Task<string?> PickSavePathAsync(string suggestedFileName)
     {
         SuggestedNames.Add(suggestedFileName);
+        ThrowIfFailing();
         return Task.FromResult(SavePaths.Count > 0 ? SavePaths.Dequeue() : null);
+    }
+
+    private void ThrowIfFailing()
+    {
+        if (NextFailure is { } failure)
+        {
+            NextFailure = null;
+            throw failure;
+        }
     }
 }
 

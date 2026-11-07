@@ -156,6 +156,80 @@ public class EditorViewModelTests
     }
 
     [Fact]
+    public void Rubber_band_orders_triangle_rows_left_to_right_despite_zigzag_centroids()
+    {
+        var puzzle = new Puzzle("Dreiecke", GridType.Triangle);
+        var id = 1;
+        for (var y = 0; y < 2; y++)
+        {
+            for (var x = 0; x < 4; x++)
+            {
+                puzzle.Nodes.Add(new Node(id++, x, y));
+            }
+        }
+
+        var editor = EditorDriver.CreateEditor(puzzle);
+        editor.RubberBand(-0.4, -0.1, 2.0, (2 * GridGeometry.TriangleRowHeight) + 0.1);
+
+        editor.SelectedNodeIds.Should().Equal(1, 2, 3, 4, 5, 6, 7, 8);
+        editor.CreateGroupFromSelection();
+        editor.Puzzle.Groups.Single().Nodes.Should().Equal(1, 2, 3, 4, 5, 6, 7, 8);
+    }
+
+    [Fact]
+    public void Rubber_band_orders_hex_rows_by_row_then_left_to_right()
+    {
+        var puzzle = new Puzzle("Waben", GridType.Hex);
+        puzzle.Nodes.Add(new Node(1, 1, 1));
+        puzzle.Nodes.Add(new Node(2, 0, 1));
+        puzzle.Nodes.Add(new Node(3, 1, 0));
+        puzzle.Nodes.Add(new Node(4, 0, 0));
+
+        var editor = EditorDriver.CreateEditor(puzzle);
+        editor.RubberBand(-1, -1, 3, 2);
+
+        editor.SelectedNodeIds.Should().Equal(4, 3, 2, 1);
+    }
+
+    [Fact]
+    public void Row_wise_order_sorts_by_grid_row_then_world_x()
+    {
+        Node[] nodes = [new(1, 3, 0), new(2, 0, 1), new(3, 1, 0), new(4, 0, 0), new(5, 2, 0)];
+
+        EditorGeometry.RowWiseOrder(GridType.Triangle, nodes).Select(n => n.Id).Should().Equal(4, 3, 5, 1, 2);
+        EditorGeometry.RowWiseOrder(GridType.Square, nodes).Select(n => n.Id).Should().Equal(4, 3, 5, 1, 2);
+    }
+
+    [Fact]
+    public void Duplicate_group_ids_from_an_unvalidated_file_do_not_crash_edits()
+    {
+        var puzzle = new Puzzle("Doppelt");
+        puzzle.Nodes.Add(new Node(1, 0, 0));
+        puzzle.Nodes.Add(new Node(2, 1, 0));
+        puzzle.Nodes.Add(new Node(3, 2, 0));
+        puzzle.Groups.Add(new Group(1, [1], "AllDifferent"));
+        puzzle.Groups.Add(new Group(1, [2], "AllDifferent"));
+        puzzle.Groups.Add(new Group(2, [3], "AllDifferent"));
+        var editor = EditorDriver.CreateEditor(puzzle);
+        editor.Groups.Should().HaveCount(3);
+        editor.ValidationProblems.Should().Contain(p => p.Contains("mehrfach", StringComparison.Ordinal));
+
+        editor.SelectNodes([1]);
+        editor.EnterValueCharacter('5');
+        editor.Puzzle.FindNode(1)!.Given.Should().Be(5);
+        editor.Groups.Should().HaveCount(3);
+
+        editor.SelectGroup(1);
+        editor.DeleteSelection();
+        editor.Groups.Select(g => g.Id).Should().Equal(2);
+        editor.UndoCommand.Execute(null);
+        editor.Groups.Select(g => g.Id).Should().Equal(1, 1, 2);
+        editor.Groups.Select(g => g.Details).Should().AllSatisfy(d => d.Should().Contain("1 Knoten"));
+        editor.SetGroupVisible(1, false);
+        editor.Groups.Where(g => g.Id == 1).Should().AllSatisfy(g => g.IsVisible.Should().BeFalse());
+    }
+
+    [Fact]
     public void Select_all_and_escape()
     {
         var editor = EditorDriver.CreateEditor(Row(4));

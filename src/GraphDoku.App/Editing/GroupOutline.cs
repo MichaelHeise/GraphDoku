@@ -25,6 +25,30 @@ public static class GroupOutline
         return [.. counts.Values.Where(v => v.Count == 1).Select(v => (v.A, v.B))];
     }
 
+    /// <summary>
+    /// Umrisse mehrerer Gruppen zusammengefasst: jedes Umrissstück einmal, mit der Zahl der Gruppen, auf deren Umriss
+    /// es liegt, und dem Index der Gruppe, falls es genau eine ist (sonst -1). Beim klassischen Sudoku liegen z. B.
+    /// die Blockgrenzen auf den Umrissen von vier Gruppen (zwei Spalten bzw. Zeilen und zwei Blöcken), die übrigen
+    /// Zellgrenzen nur auf zweien – so lassen sich Blockgrenzen betonen, ohne die Regel zu kennen.
+    /// </summary>
+    public static IReadOnlyList<SharedSegment> SharedBoundaries(GridType grid, IReadOnlyList<IEnumerable<GridPoint>> groups)
+    {
+        ArgumentNullException.ThrowIfNull(groups);
+        var segments = new Dictionary<(long, long, long, long), SharedSegment>();
+        for (var index = 0; index < groups.Count; index++)
+        {
+            foreach (var (a, b) in BoundarySegments(grid, groups[index]))
+            {
+                var key = Key(a, b);
+                segments[key] = segments.TryGetValue(key, out var existing)
+                    ? existing with { Count = existing.Count + 1, Owner = -1 }
+                    : new SharedSegment(a, b, 1, index);
+            }
+        }
+
+        return [.. segments.Values];
+    }
+
     private static (long, long, long, long) Key(WorldPoint a, WorldPoint b)
     {
         var p = (Round(a.X), Round(a.Y));
@@ -34,3 +58,6 @@ public static class GroupOutline
 
     private static long Round(double value) => (long)Math.Round(value * 10000);
 }
+
+/// <summary>Umrissstück mehrerer Gruppen: Anzahl der Gruppen, auf deren Umriss es liegt; <see cref="Owner"/> = Index der einzigen Gruppe oder -1.</summary>
+public readonly record struct SharedSegment(WorldPoint A, WorldPoint B, int Count, int Owner);

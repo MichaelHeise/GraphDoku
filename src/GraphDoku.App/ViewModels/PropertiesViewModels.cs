@@ -108,7 +108,7 @@ public abstract partial class ConstraintPropertiesViewModel : PropertiesViewMode
         }
 
         // Fortlaufendes Tippen in dasselbe Feld ergibt einen Undo-Schritt.
-        ApplyRule(CurrentRule, parameters, $"Parameter „{parameter.Name}“ ändern", parameter);
+        ApplyRule(CurrentRule, parameters, $"Parameter „{parameter.DisplayName}“ ändern", parameter);
     }
 }
 
@@ -182,7 +182,6 @@ public sealed partial class GroupPropertiesViewModel : ConstraintPropertiesViewM
         : base(editor, editor.GroupRules)
     {
         GroupId = groupId;
-        ColorOptions = [new ColorOption("Automatisch", null), .. GroupPalette.Colors.Select(c => new ColorOption(c.Name, c.Hex))];
         Refresh();
     }
 
@@ -190,13 +189,27 @@ public sealed partial class GroupPropertiesViewModel : ConstraintPropertiesViewM
 
     public override string Header => $"Gruppe {GroupId}";
 
-    public IReadOnlyList<ColorOption> ColorOptions { get; }
+    /// <summary>
+    /// Farbliste, für alle Gruppen-Panels <b>dieselbe</b> Instanz: Avalonia verwendet die Panel-Vorlage beim Wechsel
+    /// zwischen Gruppen wieder; eine eigene Liste je Panel ließe die ComboBox beim Austausch der Liste die bisherige
+    /// Auswahl in das neue Panel zurückschreiben (falsche Undo-Schritte „Gruppenfarbe ändern“).
+    /// </summary>
+    public static IReadOnlyList<ColorOption> SharedColorOptions { get; } =
+        [new ColorOption("Automatisch", null), .. GroupPalette.Colors.Select(c => new ColorOption(c.Name, c.Hex))];
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instanzeigenschaft für die kompilierte Bindung im Panel.")]
+    public IReadOnlyList<ColorOption> ColorOptions => SharedColorOptions;
 
     [ObservableProperty]
     public partial string Label { get; set; } = string.Empty;
 
+    /// <summary>Gewählte Palettenfarbe; null bei einer eigenen Farbe außerhalb der Palette (siehe <see cref="CustomColor"/>).</summary>
     [ObservableProperty]
     public partial ColorOption? SelectedColor { get; set; }
+
+    /// <summary>Hinweis auf eine eigene Farbe der Datei, die nicht in der Palette steht (sonst null).</summary>
+    [ObservableProperty]
+    public partial string? CustomColor { get; set; }
 
     /// <summary>Knoten in Gruppenreihenfolge, z. B. „1 → 2 → 3“.</summary>
     [ObservableProperty]
@@ -224,8 +237,10 @@ public sealed partial class GroupPropertiesViewModel : ConstraintPropertiesViewM
                 Label = group.Label ?? string.Empty;
             }
 
-            SelectedColor = ColorOptions.FirstOrDefault(c => string.Equals(c.Hex, group.Color, StringComparison.OrdinalIgnoreCase))
-                ?? (group.Color is null ? ColorOptions[0] : new ColorOption($"Eigene ({group.Color})", group.Color));
+            SelectedColor = ColorOptions.FirstOrDefault(c => string.Equals(c.Hex, group.Color, StringComparison.OrdinalIgnoreCase));
+            CustomColor = SelectedColor is null && group.Color is not null
+                ? $"Eigene Farbe aus der Datei: {group.Color} (eine Auswahl in der Liste ersetzt sie)"
+                : null;
             NodeOrder = group.Nodes.Count == 0 ? "(keine Knoten)" : string.Join(" → ", group.Nodes);
             LoadRule();
             IsOrdered = SelectedRule?.Kind.IsOrdered() ?? false;

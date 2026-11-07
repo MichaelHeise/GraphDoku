@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using GraphDoku.App.Controls;
 using GraphDoku.App.Editing;
 using GraphDoku.App.Tests.Helpers;
@@ -94,6 +95,49 @@ public sealed class RenderingSmokeTests(HeadlessSessionFixture fixture, ITestOut
     }, CancellationToken.None);
 
     [Fact]
+    public Task Toolbar_wraps_at_minimum_window_size_instead_of_cutting_off_buttons() => fixture.Session.Dispatch(() =>
+    {
+        var (window, viewModel) = OpenWindow(ClassicSudoku.Create(Givens));
+        window.Width = window.MinWidth;
+        window.Height = window.MinHeight;
+        viewModel.Editor.SelectGroup(20);
+        Dispatcher.UIThread.RunJobs();
+        Capture(window, "mindestgroesse.png");
+
+        foreach (var text in new[] { "Rückgängig", "Wiederholen", "Einpassen" })
+        {
+            var button = window.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, text));
+            var bounds = button.TransformToVisual(window)!.Value.Transform(new Point(button.Bounds.Width, button.Bounds.Height));
+            bounds.X.Should().BeLessThanOrEqualTo(window.Bounds.Width, text);
+            bounds.Y.Should().BeLessThan(window.Bounds.Height / 3, text);
+        }
+
+        window.Close();
+    }, CancellationToken.None);
+
+    [Fact]
+    public Task Classic_block_boundaries_are_drawn_stronger_than_cell_boundaries() => fixture.Session.Dispatch(() =>
+    {
+        var (window, viewModel) = OpenWindow(ClassicSudoku.Create());
+        var frame = Capture(window, "klassisch-leer.png");
+        var canvas = window.FindControl<GraphCanvas>("Canvas")!;
+        var editor = viewModel.Editor;
+
+        // Dunkle Pixel auf einer waagerechten Linie über die Grenze zwischen Spalte 1|2 (Zellgrenze) bzw. 3|4 (Blockgrenze).
+        int DarkAcross(double worldX)
+        {
+            var screen = editor.Viewport.ToScreen(new Core.Geometry.WorldPoint(worldX, 4.0));
+            var point = canvas.TranslatePoint(new Point(screen.X, screen.Y), window)!.Value;
+            return Darkness(frame, new PixelRect((int)point.X - 6, (int)point.Y, 12, 1));
+        }
+
+        output.WriteLine($"Dunkelheit Zellgrenze {DarkAcross(0.5)}, Blockgrenze {DarkAcross(2.5)}");
+        DarkAcross(2.5).Should().BeGreaterThan(DarkAcross(0.5) * 3 / 2);
+        DarkAcross(5.5).Should().BeGreaterThan(DarkAcross(4.5) * 3 / 2);
+        window.Close();
+    }, CancellationToken.None);
+
+    [Fact]
     public Task New_puzzle_dialog_renders() => fixture.Session.Dispatch(() =>
     {
         var window = new NewPuzzleWindow { DataContext = new NewPuzzleViewModel { DomainMin = "5", DomainMax = "1" } };
@@ -149,6 +193,23 @@ public sealed class RenderingSmokeTests(HeadlessSessionFixture fixture, ITestOut
         }
 
         return count;
+    }
+
+    /// <summary>Summe der „Dunkelheit“ (255 − Helligkeit) im Bereich; robuster als ein fester Schwellwert bei geglätteten Linien.</summary>
+    private static int Darkness(WriteableBitmap bitmap, PixelRect area)
+    {
+        using var buffer = bitmap.Lock();
+        var sum = 0;
+        for (var y = Math.Max(0, area.Y); y < Math.Min(buffer.Size.Height, area.Bottom); y++)
+        {
+            for (var x = Math.Max(0, area.X); x < Math.Min(buffer.Size.Width, area.Right); x++)
+            {
+                var (r, g, b) = ReadPixel(buffer, x, y);
+                sum += 255 - ((r + g + b) / 3);
+            }
+        }
+
+        return sum;
     }
 
     private static (byte R, byte G, byte B) ReadPixel(ILockedFramebuffer buffer, int x, int y)

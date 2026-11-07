@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using GraphDoku.App.Controls;
 using GraphDoku.App.ViewModels;
 
 namespace GraphDoku.App.Views;
@@ -12,6 +13,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         RegisterShortcuts();
+        KeyDown += OnEditKeyFallback;
     }
 
     private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
@@ -48,6 +50,27 @@ public partial class MainWindow : Window
                 e.Handled = true;
             }
         };
+    }
+
+    /// <summary>
+    /// Entf, ⌫ und Given-Eingabe auch dann, wenn nicht die Zeichenfläche, sondern z. B. die Gruppenliste oder eine
+    /// Schaltfläche des Panels den Fokus hat (sonst wirkte Entf nach Wahl einer Gruppe in der Liste nicht). Ausgenommen
+    /// sind Textfelder, Auswahllisten und Menüs, die diese Tasten selbst brauchen.
+    /// </summary>
+    private void OnEditKeyFallback(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || ViewModel is not { } vm || e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta)
+            || e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            return;
+        }
+
+        if (FocusManager?.GetFocusedElement() is GraphCanvas or TextBox or ComboBox or ComboBoxItem or MenuItem)
+        {
+            return;
+        }
+
+        e.Handled = GraphCanvas.HandleEditKey(vm.Editor, e.Key);
     }
 
     private void RunUnlessTextBox(Action<object?> action)

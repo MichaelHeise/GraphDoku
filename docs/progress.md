@@ -116,7 +116,14 @@
   27 `AllDifferent`-Gruppen aus Rahmenauswahlen mit Beschriftung, 30 Givens per Tastatur), speichert es über
   „Speichern“, öffnet es in einem neuen Fenster und vergleicht mit `PuzzleComparer` gegen `ClassicSudoku.Create` und
   gegen den Editorstand; zusätzlich prüft der Solver die Eindeutigkeit.
-- Gesamt: 346 Tests (Core 144, Solver 89, Explainer 2, App 111), alle grün in Release.
+- Gesamt nach Paket 3: 346 Tests (Core 144, Solver 89, Explainer 2, App 111), alle grün in Release.
+- Review-Befunde behoben (Nr. 61–69): Gruppenwechsel im Fenster erzeugt keine falschen Undo-Schritte mehr (gemeinsame
+  Farbliste), kein Absturz bei mehrfach vergebenen Gruppen-Ids, Rahmenauswahl auf dem Dreiecksgitter zeilenweise,
+  Fehler der Dateiauswahl als Meldung, Blockgrenzen der Vorlage betont (zusammengefasste Gruppenumrisse), gewählte
+  Kante mit Endknoten hervorgehoben, Entf/⌫/Ziffern auch bei Fokus in Gruppenliste oder Panel, deutsche
+  Parameterbezeichnungen, umbrechende Werkzeugleiste, Build ohne XAML-Warnung. Neue Headless-Tests im echten Fenster
+  (Auswahlwechsel ohne Undo-Schritt, Tastatur bei Fokus außerhalb der Zeichenfläche, Mindestgröße, Blocklinien).
+- Gesamt: 363 Tests (Core 144, Solver 89, Explainer 2, App 128), alle grün in Release.
 
 **Offen**
 

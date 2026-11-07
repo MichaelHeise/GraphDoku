@@ -31,6 +31,8 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     private static readonly IBrush TextBrush = new ImmutableSolidColorBrush(Color.Parse("#111111"));
     private static readonly IBrush EdgeBrush = new ImmutableSolidColorBrush(Color.Parse("#4a4a4a"));
     private static readonly IBrush RubberFill = new ImmutableSolidColorBrush(Color.Parse("#1d64d8"), 0.12);
+    private static readonly IBrush GroupBoundaryBrush = new ImmutableSolidColorBrush(Color.Parse("#2f3640"), 0.85);
+    private static readonly IBrush HaloBrush = new ImmutableSolidColorBrush(Color.Parse("#1d64d8"), 0.28);
     private static readonly IDashStyle Dashed = new ImmutableDashStyle([4, 3], 0);
 
     private static readonly Dictionary<StandardCursorType, Cursor> Cursors = [];
@@ -144,37 +146,49 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             return;
         }
 
-        e.Handled = true;
         switch (e.Key)
         {
             case Key.Space:
                 _editor.SetSpaceHeld(true);
                 UpdateCursor();
-                break;
-            case Key.Delete:
-                _editor.DeleteSelection();
-                break;
-            case Key.Back:
-                _editor.ClearGivens();
+                e.Handled = true;
                 break;
             case Key.Escape:
                 _editor.Escape();
-                break;
-            case >= Key.D0 and <= Key.D9:
-                _editor.EnterValueCharacter((char)('0' + (e.Key - Key.D0)));
-                break;
-            case >= Key.NumPad0 and <= Key.NumPad9:
-                _editor.EnterValueCharacter((char)('0' + (e.Key - Key.NumPad0)));
-                break;
-            case >= Key.A and <= Key.F:
-                e.Handled = _editor.EnterValueCharacter((char)('A' + (e.Key - Key.A)));
-                break;
-            case Key.OemMinus or Key.Subtract:
-                _editor.EnterValueCharacter('-');
+                e.Handled = true;
                 break;
             default:
-                e.Handled = false;
+                e.Handled = HandleEditKey(_editor, e.Key);
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Bearbeitungstasten der Zeichenfläche: Entf löscht die Auswahl, ⌫ die Givens, Ziffern/A–F/„-“ tragen Givens ein.
+    /// Das Hauptfenster ruft dies auch auf, wenn ein Element des Panels oder der Gruppenliste den Fokus hat (aber kein
+    /// Textfeld und keine Auswahlliste). true, wenn die Taste verarbeitet wurde.
+    /// </summary>
+    public static bool HandleEditKey(EditorViewModel editor, Key key)
+    {
+        ArgumentNullException.ThrowIfNull(editor);
+        switch (key)
+        {
+            case Key.Delete:
+                editor.DeleteSelection();
+                return true;
+            case Key.Back:
+                editor.ClearGivens();
+                return true;
+            case >= Key.D0 and <= Key.D9:
+                return editor.EnterValueCharacter((char)('0' + (key - Key.D0)));
+            case >= Key.NumPad0 and <= Key.NumPad9:
+                return editor.EnterValueCharacter((char)('0' + (key - Key.NumPad0)));
+            case >= Key.A and <= Key.F:
+                return editor.EnterValueCharacter((char)('A' + (key - Key.A)));
+            case Key.OemMinus or Key.Subtract:
+                return editor.EnterValueCharacter('-');
+            default:
+                return false;
         }
     }
 
@@ -247,58 +261,113 @@ public sealed class GraphCanvas : Control, ICustomHitTest
 
     private void DrawGroups(DrawingContext context, Puzzle puzzle, Viewport viewport, Dictionary<int, Node> nodes, double radius)
     {
+        var editor = _editor!;
+        var shown = new List<(Group Group, List<Node> Members, Color Color, bool Selected)>();
         foreach (var group in puzzle.Groups)
         {
-            var selected = _editor!.SelectedGroupId == group.Id;
-            if (!selected && !_editor.IsGroupVisible(group.Id))
+            var selected = editor.SelectedGroupId == group.Id;
+            if (!selected && !editor.IsGroupVisible(group.Id))
             {
                 continue;
             }
 
-            var color = Color.Parse(GroupPalette.EffectiveColor(group.Color, group.Id));
             var members = group.Nodes.Where(nodes.ContainsKey).Select(id => nodes[id]).ToList();
-            if (members.Count == 0)
+            if (members.Count > 0)
             {
-                continue;
+                shown.Add((group, members, Color.Parse(GroupPalette.EffectiveColor(group.Color, group.Id)), selected));
             }
+        }
 
-            // Fläche nur für die gewählte Gruppe und Gruppen mit eigener Farbe; sonst würden sich überlappende Gruppen
-            // (Zeilen, Spalten, Blöcke) zu einem unruhigen Flickenteppich mischen. Der Umriss zeigt jede sichtbare Gruppe.
-            var hasOwnColor = GroupPalette.IsValidHex(group.Color);
-            var fill = selected ? new ImmutableSolidColorBrush(color, 0.30) : hasOwnColor ? new ImmutableSolidColorBrush(color, 0.12) : null;
-            var cellGeometry = new StreamGeometry();
-            using (var g = cellGeometry.Open())
+        // Flächen nur für Gruppen mit eigener Farbe (die gewählte Gruppe kommt zuletzt obenauf); sonst würden sich
+        // überlappende Gruppen (Zeilen, Spalten, Blöcke) zu einem unruhigen Flickenteppich mischen.
+        foreach (var (group, members, color, selected) in shown)
+        {
+            if (!selected && GroupPalette.IsValidHex(group.Color))
             {
-                foreach (var node in members.DistinctBy(n => (n.X, n.Y)))
-                {
-                    AddPolygon(g, viewport, GridGeometry.GetCellVertices(puzzle.Grid, node.X, node.Y));
-                }
+                context.DrawGeometry(new ImmutableSolidColorBrush(color, 0.12), null, CellGeometry(puzzle.Grid, viewport, members));
             }
+        }
 
-            if (fill is not null)
+        // Umrisse aller sichtbaren Gruppen zusammengefasst (Nr. 61): Ein Stück, das nur auf dem Umriss einer Gruppe
+        // liegt, in deren Farbe; geteilte Stücke neutral und umso kräftiger, je mehr Gruppen dort ihre Grenze haben
+        // (beim klassischen Sudoku treten so die Blockgrenzen hervor). Farbige Linien übereinander wären nicht lesbar.
+        var shared = GroupOutline.SharedBoundaries(puzzle.Grid, [.. shown.Select(s => s.Members.Select(n => new GridPoint(n.X, n.Y)))]);
+        foreach (var bucket in shared.Where(x => x.Count > 1).GroupBy(x => Math.Min(x.Count, 6)))
+        {
+            context.DrawGeometry(null, new Pen(GroupBoundaryBrush, SharedBoundaryWidth(bucket.Key), lineCap: PenLineCap.Round), SegmentGeometry(viewport, bucket));
+        }
+
+        foreach (var bucket in shared.Where(x => x.Count == 1).GroupBy(x => x.Owner))
+        {
+            context.DrawGeometry(null, new Pen(new ImmutableSolidColorBrush(shown[bucket.Key].Color, 0.9), 2, lineCap: PenLineCap.Round), SegmentGeometry(viewport, bucket));
+        }
+
+        // Gruppen mit eigener Farbe zusätzlich mit farbigem Umriss, damit sie auch auf geteilten Grenzen erkennbar sind.
+        foreach (var (group, members, color, selected) in shown)
+        {
+            if (!selected && GroupPalette.IsValidHex(group.Color))
             {
-                context.DrawGeometry(fill, null, cellGeometry);
+                context.DrawGeometry(null, new Pen(new ImmutableSolidColorBrush(color, 0.9), 2, lineCap: PenLineCap.Round), OutlineGeometry(puzzle.Grid, viewport, members));
             }
+        }
 
-            var outline = new StreamGeometry();
-            using (var g = outline.Open())
-            {
-                foreach (var (a, b) in GroupOutline.BoundarySegments(puzzle.Grid, members.Select(n => new GridPoint(n.X, n.Y))))
-                {
-                    g.BeginFigure(ToPoint(viewport.ToScreen(a)), false);
-                    g.LineTo(ToPoint(viewport.ToScreen(b)));
-                    g.EndFigure(false);
-                }
-            }
-
-            context.DrawGeometry(null, new Pen(new ImmutableSolidColorBrush(color, 0.9), selected ? 3.5 : 2, lineCap: PenLineCap.Round), outline);
-
-            var ordered = _editor.Registry.TryGet(group.Rule, out var rule) && rule.Kind.IsOrdered();
-            if (ordered && members.Count > 0)
+        foreach (var (group, members, color, selected) in shown)
+        {
+            if (!selected && editor.Registry.TryGet(group.Rule, out var rule) && rule.Kind.IsOrdered())
             {
                 DrawThermometer(context, puzzle.Grid, viewport, members, radius, color);
             }
         }
+
+        foreach (var (group, members, color, selected) in shown)
+        {
+            if (!selected)
+            {
+                continue;
+            }
+
+            context.DrawGeometry(new ImmutableSolidColorBrush(color, 0.30), null, CellGeometry(puzzle.Grid, viewport, members));
+            context.DrawGeometry(null, new Pen(new ImmutableSolidColorBrush(color, 0.95), 3.5, lineCap: PenLineCap.Round), OutlineGeometry(puzzle.Grid, viewport, members));
+            if (editor.Registry.TryGet(group.Rule, out var rule) && rule.Kind.IsOrdered())
+            {
+                DrawThermometer(context, puzzle.Grid, viewport, members, radius, color);
+            }
+        }
+    }
+
+    /// <summary>Linienstärke einer von <paramref name="count"/> Gruppen geteilten Grenze (2 → 1,85 px, 4 → 3,55 px).</summary>
+    public static double SharedBoundaryWidth(int count) => Math.Min(4.5, 1 + (0.85 * (count - 1)));
+
+    private static StreamGeometry CellGeometry(GridType grid, Viewport viewport, List<Node> members)
+    {
+        var geometry = new StreamGeometry();
+        using var g = geometry.Open();
+        foreach (var node in members.DistinctBy(n => (n.X, n.Y)))
+        {
+            AddPolygon(g, viewport, GridGeometry.GetCellVertices(grid, node.X, node.Y));
+        }
+
+        return geometry;
+    }
+
+    private static StreamGeometry OutlineGeometry(GridType grid, Viewport viewport, List<Node> members) =>
+        LineGeometry(viewport, GroupOutline.BoundarySegments(grid, members.Select(n => new GridPoint(n.X, n.Y))));
+
+    private static StreamGeometry SegmentGeometry(Viewport viewport, IEnumerable<SharedSegment> segments) =>
+        LineGeometry(viewport, segments.Select(x => (x.A, x.B)));
+
+    private static StreamGeometry LineGeometry(Viewport viewport, IEnumerable<(WorldPoint A, WorldPoint B)> segments)
+    {
+        var geometry = new StreamGeometry();
+        using var g = geometry.Open();
+        foreach (var (a, b) in segments)
+        {
+            g.BeginFigure(ToPoint(viewport.ToScreen(a)), false);
+            g.LineTo(ToPoint(viewport.ToScreen(b)));
+            g.EndFigure(false);
+        }
+
+        return geometry;
     }
 
     private static void DrawThermometer(DrawingContext context, GridType grid, Viewport viewport, List<Node> members, double radius, Color color)
@@ -354,14 +423,23 @@ public sealed class GraphCanvas : Control, ICustomHitTest
                 context.DrawLine(pen, a + (unit * radius), b - (unit * radius));
             }
 
-            DrawEdgeMark(context, edge, a + (vector / 2), unit, radius, brush);
+            DrawEdgeMark(context, edge, a + (vector / 2), unit, radius, brush, selected);
         }
     }
 
-    private static void DrawEdgeMark(DrawingContext context, Edge edge, Point middle, Vector unit, double nodeRadius, IBrush lineBrush)
+    private static void DrawEdgeMark(DrawingContext context, Edge edge, Point middle, Vector unit, double nodeRadius, IBrush lineBrush, bool selected)
     {
         // Markengröße relativ zum Knotenradius, damit sie auch im engeren Dreiecksgitter zwischen die Kreise passt.
         var dot = Math.Clamp(nodeRadius * 0.32, 3.5, 14);
+        if (selected && edge.Rule is "Difference" or "Ratio" or "LessThan")
+        {
+            // Hof um die Marke: Bei eng liegenden Knoten füllt die Marke den Spalt fast ganz aus, die blaue Linie allein
+            // wäre dann kaum zu sehen.
+            var halo = Math.Max(dot * 1.9, dot + 6);
+            context.DrawEllipse(HaloBrush, null, middle, halo, halo);
+        }
+
+        var ring = selected ? 3 : 1.5;
         switch (edge.Rule)
         {
             case "Difference":
@@ -369,14 +447,14 @@ public sealed class GraphCanvas : Control, ICustomHitTest
                 var k = SafeInt(edge.Params, "k");
                 var atLeast = SafeString(edge.Params, "mode") == "atLeast";
                 var label = k == 1 && !atLeast ? null : (atLeast ? "≥" : string.Empty) + (k?.ToString(CultureInfo.InvariantCulture) ?? "?");
-                DrawDot(context, middle, dot, Brushes.White, lineBrush, label, TextBrush);
+                DrawDot(context, middle, dot, selected ? NodeSelectedFill : Brushes.White, lineBrush, ring, label, TextBrush);
                 break;
             }
 
             case "Ratio":
             {
                 var factor = SafeInt(edge.Params, "factor") ?? 2;
-                DrawDot(context, middle, dot, Brushes.Black, lineBrush, factor == 2 ? null : factor.ToString(CultureInfo.InvariantCulture), Brushes.White);
+                DrawDot(context, middle, dot, Brushes.Black, lineBrush, ring, factor == 2 ? null : factor.ToString(CultureInfo.InvariantCulture), Brushes.White);
                 break;
             }
 
@@ -402,7 +480,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         }
     }
 
-    private static void DrawDot(DrawingContext context, Point center, double radius, IBrush fill, IBrush stroke, string? label, IBrush textBrush)
+    private static void DrawDot(DrawingContext context, Point center, double radius, IBrush fill, IBrush stroke, double strokeWidth, string? label, IBrush textBrush)
     {
         FormattedText? text = null;
         if (label is not null)
@@ -411,7 +489,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             radius = Math.Max(radius, (Math.Max(text.Width, text.Height) / 2) + 3);
         }
 
-        context.DrawEllipse(fill, new Pen(stroke, 1.5), center, radius, radius);
+        context.DrawEllipse(fill, new Pen(stroke, strokeWidth), center, radius, radius);
         if (text is not null)
         {
             context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
@@ -435,6 +513,8 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         var selectedPen = new Pen(AccentBrush, 3);
         var visible = viewport.VisibleWorld;
         var margin = EditorGeometry.NodeRadius(puzzle.Grid);
+        var edgeEnds = _editor!.SelectedEdgeId is int edgeId && puzzle.FindEdge(edgeId) is { } edge ? new[] { edge.From, edge.To } : [];
+        var halo = radius + Math.Max(4, radius * 0.22);
         foreach (var node in puzzle.Nodes)
         {
             var world = EditorGeometry.Center(puzzle.Grid, node);
@@ -444,8 +524,15 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             }
 
             var center = ToPoint(viewport.ToScreen(world));
-            var selected = _editor!.IsNodeSelected(node.Id);
-            context.DrawEllipse(selected ? NodeSelectedFill : NodeFill, selected ? selectedPen : normalPen, center, radius, radius);
+            var selected = _editor.IsNodeSelected(node.Id);
+            var endOfSelectedEdge = edgeEnds.Contains(node.Id);
+            if (endOfSelectedEdge)
+            {
+                // Endknoten der gewählten Kante hervorheben (Knoten-Ids stehen nicht auf der Zeichenfläche).
+                context.DrawEllipse(HaloBrush, null, center, halo, halo);
+            }
+
+            context.DrawEllipse(selected ? NodeSelectedFill : NodeFill, selected || endOfSelectedEdge ? selectedPen : normalPen, center, radius, radius);
             if (node.Given is int given && radius >= 5)
             {
                 var text = CreateText(ValueText.Format(given, puzzle.GetEffectiveDomain(node)), radius * 1.1, TextBrush, FontWeight.SemiBold);

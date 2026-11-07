@@ -282,7 +282,7 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
     (Knoten mit ihren Kanten, die Kante oder die Gruppe); beides auch über Menü und Panel. Escape bricht eine Geste
     ab bzw. hebt die Auswahl auf. Strg (Windows/Linux) und Cmd (macOS): Z/Y/Shift+Z (Undo/Redo, nicht wenn ein
     Textfeld den Fokus hat – dort gilt dessen eigenes Undo), N, O, S, Shift+S, A, G (Gruppe), 0 (Einpassen).
-    Eingaben auf der Zeichenfläche gehen nur an sie, wenn sie den Fokus hat (Klick hinein).
+    Eingaben auf der Zeichenfläche gehen nur an sie, wenn sie den Fokus hat (Klick hinein) – geändert durch Nr. 64.
 53. **Gesten:** „Knoten setzen“ setzt per Klick oder Ziehen Knoten auf freie Gitterpunkte (entlang der Mausbewegung
     interpoliert, damit schnelles Ziehen keine Lücken lässt); ein Klick auf einen vorhandenen Knoten wählt ihn.
     Verschieben (Werkzeug „Auswahl“, gewählten Knoten ziehen): Der gegriffene Knoten rastet auf den nächsten
@@ -316,7 +316,7 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
     unter“; vorgeschlagen wird der Rätselname mit `.json` (unzulässige Zeichen durch `_` ersetzt).
 59. **Darstellung:** Knotenkreise mit Radius 0,38 (Quadrat, Sechseck) bzw. 0,2 Welteinheiten (Dreieck, dort liegen
     Nachbarn nur 1/√3 auseinander). Raster ab 8 px pro Einheit und höchstens 60 000 sichtbaren Zellen. Gruppen werden
-    mit ihrem Umriss (Zellkanten, die keine andere Zelle der Gruppe teilt) in der Gruppenfarbe hervorgehoben; eine
+    mit ihrem Umriss (Zellkanten, die keine andere Zelle der Gruppe teilt) in der Gruppenfarbe hervorgehoben (geändert durch Nr. 61); eine
     Fläche bekommen nur die gewählte Gruppe und Gruppen mit eigener Farbe – sonst ergäben die sich überlappenden
     Zeilen, Spalten und Blöcke der Vorlage einen unruhigen Flickenteppich (im Rendering-Rauchtest gesehen). Gruppen
     ohne eigene Farbe werden nach ihrer Id aus einer festen Palette gefärbt; die Farbe wird dann nicht gespeichert
@@ -326,3 +326,53 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
     (`RequestedThemeVariant="Light"`), damit Zeichenfläche und Bedienelemente zusammenpassen.
 60. Der Akzeptanztest prüft das im Editor gebaute Sudoku zusätzlich mit dem `OrToolsSolver` auf Eindeutigkeit
     (App-Tests erreichen den Solver über die Projektreferenz der App).
+
+### Nacharbeiten nach Review (Paket 3)
+
+61. **Gruppenumrisse zusammengefasst** (ersetzt die einfarbigen Umrisse aus Nr. 59): Bei der Vorlage lagen die
+    Umrisse von 27 Gruppen auf denselben Zelllinien und übermalten sich; Blockgrenzen waren nicht zu erkennen. Jetzt
+    werden die Umrisse aller sichtbaren Gruppen zusammengefasst (`GroupOutline.SharedBoundaries`): Ein Umrissstück,
+    das nur zu einer Gruppe gehört, erscheint in deren Farbe (2 px); ein von mehreren Gruppen geteiltes Stück neutral
+    dunkelgrau und umso kräftiger, je mehr Gruppen dort eine Grenze haben (2 → 1,85 px, 3 → 2,7 px, 4 → 3,55 px). Beim
+    klassischen Sudoku sind das Zellgrenzen 2, Rand 3, Blockgrenzen 4 – die Blöcke treten hervor, ohne dass der Editor
+    Regeln oder „Blöcke“ kennen muss. Gruppen mit eigener Farbe bekommen weiter Fläche und farbigen Umriss obenauf, die
+    gewählte Gruppe Fläche und kräftigen Umriss ganz oben. Folge: Eine Gruppe mit automatischer Farbe, die sich ihre
+    Grenzen mit anderen Gruppen teilt (z. B. ein Käfig in einem klassischen Sudoku), ist ohne Auswahl nur noch als
+    Linienverstärkung zu sehen; wer sie farbig sehen will, gibt ihr eine eigene Farbe oder blendet die anderen Gruppen
+    aus. Eine eigene Käfigdarstellung (gestrichelt, eingerückt) ist nicht gefordert und nicht umgesetzt.
+62. **Gewählte Kante deutlicher:** Endknoten mit blauem Rand und Hof, Marke (Differenz-/Verhältnispunkt, Pfeil) mit
+    Hof und dickerem Ring; ein Differenzpunkt wird hellblau gefüllt.
+63. **Panel-Vorlagen werden wiederverwendet:** Avalonia nutzt die Vorlage des Eigenschaften-Panels beim Wechsel von
+    einer Gruppe zur nächsten wieder. Hatte jedes Panel eine eigene Farbliste, übernahm die ComboBox beim Austausch
+    der Liste die bisherige (wertgleiche) Auswahl ins neue Panel – jeder Gruppenwechsel erzeugte zwei Undo-Schritte
+    „Gruppenfarbe ändern“ und machte das Dokument „ungespeichert“. Alle Listen, an die Panel-ComboBoxen gebunden sind,
+    sind deshalb **eine gemeinsame Instanz** (Farbliste statisch, Regel-Listen im Editor, Auswahlwerte aus der
+    Parameterbeschreibung der Regel). Eine eigene Farbe außerhalb der Palette steht nicht mehr als Sonder-Eintrag in
+    der Liste (das hätte wieder eine eigene Liste je Panel erfordert), sondern als Hinweis unter der Liste; die Liste
+    zeigt dann keine Auswahl. Headless-Test im echten Fenster: Wechsel zwischen Gruppen und Kanten erzeugt keinen
+    Undo-Schritt.
+64. **Bearbeitungstasten auch außerhalb der Zeichenfläche** (ändert Nr. 52): Entf, ⌫, Ziffern, A–F und „-“ wirken
+    auch, wenn die Gruppenliste, eine Schaltfläche oder ein Häkchen den Fokus hat (das Fenster reicht sie an
+    dieselbe Tastenbehandlung wie die Zeichenfläche weiter). Ausgenommen sind Textfelder, Auswahllisten und Menüs.
+    Damit löscht Entf eine in der Liste gewählte Gruppe wie in Nr. 51 beschrieben. Leertaste und Escape bleiben bei der
+    Zeichenfläche (Leertaste bedient sonst Schaltflächen und Listen).
+65. **Rahmenauswahl nach Gitterzeile:** Die Reihenfolge („zeilenweise“, Nr. 51) richtet sich nach der Gitterzeile
+    (y-Koordinate, bei allen drei Gittern die Zeile) und innerhalb der Zeile nach der waagerechten Position, nicht nach
+    der Bildschirmhöhe des Mittelpunkts – auf dem Dreiecksgitter liegen die Schwerpunkte von Auf- und Ab-Dreiecken
+    einer Zeile auf verschiedener Höhe, ein per Rahmen erstelltes Thermometer lief sonst im Zickzack.
+66. **Mehrfach vergebene Gruppen-Ids** in einer ohne inhaltliche Prüfung geöffneten Datei (Nr. 57) bringen den Editor
+    nicht mehr zum Absturz (die Gruppenliste ordnet Einträge je Id der Reihe nach zu). Die Prüfmeldung bleibt; Auswahl,
+    Löschen und Ein-/Ausblenden wirken auf alle Gruppen mit dieser Id. Andere Fehler (doppelte Knoten-/Kanten-Ids,
+    unbekannte Regeln, falsche Parametertypen) waren laut Review bereits unkritisch.
+67. **Fehler der Dateiauswahl** (z. B. eine gewählte Datei ohne lokalen Pfad, Nr. 49) erscheinen als deutsche Meldung
+    („Öffnen fehlgeschlagen“ / „Speichern fehlgeschlagen“) statt als unbehandelte Ausnahme aus dem Befehl; die
+    Rückfrage beim Schließen bricht dann ab, das Dokument bleibt offen.
+68. **Deutsche Parameterbezeichnungen** im Panel ohne Änderung am Core (`ParameterTexts` in der App): k → „Abstand k“,
+    mode → „Modus“ (Werte „genau k“/„mindestens k“), factor → „Faktor“, target → „Zielsumme“, allowRepeats →
+    „Wiederholungen erlaubt“, min/max → „Kleinster/Größter Wert“. Unbekannte Namen (eigene Regeln) erscheinen
+    unverändert. Die Beschreibungstexte unter den Feldern stammen weiter aus `RuleParameter.Description` (Core) und
+    nennen dort die JSON-Werte („exact“, „atLeast“).
+69. **Werkzeugleiste bricht um** (`WrapPanel`), damit bei schmalem Fenster (Mindestgröße 900 × 560) Rückgängig,
+    Wiederholen und Einpassen sichtbar bleiben (Rauchtest bei Mindestgröße). `TextBox.Watermark` (in Avalonia 12
+    veraltet, Warnung AVLN5001) durch `PlaceholderText` ersetzt; XAML-Compilerwarnungen fallen nicht unter
+    `TreatWarningsAsErrors`, deshalb wurde die Warnung zuvor übersehen.

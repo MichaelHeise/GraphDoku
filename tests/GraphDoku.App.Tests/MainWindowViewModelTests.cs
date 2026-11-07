@@ -45,6 +45,34 @@ public sealed class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task File_picker_failures_are_reported_instead_of_crashing_the_command()
+    {
+        var viewModel = Create();
+        MakeEdit(viewModel);
+        var before = viewModel.Editor.Snapshot();
+
+        _files.NextFailure = new IOException("Die gewählte Datei hat keinen lokalen Pfad und kann nicht verwendet werden.");
+        await viewModel.SaveAsCommand.ExecuteAsync(null);
+        _dialogs.Errors.Should().ContainSingle().Which.Title.Should().Be("Speichern fehlgeschlagen");
+        _dialogs.Errors[0].Message.Should().Contain("keinen lokalen Pfad");
+        viewModel.FilePath.Should().BeNull();
+        viewModel.Editor.IsDirty.Should().BeTrue();
+
+        _dialogs.UnsavedChangesAnswer = UnsavedChangesChoice.Discard;
+        _files.NextFailure = new IOException("Die gewählte Datei hat keinen lokalen Pfad und kann nicht verwendet werden.");
+        await viewModel.OpenCommand.ExecuteAsync(null);
+        _dialogs.Errors.Should().HaveCount(2);
+        _dialogs.Errors[1].Title.Should().Be("Öffnen fehlgeschlagen");
+        viewModel.Editor.Puzzle.ShouldEqual(before);
+
+        // Rückfrage beim Schließen → „Speichern“ → Auswahl scheitert: nicht fortfahren, Dokument bleibt.
+        _dialogs.UnsavedChangesAnswer = UnsavedChangesChoice.Save;
+        _files.NextFailure = new IOException("kein lokaler Pfad");
+        (await viewModel.ConfirmDiscardChangesAsync()).Should().BeFalse();
+        _dialogs.Errors.Should().HaveCount(3);
+    }
+
+    [Fact]
     public async Task Classic_template_is_loaded_as_a_clean_document()
     {
         var viewModel = Create();

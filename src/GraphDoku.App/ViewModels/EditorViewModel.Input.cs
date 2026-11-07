@@ -428,22 +428,21 @@ public sealed partial class EditorViewModel
         var rect = Bounds.FromCorners(_pressPoint.X, _pressPoint.Y, position.X, position.Y);
         RubberBand = null;
 
-        // Reihenfolge im Rahmen: zeilenweise von oben nach unten, innerhalb einer Zeile von links nach rechts.
         var inside = Puzzle.Nodes
-            .Select(n => (Node: n, Screen: Viewport.ToScreen(EditorGeometry.Center(Puzzle.Grid, n))))
-            .Where(t => rect.Contains(t.Screen.X, t.Screen.Y))
-            .OrderBy(t => Math.Round(t.Screen.Y, 3))
-            .ThenBy(t => Math.Round(t.Screen.X, 3))
-            .ThenBy(t => t.Node.Id)
-            .Select(t => t.Node.Id)
+            .Where(n =>
+            {
+                var screen = Viewport.ToScreen(EditorGeometry.Center(Puzzle.Grid, n));
+                return rect.Contains(screen.X, screen.Y);
+            })
             .ToList();
+        var ordered = EditorGeometry.RowWiseOrder(Puzzle.Grid, inside).Select(n => n.Id).ToList();
         if (_pressModifiers.HasFlag(EditorModifiers.Shift))
         {
-            AddToSelection(inside);
+            AddToSelection(ordered);
         }
         else
         {
-            SelectNodes(inside);
+            SelectNodes(ordered);
         }
 
         StatusMessage = $"{_selectedNodes.Count} Knoten ausgewählt.";

@@ -192,6 +192,7 @@ public class EditorUndoRedoTests
         editor.SelectEdge(1);
         var panel = (EdgePropertiesViewModel)editor.Properties!;
         var k = panel.Parameters.Single(p => p.Name == "k");
+        k.Label.Should().Be("Abstand k (Pflicht)");
         k.Text.Should().Be("1");
 
         AssertUndoRedo(editor, () =>
@@ -210,6 +211,9 @@ public class EditorUndoRedoTests
         var mode = panel.Parameters.Single(p => p.Name == "mode");
         mode.IsChoice.Should().BeTrue();
         mode.ChoiceValue.Should().Be("exact");
+        mode.Label.Should().Be("Modus");
+        editor.EdgeRules.Single(r => r.TypeName == "Difference").Parameters.Single(p => p.Name == "mode").AllowedValues
+            .Should().BeSameAs(mode.Choices, "die Auswahlliste ist für alle Panels dieselbe Instanz");
         AssertUndoRedo(editor, () => mode.ChoiceValue = "atLeast");
         editor.Puzzle.FindEdge(1)!.Params.GetString("mode", null).Should().Be("atLeast");
     }
@@ -326,6 +330,38 @@ public class EditorUndoRedoTests
 
         AssertUndoRedo(editor, () => panel.Label = "");
         editor.Puzzle.FindGroup(1)!.Label.Should().BeNull();
+    }
+
+    [Fact]
+    public void Group_panels_share_one_color_list_and_show_custom_colors_separately()
+    {
+        var puzzle = Grid3x3();
+        puzzle.Groups.Add(new Group(1, [1, 2], "AllDifferent", color: "#dc2626"));
+        puzzle.Groups.Add(new Group(2, [3, 4], "AllDifferent", color: "#123456"));
+        puzzle.Groups.Add(new Group(3, [5, 6], "AllDifferent"));
+        var editor = EditorDriver.CreateEditor(puzzle);
+
+        editor.SelectGroup(1);
+        var first = (GroupPropertiesViewModel)editor.Properties!;
+        first.SelectedColor!.Hex.Should().Be("#dc2626");
+        first.CustomColor.Should().BeNull();
+        first.Parameters.Should().BeEmpty();
+
+        editor.SelectGroup(2);
+        var second = (GroupPropertiesViewModel)editor.Properties!;
+        second.ColorOptions.Should().BeSameAs(first.ColorOptions, "eine Liste je Panel ließe die wiederverwendete ComboBox Werte zurückschreiben");
+        second.SelectedColor.Should().BeNull();
+        second.CustomColor.Should().Contain("#123456");
+
+        editor.SelectGroup(3);
+        ((GroupPropertiesViewModel)editor.Properties!).SelectedColor.Should().BeSameAs(GroupPropertiesViewModel.SharedColorOptions[0]);
+        editor.History.UndoCount.Should().Be(0);
+
+        editor.SelectGroup(2);
+        var again = (GroupPropertiesViewModel)editor.Properties!;
+        AssertUndoRedo(editor, () => again.SelectedColor = again.ColorOptions[2]);
+        editor.Puzzle.FindGroup(2)!.Color.Should().Be(again.ColorOptions[2].Hex);
+        again.CustomColor.Should().BeNull();
     }
 
     [Fact]

@@ -204,6 +204,60 @@ public class EditorGeometryTests
     }
 
     [Fact]
+    public void Shared_boundaries_count_groups_per_segment_and_emphasise_classic_blocks()
+    {
+        var puzzle = Core.Templates.ClassicSudoku.Create();
+        var nodes = puzzle.Nodes.ToDictionary(n => n.Id);
+        var groups = puzzle.Groups.Select(g => g.Nodes.Select(id => new GridPoint(nodes[id].X, nodes[id].Y))).ToList();
+
+        var shared = GroupOutline.SharedBoundaries(GridType.Square, groups);
+
+        SharedSegment At(double x1, double y1, double x2, double y2) => shared.Single(s =>
+            (s.A, s.B) == (new WorldPoint(x1, y1), new WorldPoint(x2, y2)) || (s.A, s.B) == (new WorldPoint(x2, y2), new WorldPoint(x1, y1)));
+
+        At(0.5, -0.5, 0.5, 0.5).Count.Should().Be(2, "Zellgrenze: Spalte 1 und Spalte 2");
+        At(2.5, -0.5, 2.5, 0.5).Count.Should().Be(4, "Blockgrenze: zwei Spalten und zwei Blöcke");
+        At(-0.5, -0.5, 0.5, -0.5).Count.Should().Be(3, "Rand: Zeile, Spalte, Block");
+        shared.Should().OnlyContain(s => s.Count >= 2 && s.Owner == -1);
+    }
+
+    [Fact]
+    public void Shared_boundaries_name_the_single_owner()
+    {
+        GridPoint[] left = [new(0, 0)];
+        GridPoint[] right = [new(1, 0)];
+
+        var shared = GroupOutline.SharedBoundaries(GridType.Square, [left, right]);
+
+        shared.Should().HaveCount(7);
+        shared.Should().ContainSingle(s => s.Count == 2).Which.Owner.Should().Be(-1);
+        shared.Where(s => s.Count == 1).Select(s => s.Owner).Should().BeEquivalentTo([0, 0, 0, 1, 1, 1]);
+    }
+
+    [Fact]
+    public void Parameter_texts_are_german_and_fall_back_to_the_json_name()
+    {
+        ParameterTexts.Label("k").Should().Be("Abstand k");
+        ParameterTexts.Label("mode").Should().Be("Modus");
+        ParameterTexts.Label("target").Should().Be("Zielsumme");
+        ParameterTexts.Label("eigenerParameter").Should().Be("eigenerParameter");
+        ParameterTexts.ChoiceLabel("exact").Should().Be("genau k");
+        ParameterTexts.ChoiceLabel("atLeast").Should().Be("mindestens k");
+        ParameterTexts.ChoiceLabel("sonstwas").Should().Be("sonstwas");
+        ParameterTexts.ChoiceLabel(null).Should().BeEmpty();
+
+        // Jeder Parameter der Katalogregeln hat einen deutschen Namen, jeder Auswahlwert einen deutschen Text.
+        foreach (var parameter in Core.Rules.RuleRegistry.Default.Rules.SelectMany(r => r.Parameters))
+        {
+            ParameterTexts.Label(parameter.Name).Should().NotBe(parameter.Name, parameter.Name);
+            foreach (var value in parameter.AllowedValues ?? [])
+            {
+                ParameterTexts.ChoiceLabel(value).Should().NotBe(value, value);
+            }
+        }
+    }
+
+    [Fact]
     public void Snap_for_move_keeps_triangle_orientation()
     {
         var origin = new GridPoint(0, 0); // zeigt nach oben

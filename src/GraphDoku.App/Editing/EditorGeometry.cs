@@ -52,6 +52,21 @@ public static class EditorGeometry
         return best;
     }
 
+    /// <summary>
+    /// Zeilenweise Reihenfolge (Rahmenauswahl): nach Gitterzeile (y ist bei allen drei Gittern die Zeile), innerhalb
+    /// einer Zeile nach der waagerechten Weltposition, bei Gleichstand nach Id. Nicht nach der Bildschirmhöhe des
+    /// Mittelpunkts: Auf dem Dreiecksgitter liegen die Schwerpunkte von Auf- und Ab-Dreiecken einer Zeile auf
+    /// verschiedener Höhe, die Zeile würde sonst im Zickzack zerfallen.
+    /// </summary>
+    public static IEnumerable<Node> RowWiseOrder(GridType grid, IEnumerable<Node> nodes)
+    {
+        ArgumentNullException.ThrowIfNull(nodes);
+        return nodes
+            .OrderBy(n => n.Y)
+            .ThenBy(n => Math.Round(GridGeometry.ToWorld(grid, n.X, n.Y).X, 6))
+            .ThenBy(n => n.Id);
+    }
+
     /// <summary>Abstand des Punkts <paramref name="p"/> zur Strecke a–b.</summary>
     public static double DistanceToSegment(WorldPoint p, WorldPoint a, WorldPoint b)
     {

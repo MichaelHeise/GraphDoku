@@ -508,8 +508,12 @@ public sealed partial class EditorViewModel : ViewModelBase
         _syncingGroupSelection = true;
         try
         {
-            var existing = Groups.ToDictionary(g => g.Id);
-            var target = Puzzle.Groups.Select(g => existing.TryGetValue(g.Id, out var item) ? item : new GroupItemViewModel(this, g.Id)).ToList();
+            // Mehrfach vergebene Gruppen-Ids (Datei ohne inhaltliche Prüfung geöffnet, Nr. 57) sind möglich: vorhandene
+            // Einträge je Id der Reihe nach zuordnen statt über ein Dictionary mit eindeutigen Schlüsseln.
+            var existing = Groups.GroupBy(g => g.Id).ToDictionary(g => g.Key, g => new Queue<GroupItemViewModel>(g));
+            var target = Puzzle.Groups
+                .Select(g => existing.TryGetValue(g.Id, out var items) && items.Count > 0 ? items.Dequeue() : new GroupItemViewModel(this, g.Id))
+                .ToList();
             for (var i = Groups.Count - 1; i >= 0; i--)
             {
                 if (!target.Contains(Groups[i]))

@@ -27,8 +27,14 @@
               <StackPanel Spacing="2" Margin="0,0,0,8">
                 <TextBlock Text="{Binding Label}" />
                 <TextBox Text="{Binding Text}" IsVisible="{Binding IsInteger}" />
-                <CheckBox Content="{Binding Name}" IsChecked="{Binding BoolValue}" IsVisible="{Binding IsBoolean}" />
-                <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding ChoiceValue}" IsVisible="{Binding IsChoice}" HorizontalAlignment="Stretch" />
+                <CheckBox Content="{Binding DisplayName}" IsChecked="{Binding BoolValue}" IsVisible="{Binding IsBoolean}" />
+                <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding ChoiceValue}" IsVisible="{Binding IsChoice}" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                      <TextBlock Text="{Binding Converter={x:Static views:Converters.ChoiceLabel}}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
                 <TextBlock Text="{Binding Description}" Classes="hint" />
                 <TextBlock Text="{Binding Error}" Classes="error" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
               </StackPanel>
@@ -55,10 +61,10 @@
       <Setter Property="FontSize" Value="12" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
-    <Style Selector="StackPanel.toolbar > :is(Button)">
+    <Style Selector="WrapPanel.toolbar > :is(Button)">
       <Setter Property="Padding" Value="10,4" />
     </Style>
-    <Style Selector="StackPanel.toolbar > RadioButton">
+    <Style Selector="WrapPanel.toolbar > RadioButton">
       <Setter Property="Margin" Value="0,0,4,0" />
     </Style>
   </Window.Styles>
@@ -94,7 +100,8 @@
     </Menu>
 
     <Border DockPanel.Dock="Top" BorderBrush="#dddddd" BorderThickness="0,0,0,1" Padding="8,6">
-      <StackPanel Orientation="Horizontal" Spacing="6" Classes="toolbar">
+      <!-- WrapPanel: bei schmalem Fenster bricht die Werkzeugleiste um, statt Schaltflächen abzuschneiden. -->
+      <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" Classes="toolbar">
         <RadioButton GroupName="tool" Content="Auswahl" IsChecked="{Binding Editor.IsSelectTool}" ToolTip.Tip="Auswählen und Verschieben" />
         <RadioButton GroupName="tool" Content="Knoten setzen" IsChecked="{Binding Editor.IsPlaceNodeTool}" ToolTip.Tip="Klick oder Ziehen setzt Knoten" />
         <RadioButton GroupName="tool" Content="Kante ziehen" IsChecked="{Binding Editor.IsDrawEdgeTool}" ToolTip.Tip="Von Knoten zu Knoten ziehen" />
@@ -112,7 +119,7 @@
         <Button Content="Rückgängig" ToolTip.Tip="{Binding Editor.UndoText}" Command="{Binding Editor.UndoCommand}" />
         <Button Content="Wiederholen" ToolTip.Tip="{Binding Editor.RedoText}" Command="{Binding Editor.RedoCommand}" />
         <Button Content="Einpassen" Command="{Binding Editor.FitViewCommand}" />
-      </StackPanel>
+      </WrapPanel>
     </Border>
 
     <!-- Statusbereich: letzte Aktion, Werkzeughinweis und Prüfmeldungen des PuzzleValidator. -->
@@ -235,7 +242,7 @@
               <StackPanel Spacing="6">
                 <TextBlock Text="{Binding Header}" Classes="header" />
                 <TextBlock Text="Beschriftung" />
-                <TextBox Text="{Binding Label}" Watermark="z. B. Zeile 1" />
+                <TextBox Text="{Binding Label}" PlaceholderText="z. B. Zeile 1" />
                 <TextBlock Text="Farbe" />
                 <ComboBox ItemsSource="{Binding ColorOptions}" SelectedItem="{Binding SelectedColor}" HorizontalAlignment="Stretch">
                   <ComboBox.ItemTemplate>
@@ -247,6 +254,8 @@
                     </DataTemplate>
                   </ComboBox.ItemTemplate>
                 </ComboBox>
+                <TextBlock Text="{Binding CustomColor}" Classes="hint"
+                           IsVisible="{Binding CustomColor, Converter={x:Static ObjectConverters.IsNotNull}}" />
                 <TextBlock Text="Regel" Margin="0,6,0,0" />
                 <ComboBox ItemsSource="{Binding Rules}" SelectedItem="{Binding SelectedRule}" HorizontalAlignment="Stretch">
                   <ComboBox.ItemTemplate>
