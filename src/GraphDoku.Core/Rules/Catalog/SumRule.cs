@@ -18,7 +18,7 @@ public sealed class SumRule : RuleBase
 
     public override IReadOnlyList<RuleParameter> Parameters { get; } =
     [
-        new("target", RuleParameterType.Integer, "Zielsumme", IsRequired: true),
+        new("target", RuleParameterType.Integer, "Zielsumme", IsRequired: true, SuggestedValue: 10),
         new("allowRepeats", RuleParameterType.Boolean, "dürfen sich Werte wiederholen? Standard: false", DefaultValue: false),
     ];
 

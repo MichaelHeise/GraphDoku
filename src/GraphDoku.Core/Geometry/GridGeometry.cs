@@ -15,7 +15,7 @@ public readonly record struct WorldPoint(double X, double Y)
 /// Geometrie der drei Gittertypen: Umrechnung in Weltkoordinaten, Zellumrisse, Nachbarschaften, Springerzug, Abstände.
 /// <list type="bullet">
 /// <item>Quadrat: Mittelpunkt (x, y), Kantenlänge 1.</item>
-/// <item>Dreieck: Kantenlänge 1, Zelle (x, y) zeigt nach oben, wenn (x + y) gerade ist; Mittelpunkte liegen 0,5 auseinander.</item>
+/// <item>Dreieck: Kantenlänge 1, Zelle (x, y) zeigt nach oben, wenn (x + y) gerade ist; Mittelpunkt = Schwerpunkt; waagerecht benachbarte Zellen liegen in x um 0,5 versetzt, Kantennachbarn haben den Mittelpunktabstand 1/√3.</item>
 /// <item>Sechseck: spitze Oberseite, axiale Koordinaten q = x, r = y; benachbarte Mittelpunkte haben Abstand 1.</item>
 /// </list>
 /// </summary>

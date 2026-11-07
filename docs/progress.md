@@ -22,7 +22,10 @@
 - Avalonia-App startet mit Platzhalter-Hauptfenster und MVVM-Verdrahtung (lokal auf macOS gestartet).
 - Repo-Hygiene: `.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE` (proprietär), `THIRD-PARTY-NOTICES.md`,
   `README.md`; Gitea-CI `.gitea/workflows/ci.yml`.
-- Tests: 143 (Core 136, Solver 1, Explainer 2, App 4), alle grün in Debug und Release.
+- Nacharbeiten nach Review: `null` bei optionalen Listen/`params`/Knoten-`domain` wird als „nicht gesetzt“ gelesen,
+  `Sum` liefert gültige Standardparameter (`target` = 10), `Propagate` liefert keine doppelten Streichungen,
+  Architekturtests prüfen zusätzlich die Projekt- und Paketverweise der .csproj-Dateien.
+- Tests: 159 (Core 144, Solver 1, Explainer 2, App 12), alle grün in Release.
 - Akzeptanz: Round-Trip-Tests (Vorlage, Rätsel mit allen Merkmalen, alle Dateien in `puzzles/`); ungültige Parameter
   und unbekannte Regeltypen werden mit verständlicher Meldung abgelehnt (getestet).
 
@@ -30,6 +33,8 @@
 
 - `ISolver` und OR-Tools-Adapter pro Regel (Paket 2).
 - Erklär-Modus (Paket 6); `Propagate` ist vorhanden, wird dort ggf. verfeinert.
+- Validierungsmeldungen sind reine Texte (die Element-Id steht nur im Text). Braucht der Editor (Paket 3) einen
+  Verweis auf das fehlerhafte Element zum Markieren, wird dort ein strukturierter Meldungstyp ergänzt.
 
 **Bekannte Probleme**
 

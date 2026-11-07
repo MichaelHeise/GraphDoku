@@ -237,4 +237,42 @@ public class PuzzleSerializerTests
         puzzle.Domain.Should().Be(new ValueDomain(0, 15));
         puzzle.Name.Should().BeEmpty();
     }
+
+    [Fact]
+    public void Null_on_optional_fields_means_not_set()
+    {
+        var puzzle = PuzzleSerializer.Deserialize(
+            "{ \"formatVersion\": 1, \"name\": null, \"grid\": \"square\", \"domain\": { \"min\": 1, \"max\": 9 }, " +
+            "\"nodes\": [ { \"id\": 1, \"x\": 0, \"y\": 0, \"domain\": null, \"given\": null }, { \"id\": 2, \"x\": 1, \"y\": 0 } ], " +
+            "\"edges\": [ { \"id\": 1, \"from\": 1, \"to\": 2, \"rule\": \"NotEqual\", \"params\": null } ], " +
+            "\"groups\": [ { \"id\": 1, \"nodes\": [1, 2], \"rule\": \"AllDifferent\", \"params\": null, \"color\": null, \"label\": null } ] }");
+
+        puzzle.Name.Should().BeEmpty();
+        puzzle.Nodes[0].Domain.Should().BeNull();
+        puzzle.Nodes[0].Given.Should().BeNull();
+        puzzle.Edges[0].Params.Count.Should().Be(0);
+        puzzle.Groups[0].Params.Count.Should().Be(0);
+        puzzle.Groups[0].Color.Should().BeNull();
+        puzzle.Groups[0].Label.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("nodes")]
+    [InlineData("edges")]
+    [InlineData("groups")]
+    public void Null_lists_mean_empty_lists(string field)
+    {
+        var puzzle = PuzzleSerializer.Deserialize(Wrap($"\"{field}\": null"));
+        puzzle.Nodes.Should().BeEmpty();
+        puzzle.Edges.Should().BeEmpty();
+        puzzle.Groups.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Null_on_required_fields_is_rejected()
+    {
+        ShouldFail("{ \"formatVersion\": 1, \"grid\": \"square\", \"domain\": null }", "Rätsel.domain: Erwartet wird ein Objekt, gefunden wurde null.");
+        ShouldFail(Wrap("\"nodes\": [ { \"id\": 1, \"x\": null, \"y\": 0 } ]"), "nodes[0]: Das Feld „x“ muss eine ganze Zahl sein");
+        ShouldFail(Wrap("\"nodes\": [ { \"id\": 1, \"x\": 0, \"y\": 0 } ], \"groups\": [ { \"id\": 1, \"nodes\": null, \"rule\": \"Sum\" } ]"), "groups[0]: Das Feld „nodes“ muss eine Liste von Knoten-Ids sein");
+    }
 }

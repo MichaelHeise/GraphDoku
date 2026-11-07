@@ -31,6 +31,7 @@ public class RuleValidationTests
     [Theory]
     [InlineData("AllDifferent")]
     [InlineData("Thermometer")]
+    [InlineData("Sum")]
     public void Default_params_of_group_rules_are_valid(string rule)
     {
         ValidateGroup(rule, RuleRegistry.Default.Get(rule).CreateDefaultParams()).Should().BeEmpty();
@@ -44,6 +45,7 @@ public class RuleValidationTests
         difference.GetString("mode", null).Should().Be("exact");
         RuleRegistry.Default.Get("Ratio").CreateDefaultParams().GetInt("factor", 0).Should().Be(2);
         RuleRegistry.Default.Get("Sum").CreateDefaultParams().GetBool("allowRepeats", true).Should().BeFalse();
+        RuleRegistry.Default.Get("Sum").CreateDefaultParams().GetInt("target", 0).Should().Be(10);
         RuleRegistry.Default.Get("CoverRange").CreateDefaultParams().Count.Should().Be(0);
     }
 

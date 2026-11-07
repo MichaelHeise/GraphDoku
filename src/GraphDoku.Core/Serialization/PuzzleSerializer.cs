@@ -357,7 +357,7 @@ public static class PuzzleSerializer
 
         private RuleParams? ReadParams(JsonElement element, string path)
         {
-            if (!element.TryGetProperty("params", out var value))
+            if (!element.TryGetProperty("params", out var value) || value.ValueKind == JsonValueKind.Null)
             {
                 return new RuleParams();
             }
@@ -385,7 +385,7 @@ public static class PuzzleSerializer
 
         private ValueDomain? ReadDomain(JsonElement element, string path, bool required)
         {
-            if (!element.TryGetProperty("domain", out var value))
+            if (!element.TryGetProperty("domain", out var value) || (!required && value.ValueKind == JsonValueKind.Null))
             {
                 if (required)
                 {
@@ -409,7 +409,7 @@ public static class PuzzleSerializer
 
         private List<(JsonElement Element, string Path)> ReadArray(JsonElement root, string name)
         {
-            if (!root.TryGetProperty(name, out var value))
+            if (!root.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null)
             {
                 return [];
             }

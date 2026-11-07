@@ -115,7 +115,38 @@ public abstract class RuleBase : IRule
             }
         }
 
-        return PropagateCore(state, constraint);
+        return RemoveRedundantEliminations(PropagateCore(state, constraint));
+    }
+
+    /// <summary>
+    /// Entfernt Streichungen, die im selben Ergebnis schon einmal vorkommen (gleicher Knoten, gleicher Wert).
+    /// Mehrere Ableitungsschritte einer Regel lesen denselben unveränderten Zustand und können so denselben
+    /// Kandidaten doppelt streichen; die erste Begründung bleibt erhalten, leere Änderungen entfallen.
+    /// </summary>
+    private static List<CandidateChange> RemoveRedundantEliminations(IReadOnlyList<CandidateChange> changes)
+    {
+        var eliminated = new HashSet<(int NodeId, int Value)>();
+        var result = new List<CandidateChange>(changes.Count);
+        foreach (var change in changes)
+        {
+            if (change.Kind != CandidateChangeKind.Eliminate)
+            {
+                result.Add(change);
+                continue;
+            }
+
+            var values = change.Values.Where(v => eliminated.Add((change.NodeId, v))).ToList();
+            if (values.Count == change.Values.Count)
+            {
+                result.Add(change);
+            }
+            else if (values.Count > 0)
+            {
+                result.Add(change with { Values = values });
+            }
+        }
+
+        return result;
     }
 
     /// <summary>Regelspezifische Prüfung der (typrichtigen) Parameterwerte.</summary>

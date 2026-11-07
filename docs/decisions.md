@@ -45,7 +45,10 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
 10. **Abhängigkeitsrichtung App → Explainer → Solver → Core** (die App darf zusätzlich direkt Solver und Core
     referenzieren). Die Spezifikation schreibt „App → Explainer, Solver → Core“; präzisiert, weil der Erklär-Modus für
     den Schritt „Verzweigung“ die OR-Tools-Lösung über `ISolver` braucht. Core referenziert kein anderes Projekt und
-    keine UI-/Solver-Bibliothek (durch Architekturtests abgesichert).
+    keine UI-/Solver-Bibliothek. Abgesichert durch Architekturtests auf zwei Ebenen: Assembly-Verweise (was der Code
+    tatsächlich benutzt) und `ProjectStructureTests` in `GraphDoku.App.Tests`, die die `ProjectReference`- und
+    `PackageReference`-Einträge der .csproj-Dateien lesen (fallen auch auf, solange ein falscher Verweis noch ungenutzt
+    ist). Erlaubte Pakete: Core und Explainer keine, Solver nur Google.OrTools.
 11. **Zusätzliches Testprojekt `tests/GraphDoku.App.Tests`** für ViewModel-Tests (in der Spezifikation nicht
     aufgeführt). Grund: „UI-Logik gehört in ViewModels, damit sie testbar ist“; die CI deckt es von Anfang an ab.
 12. Die Spezifikationsdokumente liegen unter **`docs/spec/`** (vorher `Docu/`).
@@ -86,6 +89,9 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
       (CoverRange), Kantenkonsistenz (Difference, Ratio, LessThan), Schrankenpropagation (Sum, Thermometer).
       „Hidden singles“ gehören nicht in `Propagate`, sondern in Stufe 2 der Erklär-Schleife (Paket 6). Paket 6 kann
       die Schlüsse verfeinern.
+    - Ein `Propagate`-Ergebnis enthält jede Streichung (Knoten, Wert) höchstens einmal: Mehrere Ableitungsschritte
+      einer Regel (z. B. Schranken und Wiederholungsverbot bei `Sum`) lesen denselben Zustand; `RuleBase` entfernt
+      Doppelte, die erste Begründung bleibt. So protokolliert der Erklär-Modus keine Schritte ohne Wirkung.
 20. **`CandidateState` liegt in Core** (die Spezifikation nennt ihn bei Paket 6), weil `IRule.Propagate` ihn braucht. Er
     kennt sein `Puzzle` (z. B. für den Standardbereich von `CoverRange`). Ein Given außerhalb des Wertebereichs ergibt
     eine leere Kandidatenmenge (Widerspruch).
@@ -96,7 +102,8 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
     - `Difference`: `k` ist Pflicht (ganze Zahl ≥ 0), `mode` hat den Standard `exact`. Für neue Kanten schlägt der
       Editor `k = 1` vor (`RuleParameter.SuggestedValue`).
     - `Ratio`: `factor` ganze Zahl ≥ 1, Standard 2.
-    - `Sum`: `target` ist Pflicht; `allowRepeats = false` bedeutet zusätzlich paarweise verschiedene Werte.
+    - `Sum`: `target` ist Pflicht (Vorschlag für neue Gruppen: 10, damit `CreateDefaultParams()` gültige Parameter
+      liefert); `allowRepeats = false` bedeutet zusätzlich paarweise verschiedene Werte.
     - `CoverRange`: `min` und `max` fallen einzeln auf den globalen Rätselbereich zurück (nicht auf eigene
       Knotenbereiche); die Knotenanzahl muss genau der Bereichsgröße entsprechen.
     - Mindestanzahl Knoten: `AllDifferent` 2, `Thermometer` 2, `Sum` 1, `CoverRange` 1 (plus Größenprüfung),
@@ -117,7 +124,8 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
     - `formatVersion` wird zuerst geprüft; fehlt sie oder ist sie ≠ 1, gibt es eine klare Meldung und sonst nichts.
     - Pflichtfelder: `grid`, `domain`; bei Knoten `id`, `x`, `y`; bei Kanten `id`, `from`, `to`, `rule`; bei Gruppen
       `id`, `nodes`, `rule`. Optional: `name` (Standard leer), `nodes`/`edges`/`groups` (Standard leer), `params`
-      (Standard `{}`), `given`, Knoten-`domain`, `color`, `label`. `null` bei optionalen Feldern gilt als „nicht gesetzt“.
+      (Standard `{}`), `given`, Knoten-`domain`, `color`, `label`. `null` bei optionalen Feldern gilt als „nicht gesetzt“
+      (auch bei `nodes`/`edges`/`groups`, `params` und Knoten-`domain`); `null` bei Pflichtfeldern ist ein Fehler.
     - Unbekannte Felder werden abgelehnt (dadurch auch ein Feld wie `solution`).
     - Kommentare und abschließende Kommas werden toleriert (Dateien sollen von Hand bearbeitbar sein).
     - `PuzzleSerializer.Deserialize/Load` prüft standardmäßig das ganze Rätsel mit `PuzzleValidator`

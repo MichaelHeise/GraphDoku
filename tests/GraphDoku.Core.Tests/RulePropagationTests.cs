@@ -137,6 +137,36 @@ public class RulePropagationTests
     }
 
     [Fact]
+    public void Sum_does_not_eliminate_the_same_value_twice()
+    {
+        // Ziel 10, Knoten 1 = 9: Die Schrankenprüfung streicht 2..9 bei Knoten 2; die 9 darf nicht ein
+        // zweites Mal (als Wiederholungsverbot) gestrichen werden.
+        var p = TestPuzzles.WithNodes(2);
+        var (state, changes) = Run(new Group(1, [1, 2], "Sum", TestPuzzles.Params(("target", 10))), p, (1, [9]));
+
+        state.GetCandidates(2).Should().Equal(1);
+        changes.Should().ContainSingle().Which.Values.Should().Equal(2, 3, 4, 5, 6, 7, 8, 9);
+        changes.SelectMany(c => c.Values.Select(v => (c.NodeId, v))).Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
+    public void CoverRange_does_not_eliminate_the_same_value_twice()
+    {
+        // Knoten 1 ist auf 1 festgelegt (außerhalb von 2..4, also ein Widerspruch für ihn selbst); Knoten 2 verliert
+        // die 1 nur einmal, mit der ersten Begründung („außerhalb des Bereichs“).
+        var p = TestPuzzles.WithNodes(3);
+        var group = new Group(1, [1, 2, 3], "CoverRange", TestPuzzles.Params(("min", 2), ("max", 4)));
+        var state = CandidateState.FromPuzzle(p);
+        state.Assign(1, 1);
+
+        var changes = RuleRegistry.Default.Get("CoverRange").Propagate(state, group);
+
+        changes.SelectMany(c => c.Values.Select(v => (c.NodeId, v))).Should().OnlyHaveUniqueItems();
+        changes.Where(c => c.NodeId == 2).Should().ContainSingle().Which.Reason.Text.Should().Contain("Nur Werte von 2 bis 4");
+        changes.Should().OnlyContain(c => c.Values.Count > 0);
+    }
+
+    [Fact]
     public void Single_node_sum_fixes_the_value()
     {
         var (state, _) = Run(new Group(1, [1], "Sum", TestPuzzles.Params(("target", 7))), TestPuzzles.WithNodes(1));
@@ -239,7 +269,7 @@ public class RulePropagationTests
     {
         // Eine gültige Belegung darf von keiner Regel verändert werden.
         var p = TestPuzzles.WithNodes(4);
-        int[] values = [1, 2, 4, 8];
+        int[] values = [1, 2, 3, 4];
         for (var i = 0; i < 4; i++)
         {
             p.Nodes[i].Given = values[i];
@@ -248,19 +278,22 @@ public class RulePropagationTests
         IConstraint[] constraints =
         [
             new Group(1, [1, 2, 3, 4], "AllDifferent"),
-            new Group(2, [1, 2, 3, 4], "CoverRange", TestPuzzles.Params(("min", 1), ("max", 9))),
-            new Group(3, [1, 2, 3, 4], "Sum", TestPuzzles.Params(("target", 15))),
+            new Group(2, [1, 2, 3, 4], "CoverRange", TestPuzzles.Params(("min", 1), ("max", 4))),
+            new Group(3, [1, 2, 3, 4], "Sum", TestPuzzles.Params(("target", 10))),
             new Group(4, [1, 2, 3, 4], "Thermometer"),
             new Edge(1, 1, 2, "NotEqual"),
-            new Edge(2, 2, 3, "Difference", TestPuzzles.Params(("k", 2))),
-            new Edge(3, 3, 4, "Ratio"),
-            new Edge(4, 1, 4, "LessThan"),
+            new Edge(2, 2, 3, "Difference", TestPuzzles.Params(("k", 1))),
+            new Edge(3, 1, 3, "Difference", TestPuzzles.Params(("k", 2), ("mode", "atLeast"))),
+            new Edge(4, 2, 4, "Ratio"),
+            new Edge(5, 1, 4, "LessThan"),
         ];
 
         var state = CandidateState.FromPuzzle(p);
         foreach (var constraint in constraints)
         {
-            RuleRegistry.Default.Get(constraint.Rule).Propagate(state, constraint)
+            var rule = RuleRegistry.Default.Get(constraint.Rule);
+            rule.Validate(constraint, p).Should().BeEmpty($"die {constraint.Rule}-Testregel muss gültig sein");
+            rule.Propagate(state, constraint)
                 .Should().BeEmpty($"{constraint.Rule} darf eine gültige Belegung nicht ändern");
         }
     }
