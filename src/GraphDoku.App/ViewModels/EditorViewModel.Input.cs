@@ -59,7 +59,20 @@ public sealed partial class EditorViewModel
     /// <summary>true, wenn die Leertaste gehalten wird (Ziehen verschiebt dann die Ansicht).</summary>
     public bool IsPanning => _gesture == Gesture.Panning;
 
-    public void SetViewSize(double width, double height) => Viewport.SetSize(width, height);
+    /// <summary>
+    /// Neue Größe der Zeichenfläche. War die Ansicht eingepasst (seither nicht gezoomt oder verschoben), wird neu
+    /// eingepasst – z. B. wenn die Lösen-Leiste eine Meldung bekommt und die Zeichenfläche dadurch niedriger wird.
+    /// </summary>
+    public void SetViewSize(double width, double height)
+    {
+        var wasFitted = IsViewFitted;
+        var changed = width != Viewport.Width || height != Viewport.Height;
+        Viewport.SetSize(width, height);
+        if (wasFitted && changed && Viewport.HasSize)
+        {
+            FitView();
+        }
+    }
 
     public void SetSpaceHeld(bool held) => _spaceHeld = held;
 

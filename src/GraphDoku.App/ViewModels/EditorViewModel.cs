@@ -21,6 +21,7 @@ public sealed partial class EditorViewModel : ViewModelBase
     private readonly HashSet<int> _hiddenGroups = [];
     private EditHistory _history;
     private bool _fitPending;
+    private (double Scale, double OffsetX, double OffsetY)? _fittedView;
     private bool _syncingGroupSelection;
 
     public EditorViewModel(RuleRegistry? registry = null)
@@ -145,15 +146,21 @@ public sealed partial class EditorViewModel : ViewModelBase
 
     public bool IsGroupVisible(int id) => !_hiddenGroups.Contains(id);
 
+    /// <summary>true, solange die Ansicht seit dem letzten „Einpassen“ nicht gezoomt oder verschoben wurde.</summary>
+    public bool IsViewFitted => _fittedView == (Viewport.Scale, Viewport.OffsetX, Viewport.OffsetY);
+
     /// <summary>Ersetzt das Rätsel (Neu, Öffnen, Vorlage). Der Verlauf beginnt leer und gilt als gespeichert.</summary>
     public void LoadPuzzle(Puzzle puzzle)
     {
         ArgumentNullException.ThrowIfNull(puzzle);
         CancelGesture();
         _history.Changed -= OnHistoryChanged;
+        var solutionWasShown = ClearSolutionForChange();
         _history = CreateHistory(puzzle);
+        _observedRevision = _history.Revision;
         _hiddenGroups.Clear();
         AfterDocumentReplaced();
+        RaiseContentChanged(documentReplaced: true, solutionWasShown);
     }
 
     /// <summary>Führt eine Bearbeitung als Undo-Schritt aus.</summary>
@@ -267,6 +274,7 @@ public sealed partial class EditorViewModel : ViewModelBase
         _fitPending = false;
         var bounds = EditorGeometry.ContentBounds(Puzzle) ?? new Bounds(-0.5, -0.5, 9.5, 9.5);
         Viewport.FitTo(bounds);
+        _fittedView = (Viewport.Scale, Viewport.OffsetX, Viewport.OffsetY);
     }
 
     [RelayCommand]
@@ -414,7 +422,19 @@ public sealed partial class EditorViewModel : ViewModelBase
         FitView();
     }
 
-    private void OnHistoryChanged(object? sender, EventArgs e) => OnModelChanged();
+    private void OnHistoryChanged(object? sender, EventArgs e)
+    {
+        // Inhaltliche Änderung (nicht nur Speichern)? Dann passt eine angezeigte Lösung nicht mehr: vor dem Neuzeichnen
+        // ausblenden (siehe EditorViewModel.Solution.cs).
+        var edited = _history.Revision != _observedRevision;
+        var solutionWasShown = edited && ClearSolutionForChange();
+        _observedRevision = _history.Revision;
+        OnModelChanged();
+        if (edited)
+        {
+            RaiseContentChanged(documentReplaced: false, solutionWasShown);
+        }
+    }
 
     /// <summary>Nach jeder Änderung am Modell: Auswahl bereinigen, Listen, Panel und Prüfung aktualisieren.</summary>
     private void OnModelChanged()

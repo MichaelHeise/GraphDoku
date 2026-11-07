@@ -37,6 +37,9 @@ public partial class MainWindow : Window
             Add(Key.G, modifier, vm => vm.Editor.CreateGroupFromSelection());
             Add(Key.D0, modifier, vm => vm.Editor.FitView());
         }
+
+        Add(Key.F5, KeyModifiers.None, vm => vm.Solve.SolveCommand.Execute(null));
+        Add(Key.F6, KeyModifiers.None, vm => vm.Solve.CheckUniquenessCommand.Execute(null));
     }
 
     private void Add(Key key, KeyModifiers modifiers, Action<MainWindowViewModel> action)
@@ -81,6 +84,16 @@ public partial class MainWindow : Window
         }
 
         action(null);
+    }
+
+    /// <summary>Eine noch laufende Suche beim Schließen abbrechen (sie liefe sonst im Hintergrund weiter).</summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        if (ViewModel?.Solve.CancelCommand is { } cancel && cancel.CanExecute(null))
+        {
+            cancel.Execute(null);
+        }
     }
 
     protected override async void OnClosing(WindowClosingEventArgs e)

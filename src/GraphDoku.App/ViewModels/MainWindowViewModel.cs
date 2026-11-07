@@ -6,10 +6,15 @@ using GraphDoku.Core.Model;
 using GraphDoku.Core.Rules;
 using GraphDoku.Core.Serialization;
 using GraphDoku.Core.Templates;
+using GraphDoku.Solver;
+using GraphDoku.Solver.OrTools;
 
 namespace GraphDoku.App.ViewModels;
 
-/// <summary>Hauptfenster: Datei-Befehle (Neu, Vorlage, Öffnen, Speichern, Speichern unter), Titel mit Dirty-Anzeige und der Editor.</summary>
+/// <summary>
+/// Hauptfenster: Datei-Befehle (Neu, Vorlage, Öffnen, Speichern, Speichern unter), Titel mit Dirty-Anzeige, der Editor
+/// und das Lösen (<see cref="Solve"/>).
+/// </summary>
 public sealed partial class MainWindowViewModel : ViewModelBase
 {
     public const string AppName = "GraphDoku";
@@ -19,23 +24,32 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>Für den Designer: ohne Dialoge.</summary>
     public MainWindowViewModel()
-        : this(NullFileDialogService.Instance, NullDialogService.Instance)
+        : this(NullFileDialogService.Instance, NullDialogService.Instance, new OrToolsSolver())
     {
     }
 
-    public MainWindowViewModel(IFileDialogService files, IDialogService dialogs, RuleRegistry? registry = null)
+    /// <param name="files">Dateiauswahl.</param>
+    /// <param name="dialogs">Dialoge und Meldungen.</param>
+    /// <param name="solver">Solver für „Lösen“ und „Eindeutigkeit prüfen“ (in der App <see cref="OrToolsSolver"/>).</param>
+    /// <param name="registry">Regeln; null = <see cref="RuleRegistry.Default"/>.</param>
+    public MainWindowViewModel(IFileDialogService files, IDialogService dialogs, ISolver solver, RuleRegistry? registry = null)
     {
         ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(dialogs);
+        ArgumentNullException.ThrowIfNull(solver);
         _files = files;
         _dialogs = dialogs;
         Editor = new EditorViewModel(registry);
+        Solve = new SolveViewModel(Editor, solver);
         Editor.DocumentChanged += (_, _) => UpdateTitle();
         Editor.StatusMessage = "Neues Rätsel. Mit „Knoten setzen“ Knoten auf das Gitter setzen oder eine Vorlage wählen.";
         UpdateTitle();
     }
 
     public EditorViewModel Editor { get; }
+
+    /// <summary>Lösen, Eindeutigkeit prüfen, Abbrechen und Anzeige der Lösung.</summary>
+    public SolveViewModel Solve { get; }
 
     /// <summary>Pfad der aktuellen Datei (null = noch nie gespeichert).</summary>
     [ObservableProperty]

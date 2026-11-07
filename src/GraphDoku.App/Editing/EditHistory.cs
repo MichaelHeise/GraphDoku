@@ -32,6 +32,12 @@ public sealed class EditHistory
 
     public int RedoCount => _redo.Count;
 
+    /// <summary>
+    /// Zählt inhaltliche Änderungen (Ausführen, Rückgängig, Wiederholen), nicht aber das Speichern. Daran erkennt die
+    /// Oberfläche, ob ein angezeigtes Solver-Ergebnis noch zum Rätsel passt.
+    /// </summary>
+    public long Revision { get; private set; }
+
     public string? UndoDescription => CanUndo ? _undo[^1].Command.Description : null;
 
     public string? RedoDescription => CanRedo ? _redo[^1].Command.Description : null;
@@ -60,6 +66,7 @@ public sealed class EditHistory
             _undo.Add(new Entry(command, _nextStateId++));
         }
 
+        Revision++;
         OnChanged();
     }
 
@@ -74,6 +81,7 @@ public sealed class EditHistory
         _undo.RemoveAt(_undo.Count - 1);
         entry.Command.Undo(Puzzle);
         _redo.Add(entry);
+        Revision++;
         OnChanged();
         return true;
     }
@@ -89,6 +97,7 @@ public sealed class EditHistory
         _redo.RemoveAt(_redo.Count - 1);
         entry.Command.Execute(Puzzle);
         _undo.Add(entry);
+        Revision++;
         OnChanged();
         return true;
     }

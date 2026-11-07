@@ -35,6 +35,16 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     private static readonly IBrush HaloBrush = new ImmutableSolidColorBrush(Color.Parse("#1d64d8"), 0.28);
     private static readonly IDashStyle Dashed = new ImmutableDashStyle([4, 3], 0);
 
+    /// <summary>Lösungswerte: blau und normal statt schwarz und halbfett wie Givens (Paket 4).</summary>
+    public static readonly Color SolutionColor = Color.Parse("#1d4ed8");
+
+    /// <summary>Knoten, in denen sich zwei Lösungen eines mehrdeutigen Rätsels unterscheiden.</summary>
+    public static readonly Color SolutionDifferenceColor = Color.Parse("#ea580c");
+
+    private static readonly IBrush SolutionBrush = new ImmutableSolidColorBrush(SolutionColor);
+    private static readonly IBrush SolutionDifferenceBrush = new ImmutableSolidColorBrush(SolutionDifferenceColor);
+    private static readonly IBrush SolutionDifferenceFill = new ImmutableSolidColorBrush(Color.Parse("#ffedd5"));
+
     private static readonly Dictionary<StandardCursorType, Cursor> Cursors = [];
 
     private EditorViewModel? _editor;
@@ -511,6 +521,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     {
         var normalPen = new Pen(NodeStrokeBrush, 1.5);
         var selectedPen = new Pen(AccentBrush, 3);
+        var differencePen = new Pen(SolutionDifferenceBrush, 2.5);
         var visible = viewport.VisibleWorld;
         var margin = EditorGeometry.NodeRadius(puzzle.Grid);
         var edgeEnds = _editor!.SelectedEdgeId is int edgeId && puzzle.FindEdge(edgeId) is { } edge ? new[] { edge.From, edge.To } : [];
@@ -532,10 +543,24 @@ public sealed class GraphCanvas : Control, ICustomHitTest
                 context.DrawEllipse(HaloBrush, null, center, halo, halo);
             }
 
-            context.DrawEllipse(selected ? NodeSelectedFill : NodeFill, selected || endOfSelectedEdge ? selectedPen : normalPen, center, radius, radius);
-            if (node.Given is int given && radius >= 5)
+            var differs = node.Given is null && _editor.IsSolutionDifference(node.Id);
+            var fill = selected ? NodeSelectedFill : differs ? SolutionDifferenceFill : NodeFill;
+            var pen = selected || endOfSelectedEdge ? selectedPen : differs ? differencePen : normalPen;
+            context.DrawEllipse(fill, pen, center, radius, radius);
+            if (radius < 5)
+            {
+                continue;
+            }
+
+            if (node.Given is int given)
             {
                 var text = CreateText(ValueText.Format(given, puzzle.GetEffectiveDomain(node)), radius * 1.1, TextBrush, FontWeight.SemiBold);
+                context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
+            }
+            else if (_editor.SolutionValue(node.Id) is int solved)
+            {
+                // Lösungswert (nur Anzeige, nicht im Rätsel): andere Farbe und Strichstärke als ein Given.
+                var text = CreateText(ValueText.Format(solved, puzzle.GetEffectiveDomain(node)), radius * 1.05, differs ? SolutionDifferenceBrush : SolutionBrush, FontWeight.Normal);
                 context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
             }
         }

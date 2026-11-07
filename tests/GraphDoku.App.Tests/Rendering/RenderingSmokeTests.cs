@@ -12,6 +12,7 @@ using GraphDoku.App.ViewModels;
 using GraphDoku.App.Views;
 using GraphDoku.Core.Model;
 using GraphDoku.Core.Templates;
+using GraphDoku.Solver.OrTools;
 using Xunit.Abstractions;
 
 namespace GraphDoku.App.Tests.Rendering;
@@ -138,6 +139,85 @@ public sealed class RenderingSmokeTests(HeadlessSessionFixture fixture, ITestOut
     }, CancellationToken.None);
 
     [Fact]
+    public Task Solved_puzzle_shows_solution_values_distinct_from_givens() => fixture.Session.Dispatch(async () =>
+    {
+        var (window, viewModel) = OpenWindow(ClassicSudoku.Create(Givens));
+        await viewModel.Solve.SolveCommand.ExecuteAsync(null);
+        viewModel.Solve.Outcome.Should().Be(SolveOutcome.Solved, viewModel.Solve.ResultMessage);
+        var frame = Capture(window, "klassisch-geloest.png");
+
+        var canvas = window.FindControl<GraphCanvas>("Canvas")!;
+        var editor = viewModel.Editor;
+        var given = editor.Puzzle.FindNode(ClassicSudoku.NodeId(0, 0))!;
+        var solved = editor.Puzzle.FindNode(ClassicSudoku.NodeId(0, 2))!;
+
+        // Lösungswert blau, Given schwarz.
+        CountSolutionBluePixels(frame, NodeArea(window, canvas, editor, solved)).Should().BeGreaterThan(10);
+        CountDarkPixels(frame, NodeArea(window, canvas, editor, solved)).Should().Be(0);
+        CountSolutionBluePixels(frame, NodeArea(window, canvas, editor, given)).Should().Be(0);
+        CountDarkPixels(frame, NodeArea(window, canvas, editor, given)).Should().BeGreaterThan(10);
+
+        // Nach einer Bearbeitung ist die Lösung weg.
+        editor.SelectNodes([ClassicSudoku.NodeId(8, 0)]);
+        editor.EnterValueCharacter('3');
+        editor.ClearSelection();
+        var edited = Capture(window, "klassisch-geloest-bearbeitet.png");
+        CountSolutionBluePixels(edited, NodeArea(window, canvas, editor, solved)).Should().Be(0);
+        window.Close();
+        return true;
+    }, CancellationToken.None);
+
+    [Fact]
+    public Task Ambiguous_puzzle_marks_differing_nodes() => fixture.Session.Dispatch(async () =>
+    {
+        // Wie „leicht“, aber ohne die 6 in Zeile 3, Spalte 8: genau zwei Lösungen.
+        var (window, viewModel) = OpenWindow(ClassicSudoku.Create(Givens.Remove(25, 1).Insert(25, ".")));
+        await viewModel.Solve.CheckUniquenessCommand.ExecuteAsync(null);
+        viewModel.Solve.Outcome.Should().Be(SolveOutcome.Ambiguous, viewModel.Solve.ResultMessage);
+        Capture(window, "klassisch-mehrdeutig.png");
+        viewModel.Solve.ShowSecondSolutionCommand.Execute(null);
+        var frame = Capture(window, "klassisch-mehrdeutig-loesung2.png");
+
+        var canvas = window.FindControl<GraphCanvas>("Canvas")!;
+        var differing = viewModel.Editor.Puzzle.FindNode(viewModel.Solve.SolutionDifferences[0])!;
+        CountPixels(frame, NodeArea(window, canvas, viewModel.Editor, differing), (r, g, b) => r > 200 && g is > 60 and < 140 && b < 60)
+            .Should().BeGreaterThan(10, "abweichende Lösungswerte sind orange");
+        window.Close();
+        return true;
+    }, CancellationToken.None);
+
+    [Fact]
+    public Task Busy_and_error_states_render() => fixture.Session.Dispatch(async () =>
+    {
+        using var solver = new FakeSolver { Block = true };
+        var viewModel = new MainWindowViewModel(new FakeFileDialogService(), new FakeDialogService(), solver);
+        viewModel.Editor.LoadPuzzle(ClassicSudoku.Create(Givens));
+        var window = new MainWindow { DataContext = viewModel, Width = 1280, Height = 800 };
+        window.Show();
+
+        var running = viewModel.Solve.SolveCommand.ExecuteAsync(null);
+        solver.WaitUntilStarted();
+        Capture(window, "loesen-laeuft.png");
+        var cancel = window.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, "Abbrechen"));
+        cancel.IsEffectivelyVisible.Should().BeTrue();
+        cancel.IsEffectivelyEnabled.Should().BeTrue();
+        viewModel.Solve.CancelCommand.Execute(null);
+        await running;
+        Capture(window, "loesen-abgebrochen.png");
+        cancel.IsEffectivelyVisible.Should().BeFalse();
+
+        solver.Block = false;
+        solver.SolveResult = _ => GraphDoku.Solver.SolveResult.Invalid(["Gruppe 28: Der Parameter „target“ fehlt.", "Kante 3: Der Knoten 99 existiert nicht."], TimeSpan.Zero);
+        await viewModel.Solve.SolveCommand.ExecuteAsync(null);
+        Capture(window, "loesen-ungueltig.png");
+
+        viewModel.Solve.TimeLimitText = "abc";
+        Capture(window, "loesen-zeitlimit-fehler.png");
+        window.Close();
+        return true;
+    }, CancellationToken.None);
+
+    [Fact]
     public Task New_puzzle_dialog_renders() => fixture.Session.Dispatch(() =>
     {
         var window = new NewPuzzleWindow { DataContext = new NewPuzzleViewModel { DomainMin = "5", DomainMax = "1" } };
@@ -149,7 +229,7 @@ public sealed class RenderingSmokeTests(HeadlessSessionFixture fixture, ITestOut
 
     private static (MainWindow Window, MainWindowViewModel ViewModel) OpenWindow(Puzzle puzzle)
     {
-        var viewModel = new MainWindowViewModel(new FakeFileDialogService(), new FakeDialogService());
+        var viewModel = new MainWindowViewModel(new FakeFileDialogService(), new FakeDialogService(), new OrToolsSolver());
         viewModel.Editor.LoadPuzzle(puzzle);
         var window = new MainWindow { DataContext = viewModel, Width = 1280, Height = 800 };
         window.Show();
@@ -186,6 +266,29 @@ public sealed class RenderingSmokeTests(HeadlessSessionFixture fixture, ITestOut
             {
                 var (r, g, b) = ReadPixel(buffer, x, y);
                 if (r < 90 && g < 90 && b < 90)
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>Pixel in der Farbe der Lösungswerte (#1d4ed8, auch geglättet), aber nicht das helle Blau der Auswahl.</summary>
+    private static int CountSolutionBluePixels(WriteableBitmap bitmap, PixelRect area) =>
+        CountPixels(bitmap, area, (r, g, b) => b > 150 && r < 130 && b - r > 80);
+
+    private static int CountPixels(WriteableBitmap bitmap, PixelRect area, Func<byte, byte, byte, bool> predicate)
+    {
+        using var buffer = bitmap.Lock();
+        var count = 0;
+        for (var y = Math.Max(0, area.Y); y < Math.Min(buffer.Size.Height, area.Bottom); y++)
+        {
+            for (var x = Math.Max(0, area.X); x < Math.Min(buffer.Size.Width, area.Right); x++)
+            {
+                var (r, g, b) = ReadPixel(buffer, x, y);
+                if (predicate(r, g, b))
                 {
                     count++;
                 }

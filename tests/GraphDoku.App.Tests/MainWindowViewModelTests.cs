@@ -6,6 +6,7 @@ using GraphDoku.Core.Geometry;
 using GraphDoku.Core.Model;
 using GraphDoku.Core.Serialization;
 using GraphDoku.Core.Templates;
+using GraphDoku.Solver.OrTools;
 
 namespace GraphDoku.App.Tests;
 
@@ -20,7 +21,7 @@ public sealed class MainWindowViewModelTests : IDisposable
 
     private MainWindowViewModel Create()
     {
-        var viewModel = new MainWindowViewModel(_files, _dialogs);
+        var viewModel = new MainWindowViewModel(_files, _dialogs, new OrToolsSolver());
         viewModel.Editor.SetViewSize(1000, 800);
         return viewModel;
     }

@@ -376,3 +376,70 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
     Wiederholen und Einpassen sichtbar bleiben (Rauchtest bei Mindestgröße). `TextBox.Watermark` (in Avalonia 12
     veraltet, Warnung AVLN5001) durch `PlaceholderText` ersetzt; XAML-Compilerwarnungen fallen nicht unter
     `TreatWarningsAsErrors`, deshalb wurde die Warnung zuvor übersehen.
+
+## Lösen in der App (Paket 4)
+
+70. **`SolveViewModel` mit injiziertem `ISolver`:** Lösen, Eindeutigkeit prüfen, Abbrechen und das Anzeigen/Ausblenden
+    von Lösungen liegen in einem eigenen ViewModel (`MainWindowViewModel.Solve`). Der Solver ist jetzt ein
+    **Pflichtparameter** des `MainWindowViewModel`-Konstruktors (`files, dialogs, solver, registry = null`); die App
+    übergibt `new OrToolsSolver()`, Tests einen `FakeSolver` (Busy-, Abbruch- und Meldungstests) oder den echten Solver
+    (Integrationstests). Gerechnet wird über `SolveAsync`/`CountSolutionsAsync` (Nr. 35): Das Rätsel wird beim Start im
+    UI-Thread kopiert, die Suche läuft im Thread-Pool, die Oberfläche bleibt bedienbar. Es läuft höchstens eine Suche
+    gleichzeitig („Lösen“ und „Eindeutigkeit prüfen“ sind währenddessen gesperrt).
+71. **Lösung = reiner Anzeigezustand im `EditorViewModel`** (`ShowSolution`/`HideSolution`, `SolutionValues`,
+    `SolutionDifferences`; Datei `EditorViewModel.Solution.cs`): Sie steht nicht im `Puzzle`, ist kein Undo-Schritt,
+    macht das Dokument nicht „ungespeichert“ und wird deshalb nie gespeichert (Test: gespeicherte Datei gleich dem
+    Original, ohne zusätzliche `given`). Darstellung: **Lösungswerte blau (#1d4ed8) in normaler Strichstärke, Givens
+    schwarz und halbfett**; bei einem mehrdeutigen Rätsel werden Knoten, in denen sich die beiden Lösungen
+    unterscheiden, orange (Wert, Ring, heller Hintergrund) markiert. Eine Legende steht in der Lösen-Leiste, solange
+    eine Lösung angezeigt wird.
+72. **Veraltete Lösungen werden ausgeblendet, nicht nur markiert:** Jede inhaltliche Änderung (Bearbeitung, Rückgängig,
+    Wiederholen, Neu/Öffnen/Vorlage) blendet eine angezeigte Lösung sofort aus, die Lösen-Leiste meldet „Die Lösung
+    wurde ausgeblendet, weil das Rätsel geändert wurde“, und auch „Lösung anzeigen“ ist dann gesperrt. Grund: Eine
+    grau markierte alte Lösung wäre neben neuen Givens leicht falsch zu lesen. Erkannt wird das über einen neuen
+    Zähler `EditHistory.Revision` (steigt bei Ausführen/Rückgängig/Wiederholen, nicht beim Speichern) und
+    `EditorViewModel.ContentVersion` (zusätzlich bei Dokumentwechsel) mit dem Ereignis `ContentChanged`. Auswahl,
+    Zoom/Pan, Ein-/Ausblenden von Gruppen und Speichern lassen die Lösung stehen.
+    - **Bearbeitung während einer laufenden Suche:** Die Suche läuft weiter (sie rechnet auf einer Kopie), ihr Ergebnis
+      wird am Ende verworfen („Das Rätsel wurde während der Suche geändert …“). **Dokumentwechsel während der Suche**
+      bricht sie ab. Schließen des Fensters bricht eine laufende Suche ebenfalls ab.
+73. **„Lösen“ und „Eindeutigkeit prüfen“:** „Lösen“ (`Solve`) trägt eine gefundene Lösung sofort ein und prüft die
+    Eindeutigkeit nicht (Hinweis in der Meldung). „Eindeutigkeit prüfen“ (`CountSolutions` mit Limit 2) trägt nichts
+    ein, sondern meldet „eindeutig lösbar“ bzw. „mehrdeutig: mindestens zwei verschiedene Lösungen … unterscheiden sich
+    in n Knoten“ und **bietet die gefundenen Lösungen an** („Lösung anzeigen“ bzw. „Lösung 1 anzeigen“ /
+    „Lösung 2 anzeigen“, Unterschiede orange). Endet die Prüfung durch Zeitlimit oder Abbruch mit einer gefundenen
+    Lösung, kann auch diese angezeigt werden; die Eindeutigkeit gilt dann als nicht geklärt.
+74. **Zeitlimit als einfaches Textfeld in Sekunden** in der Lösen-Leiste, Standard aus `SolverOptions.DefaultTimeLimit`
+    (30 s), gilt für beide Befehle. Dezimalkomma und -punkt werden akzeptiert (`SolverTimeText`), erlaubt sind 0,1 bis
+    3600 s; bei ungültiger Eingabe erscheint eine rote Meldung und „Lösen“/„Eindeutigkeit prüfen“ sind gesperrt. Das
+    Zeitlimit wird nicht gespeichert (weder im Rätsel noch als Programmeinstellung) – kein Einstellungsspeicher, kein
+    Scope Creep.
+75. **Meldungen (deutsch) und Farben der Lösen-Leiste:** grün = gelöst / eindeutig; gelb = mehrdeutig, Zeitlimit,
+    abgebrochen, veraltet; rot = unlösbar, ungültig, Solver-Fehler; blau = Suche läuft (Fortschrittsbalken ohne Prozent,
+    Text, „Abbrechen“). Unlösbar, Zeitlimit und Zähl-Ergebnisse verwenden die Texte des Solvers (Paket 2), beim
+    Zeitlimit ergänzt um „Ein höheres Zeitlimit kann helfen.“; bei ungültigem Rätsel folgt die Liste der Fehler des
+    Solvers (`PuzzleValidator`). Wirft ein Solver eine Ausnahme (z. B. native Bibliothek fehlt), erscheint „Der Solver ist
+    mit einem Fehler abgebrochen: …“ statt eines Absturzes (dafür ist CA1031 an genau dieser Stelle unterdrückt). Dauern
+    werden als „170 ms“ bzw. „2,4 s“ angezeigt.
+76. **Eigene Lösen-Leiste statt Schaltflächen in der Werkzeugleiste:** Im ersten Entwurf standen „Lösen“,
+    „Eindeutigkeit prüfen“ und das Zeitlimit in der Werkzeugleiste; im Rendering-Rauchtest brach sie dadurch schon bei
+    der Standardgröße 1280 × 800 in zwei Zeilen um, und die Ergebnismeldung brauchte eine weitere Leiste. Jetzt gibt es
+    unter der Werkzeugleiste eine ständig sichtbare Leiste: links Befehle und Zeitlimit, rechts Fortschritt bzw.
+    Ergebnis, Fehlerliste, Lösungs-Schaltflächen und Legende (ohne Ergebnis ein kurzer Bedienhinweis). Zusätzlich gibt
+    es das Menü „Lösen“ (Lösen F5, Eindeutigkeit prüfen F6, Abbrechen, Lösung anzeigen/ausblenden).
+77. **Einpassen bleibt beim Ändern der Zeichenflächengröße erhalten:** Im Rendering-Rauchtest war nach dem Lösen die
+    unterste Sudoku-Zeile abgeschnitten, weil die Lösen-Leiste mit der Meldung höher wurde und die Zeichenfläche
+    schrumpfte. Wurde die Ansicht seit dem letzten „Einpassen“ (auch dem automatischen beim Laden) nicht gezoomt oder
+    verschoben (`EditorViewModel.IsViewFitted`), passt `SetViewSize` sie bei einer Größenänderung neu ein; sonst bleibt
+    die Ansicht des Nutzers unverändert. Das wirkt auch beim Ändern der Fenstergröße.
+78. **Tests:** `SolveViewModelTests` (Ersatzsolver: Anzeige ohne Änderung am Rätsel, Busy-Zustand, Abbrechen von Lösen
+    und Prüfen, Zeitlimit-Eingabe und -Weitergabe, veraltete Lösung nach Bearbeitung/Undo/Redo, Bearbeitung und
+    Dokumentwechsel während der Suche, Speichern ohne Lösung, unlösbar, Zeitlimit, ungültig mit Fehlerliste, Ausnahme,
+    eindeutig, mehrdeutig mit Unterschieden). `SolveIntegrationTests` mit dem echten `OrToolsSolver`: **jede Datei in
+    `puzzles/`** wird über „Öffnen“ geladen und mit dem Lösen-Befehl gelöst (jeder Knoten hat einen Wert im
+    Wertebereich, Givens bleiben, AllDifferent-Gruppen unabhängig geprüft, außerdem muss das Rätsel mit der Lösung als
+    Givens lösbar bleiben – das prüft auch künftige Regeln aus Paket 5); zusätzlich Eindeutigkeit je Datei (leer =
+    mehrdeutig, sonst eindeutig), unlösbares, mehrdeutiges (zwei Lösungen, Unterschiede) und ungültiges Rätsel, veraltete
+    Lösung nach Bearbeitung. Rendering-Rauchtests: gelöstes Sudoku (blaue Lösungswerte, schwarze Givens per Pixelprüfung,
+    nach einer Bearbeitung keine blauen Werte mehr), mehrdeutiges Sudoku (orange Unterschiede), laufende Suche mit
+    sichtbarer „Abbrechen“-Schaltfläche, Abbruch, ungültiges Rätsel, falsches Zeitlimit; alle Bilder wurden angesehen.

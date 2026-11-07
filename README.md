@@ -14,7 +14,7 @@ Die verbindliche Spezifikation liegt in `docs/spec/`.
 | 1 – Gerüst und Kernmodell | Solution, Datenmodell, Regel-Registry, Parameterprüfung, JSON laden/speichern, Vorlage „Klassisch 9×9“, CI | erledigt |
 | 2 – OR-Tools-Solver | `ISolver`, Lösen, Eindeutigkeit prüfen, Zeitlimit, Abbruch | erledigt |
 | 3 – Editor | Zeichenfläche, Knoten/Kanten/Gruppen bearbeiten, Undo/Redo, Öffnen/Speichern | erledigt |
-| 4 – Lösen in der App | „Lösen“, „Eindeutigkeit prüfen“, asynchron mit Abbruch | offen |
+| 4 – Lösen in der App | „Lösen“, „Eindeutigkeit prüfen“, asynchron mit Abbruch | erledigt |
 | 5 – Generator und alle Regeln im Editor | Kanten-Generator, Beispielrätsel (Killer, Kropki, Hexadoku, Dreiecksgitter) | offen |
 | 6 – Erklär-Modus | Kandidaten, Propagation mit Begründung, Schrittleiste | offen |
 | 7 – optional: Zellformen | Dreieck, Quadrat, Sechseck als Darstellung | offen |
@@ -82,8 +82,23 @@ Unfertige Rätsel lassen sich speichern und wieder öffnen; was noch fehlt (z. B
 steht im Statusbereich. Kantenmarken: Ungleich = Linie, Differenz = weißer Punkt (mit k, falls nicht 1), Verhältnis =
 schwarzer Punkt (mit Faktor, falls nicht 2), Kleiner als = Pfeil vom kleineren zum größeren Wert.
 
+## Lösen in der App
+
+Die **Lösen-Leiste** unter der Werkzeugleiste (auch Menü „Lösen“):
+
+| Aufgabe | So geht es |
+| --- | --- |
+| Lösung suchen | „Lösen“ (F5): Die Lösung erscheint in den Knoten – **blau** die gelösten Werte, **schwarz** die Givens. Das Rätsel selbst wird nicht verändert und die Lösung nie gespeichert. |
+| Eindeutigkeit | „Eindeutigkeit prüfen“ (F6) sucht nach bis zu zwei Lösungen: eindeutig, mehrdeutig oder unlösbar. Bei mehrdeutigen Rätseln zeigen „Lösung 1 anzeigen“/„Lösung 2 anzeigen“ zwei verschiedene Lösungen, die abweichenden Knoten sind **orange**. |
+| Abbrechen | Während der Suche laufen Balken und „Abbrechen“; der Editor bleibt bedienbar. |
+| Zeitlimit | Feld „Zeitlimit“ in Sekunden (Standard 30, 0,1–3600). |
+| Lösung ausblenden | „Lösung ausblenden“; jede Bearbeitung des Rätsels blendet die Lösung automatisch aus. |
+
+Die Farbe der Leiste zeigt das Ergebnis: grün (gelöst, eindeutig), gelb (mehrdeutig, Zeitlimit, abgebrochen, veraltet),
+rot (unlösbar, ungültig – mit Liste der Probleme).
+
 Rendering-Rauchtest: `dotnet test tests/GraphDoku.App.Tests --filter Rendering` rendert das Hauptfenster headless
-(Skia) und legt PNGs in `$GRAPHDOKU_RENDER_DIR` bzw. im Temp-Verzeichnis unter `GraphDoku-Render` ab.
+(Skia, auch mit gelöstem und mehrdeutigem Sudoku) und legt PNGs in `$GRAPHDOKU_RENDER_DIR` bzw. im Temp-Verzeichnis unter `GraphDoku-Render` ab.
 
 ## Projektstruktur
 
@@ -98,7 +113,7 @@ tests/
   GraphDoku.Core.Tests/
   GraphDoku.Solver.Tests/
   GraphDoku.Explainer.Tests/
-  GraphDoku.App.Tests/   ViewModel-Tests, Akzeptanztest Editor, Rendering-Rauchtests (headless)
+  GraphDoku.App.Tests/   ViewModel-Tests, Akzeptanztests Editor und Lösen, Rendering-Rauchtests (headless)
 puzzles/                 Beispielrätsel als JSON (auch Testdaten): klassisch-leer, -leicht, -mittel, -schwer
 docs/
   spec/                  Spezifikation (Projektkonzept, Agenten-Anleitung)

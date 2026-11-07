@@ -9,6 +9,7 @@ using GraphDoku.App.ViewModels;
 using GraphDoku.App.Views;
 using GraphDoku.Core.Model;
 using GraphDoku.Core.Templates;
+using GraphDoku.Solver.OrTools;
 
 namespace GraphDoku.App.Tests.Rendering;
 
@@ -160,7 +161,7 @@ public sealed class WindowInteractionTests(HeadlessSessionFixture fixture)
 
     private static (MainWindow Window, MainWindowViewModel ViewModel) OpenWindow(Puzzle puzzle)
     {
-        var viewModel = new MainWindowViewModel(new FakeFileDialogService(), new FakeDialogService());
+        var viewModel = new MainWindowViewModel(new FakeFileDialogService(), new FakeDialogService(), new OrToolsSolver());
         viewModel.Editor.LoadPuzzle(puzzle);
         var window = new MainWindow { DataContext = viewModel, Width = 1280, Height = 800 };
         window.Show();

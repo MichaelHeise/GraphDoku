@@ -97,6 +97,15 @@
         <MenuItem Header="Alle Gruppen einblenden" Command="{Binding Editor.ShowAllGroupsCommand}" />
         <MenuItem Header="Alle Gruppen ausblenden" Command="{Binding Editor.HideAllGroupsCommand}" />
       </MenuItem>
+      <MenuItem Header="_Lösen">
+        <MenuItem Header="_Lösen" Command="{Binding Solve.SolveCommand}" InputGesture="F5" />
+        <MenuItem Header="_Eindeutigkeit prüfen" Command="{Binding Solve.CheckUniquenessCommand}" InputGesture="F6" />
+        <MenuItem Header="_Abbrechen" Command="{Binding Solve.CancelCommand}" />
+        <Separator />
+        <MenuItem Header="{Binding Solve.ShowFirstSolutionText}" Command="{Binding Solve.ShowFirstSolutionCommand}" />
+        <MenuItem Header="Lösung 2 anzeigen" Command="{Binding Solve.ShowSecondSolutionCommand}" />
+        <MenuItem Header="Lösung ausblenden" Command="{Binding Solve.HideSolutionCommand}" />
+      </MenuItem>
     </Menu>
 
     <Border DockPanel.Dock="Top" BorderBrush="#dddddd" BorderThickness="0,0,0,1" Padding="8,6">
@@ -120,6 +129,58 @@
         <Button Content="Wiederholen" ToolTip.Tip="{Binding Editor.RedoText}" Command="{Binding Editor.RedoCommand}" />
         <Button Content="Einpassen" Command="{Binding Editor.FitViewCommand}" />
       </WrapPanel>
+    </Border>
+
+    <!-- Lösen: Befehle und Zeitlimit links, rechts Fortschritt mit Abbrechen bzw. Ergebnis, Lösung anzeigen/ausblenden und
+         Legende. Die Farbe der Leiste zeigt die Einstufung des Ergebnisses. -->
+    <Border DockPanel.Dock="Top" Padding="8,6" BorderThickness="0,0,0,1"
+            Background="{Binding Solve.Severity, Converter={x:Static views:Converters.SeverityBackground}}"
+            BorderBrush="{Binding Solve.Severity, Converter={x:Static views:Converters.SeverityBorder}}">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+          <Button Content="Lösen" Command="{Binding Solve.SolveCommand}" FontWeight="SemiBold" Padding="12,4"
+                  ToolTip.Tip="Eine Lösung suchen und in die Knoten eintragen (F5)" />
+          <Button Content="Eindeutigkeit prüfen" Command="{Binding Solve.CheckUniquenessCommand}" Padding="10,4"
+                  ToolTip.Tip="Prüfen, ob es genau eine Lösung gibt (F6)" />
+          <TextBlock Text="Zeitlimit:" VerticalAlignment="Center" Margin="4,0,0,0" />
+          <TextBox Text="{Binding Solve.TimeLimitText}" Width="56" MinWidth="0" HorizontalContentAlignment="Right"
+                   ToolTip.Tip="Höchste Rechenzeit pro Solver-Aufruf in Sekunden (0,1 bis 3600)" />
+          <TextBlock Text="s" VerticalAlignment="Center" />
+        </StackPanel>
+        <Rectangle DockPanel.Dock="Left" Width="1" Fill="#d0d0cc" Margin="10,2" />
+        <StackPanel Spacing="4" VerticalAlignment="Center">
+          <TextBlock Text="{Binding Solve.TimeLimitError}" Classes="error"
+                     IsVisible="{Binding Solve.TimeLimitError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <DockPanel IsVisible="{Binding Solve.IsBusy}">
+            <ProgressBar DockPanel.Dock="Left" IsIndeterminate="{Binding Solve.IsBusy}" Width="120" MinWidth="0" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <Button DockPanel.Dock="Left" Content="Abbrechen" Command="{Binding Solve.CancelCommand}" Padding="10,3" Margin="0,0,10,0" />
+            <TextBlock Text="{Binding Solve.BusyText}" VerticalAlignment="Center" FontWeight="SemiBold" TextWrapping="Wrap" />
+          </DockPanel>
+          <TextBlock Text="{Binding Solve.ResultMessage}" TextWrapping="Wrap" FontWeight="SemiBold" VerticalAlignment="Center"
+                     IsVisible="{Binding Solve.ResultMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <TextBlock Classes="hint" VerticalAlignment="Center" IsVisible="{Binding !Solve.HasStatus}"
+                     Text="„Lösen“ trägt eine Lösung in die Knoten ein (ohne das Rätsel zu ändern); „Eindeutigkeit prüfen“ sucht nach einer zweiten Lösung." />
+          <ScrollViewer MaxHeight="90" IsVisible="{Binding Solve.HasResultDetails}">
+            <ItemsControl ItemsSource="{Binding Solve.ResultDetails}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <TextBlock Text="{Binding StringFormat='• {0}'}" Classes="error" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+          <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" IsVisible="{Binding Solve.HasSolutionActions}">
+            <Button Content="{Binding Solve.ShowFirstSolutionText}" Command="{Binding Solve.ShowFirstSolutionCommand}" Padding="10,3"
+                    IsVisible="{Binding Solve.IsShowFirstSolutionVisible}" />
+            <Button Content="Lösung 2 anzeigen" Command="{Binding Solve.ShowSecondSolutionCommand}" Padding="10,3"
+                    IsVisible="{Binding Solve.IsSecondSolutionAvailable}" />
+            <Button Content="Lösung ausblenden" Command="{Binding Solve.HideSolutionCommand}" Padding="10,3"
+                    IsVisible="{Binding Solve.IsSolutionShown}" />
+            <TextBlock Text="{Binding Solve.Legend}" Classes="hint" VerticalAlignment="Center" Margin="6,0,0,0"
+                       IsVisible="{Binding Solve.IsSolutionShown}" />
+          </WrapPanel>
+        </StackPanel>
+      </DockPanel>
     </Border>
 
     <!-- Statusbereich: letzte Aktion, Werkzeughinweis und Prüfmeldungen des PuzzleValidator. -->

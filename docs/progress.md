@@ -75,7 +75,7 @@
 
 **Offen**
 
-- Anbindung an die App (Paket 4).
+- ~~Anbindung an die App (Paket 4).~~ Erledigt in Paket 4.
 
 **Bekannte Probleme**
 
@@ -129,7 +129,7 @@
 
 - Eigene Wertebereiche pro Knoten im Editor bearbeiten (werden geladen, gespeichert und bei der Eingabe beachtet).
 - Prüfmeldungen markieren das betroffene Element noch nicht auf der Zeichenfläche.
-- Lösungswerte in den Knoten (Paket 4), Kanten-Generator und Beispielrätsel (Paket 5).
+- ~~Lösungswerte in den Knoten (Paket 4)~~ erledigt in Paket 4; Kanten-Generator und Beispielrätsel (Paket 5).
 - Kein Kopieren/Einfügen, keine Summenbeschriftung von Käfigen auf der Zeichenfläche (nicht gefordert).
 
 **Bekannte Probleme**
@@ -140,3 +140,45 @@
   erste Lauf auf dem Ubuntu-Runner steht noch aus.
 - Auf dem Mac ist die Taste ⌫ Backspace: Sie löscht Givens, nicht Knoten; Knoten löscht fn+⌫ (Entf), das Menü oder
   das Panel (Nr. 52).
+
+## Paket 4 – Lösen in der App
+
+**Erledigt**
+
+- Lösen-Leiste unter der Werkzeugleiste und Menü „Lösen“: „Lösen“ (F5), „Eindeutigkeit prüfen“ (F6), „Abbrechen“,
+  „Lösung anzeigen“ bzw. „Lösung 1/2 anzeigen“, „Lösung ausblenden“, Zeitlimit in Sekunden (Standard 30 s aus
+  `SolverOptions`, 0,1–3600 s, Dezimalkomma).
+- `SolveViewModel` (`MainWindowViewModel.Solve`) mit injiziertem `ISolver` (App: `OrToolsSolver`); Suche asynchron über
+  `SolveAsync`/`CountSolutionsAsync`, Fortschrittsbalken und Text während der Suche, Abbrechen über
+  `CancellationToken`; die Oberfläche bleibt bedienbar.
+- Lösung als reiner Anzeigezustand im Editor (nicht im Rätsel, kein Undo-Schritt, nicht „ungespeichert“, nie
+  gespeichert): Lösungswerte blau und normal, Givens schwarz und halbfett, Legende in der Leiste. Mehrdeutig: beide
+  gefundenen Lösungen abrufbar, Unterschiede orange markiert.
+- Deutsche Meldungen mit farbiger Leiste für gelöst, eindeutig, mehrdeutig (mindestens zwei Lösungen, Anzahl der
+  abweichenden Knoten), unlösbar, Zeitlimit (mit Hinweis), abgebrochen, ungültig (mit Fehlerliste), Solver-Fehler und
+  veraltet.
+- Jede inhaltliche Änderung (auch Rückgängig/Wiederholen, Dokumentwechsel) blendet eine angezeigte Lösung aus; eine
+  Bearbeitung während der Suche verwirft deren Ergebnis, ein Dokumentwechsel bricht sie ab, Schließen des Fensters
+  ebenfalls (Nr. 72).
+- Eingepasste Ansicht wird bei Größenänderung der Zeichenfläche neu eingepasst (Nr. 77).
+- Tests (App 174, davon neu 46): `SolveViewModelTests` mit Ersatzsolver, `SolveIntegrationTests` mit OR-Tools,
+  Rendering-Rauchtests für gelöstes und mehrdeutiges Sudoku, laufende Suche, Abbruch, ungültiges Rätsel und falsches
+  Zeitlimit (Bilder angesehen; dabei die eigene Lösen-Leiste und das Neu-Einpassen eingeführt, Nr. 76/77).
+- **Akzeptanz:** `SolveIntegrationTests.Every_example_puzzle_can_be_solved_in_the_app` öffnet jede Datei in `puzzles/`
+  über das Hauptfenster-ViewModel und löst sie mit dem Lösen-Befehl und dem echten `OrToolsSolver` (Lösung geprüft);
+  dazu Tests für unlösbar, mehrdeutig, Abbruch und veraltete Lösung nach Bearbeitung.
+- Gesamt: 409 Tests (Core 144, Solver 89, Explainer 2, App 174), alle grün in Release.
+
+**Offen**
+
+- Das Zeitlimit wird nicht über einen Programmstart hinaus gemerkt (kein Einstellungsspeicher, Nr. 74).
+- Kein Fortschritt in Prozent (CP-SAT liefert keinen sinnvollen Fortschrittswert); nur ein laufender Balken.
+- Ein ungültiges Rätsel zeigt die Fehler als Text; die betroffenen Elemente werden auf der Zeichenfläche noch nicht
+  markiert (wie bei den Prüfmeldungen, Paket 3).
+
+**Bekannte Probleme**
+
+- Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel-Tests, Aussehen
+  über die headless gerenderten Bilder belegt.
+- Der Abbruch einer laufenden Suche wirkt über `StopSearch` von CP-SAT; bei sehr großen Modellen kann der Modellaufbau
+  vor dem Start der Suche selbst nicht unterbrochen werden (bei den Beispielrätseln wenige Millisekunden).

@@ -29,7 +29,7 @@ public sealed class ClassicSudokuAcceptanceTests : IDisposable
     {
         var files = new FakeFileDialogService();
         var dialogs = new FakeDialogService { NewPuzzleAnswer = new NewPuzzleOptions(ClassicSudoku.DefaultName, GridType.Square, new ValueDomain(1, 9)) };
-        var window = new MainWindowViewModel(files, dialogs);
+        var window = new MainWindowViewModel(files, dialogs, new OrToolsSolver());
         var editor = window.Editor;
         editor.SetViewSize(1200, 900);
 
@@ -90,7 +90,7 @@ public sealed class ClassicSudokuAcceptanceTests : IDisposable
         dialogs.Errors.Should().BeEmpty();
 
         // In einem frischen Fenster öffnen.
-        var reopenedWindow = new MainWindowViewModel(files, dialogs);
+        var reopenedWindow = new MainWindowViewModel(files, dialogs, new OrToolsSolver());
         files.OpenPaths.Enqueue(path);
         await reopenedWindow.OpenCommand.ExecuteAsync(null);
 

@@ -1,6 +1,7 @@
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
+using GraphDoku.App.ViewModels;
 
 namespace GraphDoku.App.Views;
 
@@ -9,6 +10,37 @@ public static class Converters
 {
     private static readonly IBrush Problem = new ImmutableSolidColorBrush(Color.Parse("#b42318"));
     private static readonly IBrush Ok = new ImmutableSolidColorBrush(Color.Parse("#15803d"));
+
+    private static readonly IBrush NeutralBackground = new ImmutableSolidColorBrush(Color.Parse("#f7f7f5"));
+    private static readonly IBrush NeutralBorder = new ImmutableSolidColorBrush(Color.Parse("#dddddd"));
+    private static readonly IBrush InfoBackground = new ImmutableSolidColorBrush(Color.Parse("#eef4ff"));
+    private static readonly IBrush SuccessBackground = new ImmutableSolidColorBrush(Color.Parse("#ecfdf3"));
+    private static readonly IBrush WarningBackground = new ImmutableSolidColorBrush(Color.Parse("#fff7e6"));
+    private static readonly IBrush ErrorBackground = new ImmutableSolidColorBrush(Color.Parse("#fef3f2"));
+    private static readonly IBrush InfoBorder = new ImmutableSolidColorBrush(Color.Parse("#b2ccff"));
+    private static readonly IBrush SuccessBorder = new ImmutableSolidColorBrush(Color.Parse("#75e0a7"));
+    private static readonly IBrush WarningBorder = new ImmutableSolidColorBrush(Color.Parse("#f5b041"));
+    private static readonly IBrush ErrorBorder = new ImmutableSolidColorBrush(Color.Parse("#fda29b"));
+
+    /// <summary>Hintergrund der Ergebnisleiste des Solvers je nach Einstufung.</summary>
+    public static FuncValueConverter<ResultSeverity, IBrush> SeverityBackground { get; } = new(severity => severity switch
+    {
+        ResultSeverity.Success => SuccessBackground,
+        ResultSeverity.Warning => WarningBackground,
+        ResultSeverity.Error => ErrorBackground,
+        ResultSeverity.Info => InfoBackground,
+        _ => NeutralBackground,
+    });
+
+    /// <summary>Rahmen der Ergebnisleiste des Solvers je nach Einstufung.</summary>
+    public static FuncValueConverter<ResultSeverity, IBrush> SeverityBorder { get; } = new(severity => severity switch
+    {
+        ResultSeverity.Success => SuccessBorder,
+        ResultSeverity.Warning => WarningBorder,
+        ResultSeverity.Error => ErrorBorder,
+        ResultSeverity.Info => InfoBorder,
+        _ => NeutralBorder,
+    });
 
     /// <summary>true (es gibt Probleme) → Rot, sonst Grün.</summary>
     public static FuncValueConverter<bool, IBrush> ProblemBrush { get; } = new(hasProblems => hasProblems ? Problem : Ok);
