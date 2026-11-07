@@ -466,13 +466,25 @@ public sealed class ExplainViewModelTests : IDisposable
     [Fact]
     public async Task Other_exceptions_are_shown_as_message()
     {
-        using var explainer = new FakeExplainer { Throw = new DllNotFoundException("ortools fehlt") };
+        using var explainer = new FakeExplainer { Throw = new IOException("ortools fehlt") };
         var explain = CreateWindow(explainer: explainer).Explain;
 
         await explain.ExplainCommand.ExecuteAsync(null);
 
         explain.Outcome.Should().Be(ExplainOutcome.Failed);
         explain.StatusMessage.Should().Be("Die Erklärung ist mit einem Fehler abgebrochen: ortools fehlt");
+    }
+
+    [Fact]
+    public async Task Missing_native_library_is_shown_with_a_readable_hint()
+    {
+        using var explainer = new FakeExplainer { Throw = new DllNotFoundException("ortools fehlt") };
+        var explain = CreateWindow(explainer: explainer).Explain;
+
+        await explain.ExplainCommand.ExecuteAsync(null);
+
+        explain.Outcome.Should().Be(ExplainOutcome.Failed);
+        explain.StatusMessage.Should().Contain("Rechenbibliothek (OR-Tools) konnte nicht geladen werden");
     }
 
     [Fact]

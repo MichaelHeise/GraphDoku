@@ -1,5 +1,5 @@
 [Desktop Entry]
-# Vorlage für Linux-Desktops; tools/package.sh ersetzt @VERSION@.
+# Vorlage für Linux-Desktops; tools/package.sh setzt die Versionsnummer ein.
 # Installation: Ordner z. B. nach ~/.local/opt/graphdoku kopieren, Exec und Icon unten auf diesen Pfad setzen und die
 # Datei nach ~/.local/share/applications/ kopieren.
 Type=Application

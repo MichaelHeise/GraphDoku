@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Vorlage für das macOS-App-Bundle; tools/package.sh ersetzt @VERSION@. -->
+<!-- Vorlage für das macOS-App-Bundle; tools/package.sh setzt die Versionsnummer ein. -->
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key>

@@ -317,6 +317,17 @@ public sealed class SolveViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Missing_native_library_is_reported_with_a_readable_hint()
+    {
+        _solver.Throw = new TypeInitializationException("Google.OrTools.Sat.operations_research_satPINVOKE", new DllNotFoundException("google-ortools-native"));
+
+        await Solve.SolveCommand.ExecuteAsync(null);
+
+        Solve.Outcome.Should().Be(SolveOutcome.Failed);
+        Solve.ResultMessage.Should().Contain("Rechenbibliothek (OR-Tools) konnte nicht geladen werden");
+    }
+
+    [Fact]
     public async Task Unsolvable_puzzle_is_reported_as_error()
     {
         await Solve.SolveCommand.ExecuteAsync(null);
@@ -380,7 +391,8 @@ public sealed class SolveViewModelTests : IDisposable
     [Fact]
     public async Task Solver_exception_is_reported_instead_of_crashing()
     {
-        _solver.Throw = new DllNotFoundException("libortools fehlt");
+        // Fehlende native Bibliothek hat eine eigene Meldung (Missing_native_library_is_reported_with_a_readable_hint).
+        _solver.Throw = new IOException("libortools fehlt");
 
         await Solve.SolveCommand.ExecuteAsync(null);
 

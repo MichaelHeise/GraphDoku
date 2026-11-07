@@ -1191,12 +1191,28 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      lädt deshalb `rcodesign` 0.29.0 (apple-platform-rs, MIT/Apache-2.0) mit fester Prüfsumme und signiert das Bundle
      ad hoc; auf einem Mac nimmt `tools/package.sh` stattdessen `codesign` (mit `MACOS_SIGN_IDENTITY` auch ein echtes
      Zertifikat). Ohne Apple-Entwicklerkonto und Notarisierung muss der Nutzer die App beim ersten Start einmal
-     freigeben. `rcodesign` ist nur Werkzeug im Build und wird nicht mitgeliefert. Die von `rcodesign` signierten
-     Bundles sind lokal nicht geprüft – erst der erste Lauf auf dem Runner zeigt, ob `codesign --verify` sie annimmt.
+     freigeben. `rcodesign` ist nur Werkzeug im Build und wird nicht mitgeliefert. Auf dem Runner prüft
+     `tools/package.sh` nur, dass das Bundle versiegelt ist (`_CodeSignature/CodeResources`) und `rcodesign verify`
+     das Hauptprogramm annimmt; Apples `codesign` gibt es auf Linux nicht. Die volle Prüfung (`codesign --verify
+     --deep --strict`) geht nur auf einem Mac, am Artefakt eines Probelaufs (README).
 186. **Selbsttest ohne Oberfläche und App-Symbol** (Release): `GraphDoku.App --selbsttest [Rätseldatei]` löst ein
      Rätsel (Standard: „Klassisch leicht“), prüft die Eindeutigkeit und erklärt es, ohne Avalonia zu starten;
      Exit-Code 0 bei Erfolg. So prüft der Workflow das fertige Linux-Paket (native Bibliotheken, Einzeldatei). Unter
-     Windows erscheint die Textausgabe nicht in der Konsole (`WinExe`), der Exit-Code gilt trotzdem. Neues App-Symbol
-     (sieben Knoten im Sechseck, Mitte hervorgehoben), erzeugt von `tools/icon/GenerateIcon.cs` (SkiaSharp) und
-     `tools/icon/build-icons.sh`; eingecheckt als `.icns`, `.ico` und PNG unter `src/GraphDoku.App/Assets`, gesetzt
-     als Programmsymbol der `.exe`, Fenstersymbol und im macOS-Bundle.
+     Windows ist die App ein Fensterprogramm (`WinExe`): Die Textausgabe erscheint nicht in der Konsole, und den
+     Exit-Code liefert nur ein wartender Aufruf (`Start-Process … -Wait -PassThru` bzw. `start /wait`). Der Selbsttest
+     lädt nur die nativen Bibliotheken von OR-Tools, nicht die der Oberfläche (Skia, HarfBuzz, Avalonia). Neues
+     App-Symbol (sieben Knoten im Sechseck, Mitte hervorgehoben), erzeugt von `tools/icon/GenerateIcon.cs` (SkiaSharp)
+     und `tools/icon/build-icons.sh`; eingecheckt als `.icns`, `.ico` und PNG unter `src/GraphDoku.App/Assets`,
+     gesetzt als Programmsymbol der `.exe`, Fenstersymbol und im macOS-Bundle.
+187. **Befunde des Release-Reviews** (Release, Review): Ein unabhängiges Review mit eigenem Widerlegungsschritt fand:
+     (a) Die nativen OR-Tools-Bibliotheken unter Windows setzen die Visual-C++-Laufzeit (MSVCP140/VCRUNTIME140)
+     voraus, die weder OR-Tools noch .NET mitbringen; ohne sie scheitert das erste Lösen. Mitliefern lässt sie sich
+     vom Linux-Runner aus nicht sinnvoll; stattdessen nennen README und Release-Text die „Microsoft Visual C++
+     Redistributable 2015–2022 (x64)“, und die App meldet einen Ladefehler der nativen Bibliothek mit diesem Hinweis
+     und Link (`NativeLibraryHint`), statt die technische Ausnahme zu zeigen. (b) Das Release wurde veröffentlicht,
+     bevor die Dateien hochgeladen waren, und ein erneuter Lauf zum selben Tag scheiterte. Jetzt wird es als Entwurf
+     angelegt, befüllt und erst dann veröffentlicht; ein Entwurf eines abgebrochenen Laufs wird beim nächsten Lauf
+     gelöscht, ein veröffentlichtes Release nie angetastet. (c) Kleinigkeiten: Prüfsummenliste nur für die
+     Plattformnamen des Skripts (sonst gerieten Vorabversionen derselben Version hinein), Hilfetext des Skripts,
+     Platzhalter in Kommentaren der Vorlagen. Widerlegt wurden drei Befunde, u. a. dass die CI bei Tags doppelt läuft
+     (gewollt: `ci.yml` prüft jeden Push).

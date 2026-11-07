@@ -133,25 +133,51 @@ jobs:
               f"GraphDoku {v}",
               "",
               "## Downloads",
-              f"- **Windows (x64):** `GraphDoku-{v}-windows-x64.zip` entpacken, `GraphDoku.App.exe` starten.",
+              f"- **Windows (x64):** `GraphDoku-{v}-windows-x64.zip` entpacken, `GraphDoku.App.exe` starten. "
+              "Braucht die Microsoft Visual C++ Redistributable 2015–2022 (x64), auf den meisten PCs schon vorhanden: "
+              "https://aka.ms/vs/17/release/vc_redist.x64.exe",
               f"- **macOS (Apple Silicon):** `GraphDoku-{v}-macos-arm64.zip`, **Intel-Mac:** `GraphDoku-{v}-macos-x64.zip`. "
               "`GraphDoku.app` in „Programme“ ziehen. Beim ersten Start meldet macOS einen nicht verifizierten Entwickler: "
               "Systemeinstellungen → Datenschutz & Sicherheit → „Dennoch öffnen“.",
               f"- **Linux (x64):** `GraphDoku-{v}-linux-x64.tar.gz` entpacken, `GraphDoku.App` starten.",
               "",
-              "Kein .NET nötig, alles ist enthalten. Beispielrätsel liegen im Ordner `Beispiele`. "
+              "Ein installiertes .NET ist nicht nötig. Beispielrätsel liegen im Ordner `Beispiele`. "
               f"Prüfsummen: `SHA256SUMS-{v}.txt`.",
           ])
           print(json.dumps({
               "tag_name": os.environ["TAG"],
               "name": f"GraphDoku {v}",
               "body": text,
-              "draft": False,
+              "draft": True,
               "prerelease": os.environ["PRERELEASE"] == "true",
           }))
           PY
           )
-          response=$(curl -sS -w '\n%{http_code}' -X POST -H "Authorization: token $TOKEN" \
+          auth=(-H "Authorization: token $TOKEN")
+          json_field() { python3 -c "import json,sys; print(json.load(sys.stdin)$1)"; }
+
+          # Ein Release zu diesem Tag gibt es schon? Ein Entwurf (abgebrochener Lauf) wird gelöscht und neu angelegt,
+          # ein veröffentlichtes Release bleibt unangetastet – dann bricht der Lauf ab.
+          existing=$(curl -sSf "${auth[@]}" "$API/releases?limit=50" | python3 -c '
+          import json, os, sys
+          hits = [r for r in json.load(sys.stdin) if r["tag_name"] == os.environ["TAG"]]
+          if hits:
+              print(hits[0]["id"], str(hits[0]["draft"]).lower())
+          ')
+          if [ -n "$existing" ]; then
+            set -- $existing
+            if [ "$2" = "true" ]; then
+              echo "Lösche den Entwurf eines früheren Laufs (Release $1)."
+              curl -sSf -X DELETE "${auth[@]}" "$API/releases/$1" > /dev/null
+            else
+              echo "Zum Tag $TAG gibt es schon ein veröffentlichtes Release (Id $1). Erst löschen oder einen neuen Tag nehmen." >&2
+              exit 1
+            fi
+          fi
+
+          # Erst als Entwurf anlegen und Dateien anhängen, dann veröffentlichen: Scheitert ein Upload, bleibt kein
+          # halbes Release sichtbar.
+          response=$(curl -sS -w '\n%{http_code}' -X POST "${auth[@]}" \
             -H "Content-Type: application/json" --data "$body" "$API/releases")
           status=$(echo "$response" | tail -n 1)
           if [ "$status" != "201" ]; then
@@ -160,11 +186,12 @@ jobs:
             echo "Bei HTTP 401/403: Secret RELEASE_TOKEN mit Berechtigung write:repository anlegen." >&2
             exit 1
           fi
-          id=$(echo "$response" | head -n -1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+          id=$(echo "$response" | head -n -1 | json_field '["id"]')
           for file in artifacts/release/*; do
             name=$(basename "$file")
             echo "Lade $name hoch …"
-            curl -sSf -X POST -H "Authorization: token $TOKEN" \
-              -F "attachment=@$file" "$API/releases/$id/assets?name=$name" > /dev/null
+            curl -sSf -X POST "${auth[@]}" -F "attachment=@$file" "$API/releases/$id/assets?name=$name" > /dev/null
           done
+          curl -sSf -X PATCH "${auth[@]}" -H "Content-Type: application/json" \
+            --data '{"draft": false}' "$API/releases/$id" > /dev/null
           echo "Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG"

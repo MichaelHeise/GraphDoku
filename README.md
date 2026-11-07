@@ -252,11 +252,17 @@ Linux-Paket mit einem Selbsttest und hängt alles an das Release:
 
 - Alle Pakete sind eigenständig (kein installiertes .NET nötig) und enthalten Lizenz, Drittanbieter-Hinweise und die
   Beispielrätsel (Ordner `Beispiele`).
+- Windows braucht zusätzlich die „Microsoft Visual C++ Redistributable 2015–2022 (x64)“ (von OR-Tools vorausgesetzt,
+  auf den meisten PCs schon vorhanden): <https://aka.ms/vs/17/release/vc_redist.x64.exe>. Fehlt sie, meldet die App
+  das beim ersten Lösen mit diesem Link.
 - Tags mit Zusatz (`v1.1.0-beta.1`) werden als Vorabversion markiert.
 - Probelauf ohne Release: in Gitea unter Actions → Release → „Workflow ausführen“; die Pakete liegen dann als Artefakt
   am Lauf.
 - macOS: Die App ist nur ad hoc signiert (ohne Apple-Entwicklerkonto). Beim ersten Start meldet macOS einen nicht
   verifizierten Entwickler; öffnen über Systemeinstellungen → Datenschutz & Sicherheit → „Dennoch öffnen“.
+- Die macOS-Pakete signiert der Linux-Runner mit `rcodesign`; Apples `codesign` gibt es dort nicht. Nach Änderungen an
+  Paketierung oder Signatur einmal einen Probelauf machen, das macOS-Artefakt auf einem Mac entpacken und
+  `codesign --verify --deep --strict GraphDoku.app` ausführen.
 - Legt der Token der Action kein Release an (HTTP 401/403), ein Repository-Secret `RELEASE_TOKEN` mit der Berechtigung
   `write:repository` anlegen.
 
@@ -268,7 +274,9 @@ tools/package.sh 1.0.0 artifacts/release win-x64 linux-x64
 ```
 
 Ein fertiges Paket lässt sich ohne Fenster prüfen: `GraphDoku.App --selbsttest [Rätseldatei]` löst, prüft die
-Eindeutigkeit und erklärt (Exit-Code 0 bei Erfolg). Das App-Symbol erzeugt `tools/icon/build-icons.sh` (macOS).
+Eindeutigkeit und erklärt (Exit-Code 0 bei Erfolg). Unter Windows ist die App ein Fensterprogramm: Die Ausgabe erscheint
+nicht in der Konsole, und den Exit-Code liefert nur ein wartender Aufruf, z. B.
+`(Start-Process .\GraphDoku.App.exe -ArgumentList '--selbsttest' -Wait -PassThru).ExitCode` in PowerShell. Das App-Symbol erzeugt `tools/icon/build-icons.sh` (macOS).
 
 ## Lizenz
 

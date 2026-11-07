@@ -15,7 +15,7 @@
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,/^[^#]/{/^#/p;}' "$0" | sed 's/^# \{0,1\}//'
   exit 2
 fi
 
@@ -65,6 +65,10 @@ sign_macos() { # <App-Bundle>
     codesign --verify --deep --strict "$1"
   elif command -v rcodesign >/dev/null 2>&1; then
     rcodesign sign "$1" >/dev/null
+    # Mindestprüfung auf Linux (codesign gibt es hier nicht): Ressourcen versiegelt, Hauptprogramm gültig signiert.
+    # Die volle Prüfung mit codesign --verify geht nur auf einem Mac (README, Abschnitt „Veröffentlichen“).
+    [[ -f "$1/Contents/_CodeSignature/CodeResources" ]] || { echo "rcodesign hat das Bundle nicht versiegelt." >&2; exit 1; }
+    rcodesign verify "$1/Contents/MacOS/GraphDoku.App"
   else
     echo "Weder codesign noch rcodesign gefunden – macOS-Pakete können nicht signiert werden." >&2
     exit 1
@@ -112,7 +116,8 @@ sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else sh
 (
   cd "$out"
   files=()
-  for f in GraphDoku-"$version"-*.zip GraphDoku-"$version"-*.tar.gz; do [[ -f $f ]] && files+=("$f"); done
+  # Nur die Plattformnamen dieses Skripts: GraphDoku-1.0.0-* träfe sonst auch GraphDoku-1.0.0-beta.1-* im selben Ordner.
+  for f in GraphDoku-"$version"-{windows,macos}-*.zip GraphDoku-"$version"-linux-*.tar.gz; do [[ -f $f ]] && files+=("$f"); done
   sha256 "${files[@]}" > "SHA256SUMS-$version.txt"
 )
 echo "Pakete in $out:"

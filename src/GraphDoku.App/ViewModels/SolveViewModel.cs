@@ -236,7 +236,8 @@ public sealed partial class SolveViewModel : ViewModelBase
             }
             else
             {
-                SetResult(SolveOutcome.Failed, $"Der Solver ist mit einem Fehler abgebrochen: {ex.Message}");
+                SetResult(SolveOutcome.Failed, NativeLibraryHint.Describe(ex, OperatingSystem.IsWindows())
+                    ?? $"Der Solver ist mit einem Fehler abgebrochen: {ex.Message}");
             }
         }
         finally

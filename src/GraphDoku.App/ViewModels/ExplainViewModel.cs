@@ -3,6 +3,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GraphDoku.App.Explaining;
+using GraphDoku.App.Solving;
 using GraphDoku.Core.Model;
 using GraphDoku.Explainer;
 using GraphDoku.Solver;
@@ -242,9 +243,10 @@ public sealed partial class ExplainViewModel : ViewModelBase
             }
             else
             {
-                SetStatus(ExplainOutcome.Failed, ex is InvalidOperationException
-                    ? $"Die Erklärung ist fehlgeschlagen. {ex.Message}"
-                    : $"Die Erklärung ist mit einem Fehler abgebrochen: {ex.Message}");
+                SetStatus(ExplainOutcome.Failed, NativeLibraryHint.Describe(ex, OperatingSystem.IsWindows())
+                    ?? (ex is InvalidOperationException
+                        ? $"Die Erklärung ist fehlgeschlagen. {ex.Message}"
+                        : $"Die Erklärung ist mit einem Fehler abgebrochen: {ex.Message}"));
             }
         }
         finally
