@@ -1,0 +1,513 @@
+{
+  "formatVersion": 1,
+  "name": "Thermo-Sudoku 6x6",
+  "grid": "square",
+  "domain": {
+    "min": 1,
+    "max": 6
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": 2,
+      "x": 1,
+      "y": 0
+    },
+    {
+      "id": 3,
+      "x": 2,
+      "y": 0
+    },
+    {
+      "id": 4,
+      "x": 3,
+      "y": 0
+    },
+    {
+      "id": 5,
+      "x": 4,
+      "y": 0
+    },
+    {
+      "id": 6,
+      "x": 5,
+      "y": 0
+    },
+    {
+      "id": 7,
+      "x": 0,
+      "y": 1
+    },
+    {
+      "id": 8,
+      "x": 1,
+      "y": 1,
+      "given": 5
+    },
+    {
+      "id": 9,
+      "x": 2,
+      "y": 1
+    },
+    {
+      "id": 10,
+      "x": 3,
+      "y": 1
+    },
+    {
+      "id": 11,
+      "x": 4,
+      "y": 1
+    },
+    {
+      "id": 12,
+      "x": 5,
+      "y": 1
+    },
+    {
+      "id": 13,
+      "x": 0,
+      "y": 2
+    },
+    {
+      "id": 14,
+      "x": 1,
+      "y": 2
+    },
+    {
+      "id": 15,
+      "x": 2,
+      "y": 2,
+      "given": 2
+    },
+    {
+      "id": 16,
+      "x": 3,
+      "y": 2
+    },
+    {
+      "id": 17,
+      "x": 4,
+      "y": 2
+    },
+    {
+      "id": 18,
+      "x": 5,
+      "y": 2
+    },
+    {
+      "id": 19,
+      "x": 0,
+      "y": 3,
+      "given": 5
+    },
+    {
+      "id": 20,
+      "x": 1,
+      "y": 3
+    },
+    {
+      "id": 21,
+      "x": 2,
+      "y": 3
+    },
+    {
+      "id": 22,
+      "x": 3,
+      "y": 3,
+      "given": 1
+    },
+    {
+      "id": 23,
+      "x": 4,
+      "y": 3
+    },
+    {
+      "id": 24,
+      "x": 5,
+      "y": 3
+    },
+    {
+      "id": 25,
+      "x": 0,
+      "y": 4
+    },
+    {
+      "id": 26,
+      "x": 1,
+      "y": 4
+    },
+    {
+      "id": 27,
+      "x": 2,
+      "y": 4
+    },
+    {
+      "id": 28,
+      "x": 3,
+      "y": 4
+    },
+    {
+      "id": 29,
+      "x": 4,
+      "y": 4
+    },
+    {
+      "id": 30,
+      "x": 5,
+      "y": 4
+    },
+    {
+      "id": 31,
+      "x": 0,
+      "y": 5,
+      "given": 4
+    },
+    {
+      "id": 32,
+      "x": 1,
+      "y": 5
+    },
+    {
+      "id": 33,
+      "x": 2,
+      "y": 5
+    },
+    {
+      "id": 34,
+      "x": 3,
+      "y": 5
+    },
+    {
+      "id": 35,
+      "x": 4,
+      "y": 5
+    },
+    {
+      "id": 36,
+      "x": 5,
+      "y": 5
+    }
+  ],
+  "edges": [
+    {
+      "id": 1,
+      "from": 3,
+      "to": 2,
+      "rule": "LessThan",
+      "params": {}
+    },
+    {
+      "id": 2,
+      "from": 6,
+      "to": 12,
+      "rule": "LessThan",
+      "params": {}
+    },
+    {
+      "id": 3,
+      "from": 28,
+      "to": 34,
+      "rule": "LessThan",
+      "params": {}
+    },
+    {
+      "id": 4,
+      "from": 33,
+      "to": 27,
+      "rule": "LessThan",
+      "params": {}
+    }
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "nodes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Zeile 1"
+    },
+    {
+      "id": 2,
+      "nodes": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Zeile 2"
+    },
+    {
+      "id": 3,
+      "nodes": [
+        13,
+        14,
+        15,
+        16,
+        17,
+        18
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Zeile 3"
+    },
+    {
+      "id": 4,
+      "nodes": [
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Zeile 4"
+    },
+    {
+      "id": 5,
+      "nodes": [
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Zeile 5"
+    },
+    {
+      "id": 6,
+      "nodes": [
+        31,
+        32,
+        33,
+        34,
+        35,
+        36
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Zeile 6"
+    },
+    {
+      "id": 7,
+      "nodes": [
+        1,
+        7,
+        13,
+        19,
+        25,
+        31
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Spalte 1"
+    },
+    {
+      "id": 8,
+      "nodes": [
+        2,
+        8,
+        14,
+        20,
+        26,
+        32
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Spalte 2"
+    },
+    {
+      "id": 9,
+      "nodes": [
+        3,
+        9,
+        15,
+        21,
+        27,
+        33
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Spalte 3"
+    },
+    {
+      "id": 10,
+      "nodes": [
+        4,
+        10,
+        16,
+        22,
+        28,
+        34
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Spalte 4"
+    },
+    {
+      "id": 11,
+      "nodes": [
+        5,
+        11,
+        17,
+        23,
+        29,
+        35
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Spalte 5"
+    },
+    {
+      "id": 12,
+      "nodes": [
+        6,
+        12,
+        18,
+        24,
+        30,
+        36
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Spalte 6"
+    },
+    {
+      "id": 13,
+      "nodes": [
+        1,
+        2,
+        3,
+        7,
+        8,
+        9
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Block 1"
+    },
+    {
+      "id": 14,
+      "nodes": [
+        4,
+        5,
+        6,
+        10,
+        11,
+        12
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Block 2"
+    },
+    {
+      "id": 15,
+      "nodes": [
+        13,
+        14,
+        15,
+        19,
+        20,
+        21
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Block 3"
+    },
+    {
+      "id": 16,
+      "nodes": [
+        16,
+        17,
+        18,
+        22,
+        23,
+        24
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Block 4"
+    },
+    {
+      "id": 17,
+      "nodes": [
+        25,
+        26,
+        27,
+        31,
+        32,
+        33
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Block 5"
+    },
+    {
+      "id": 18,
+      "nodes": [
+        28,
+        29,
+        30,
+        34,
+        35,
+        36
+      ],
+      "rule": "AllDifferent",
+      "params": {},
+      "label": "Block 6"
+    },
+    {
+      "id": 19,
+      "nodes": [
+        23,
+        29,
+        35
+      ],
+      "rule": "Thermometer",
+      "params": {},
+      "label": "Thermometer 1"
+    },
+    {
+      "id": 20,
+      "nodes": [
+        17,
+        11,
+        10
+      ],
+      "rule": "Thermometer",
+      "params": {},
+      "label": "Thermometer 2"
+    },
+    {
+      "id": 21,
+      "nodes": [
+        21,
+        20,
+        19
+      ],
+      "rule": "Thermometer",
+      "params": {},
+      "label": "Thermometer 3"
+    }
+  ]
+}
