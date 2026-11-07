@@ -12,7 +12,10 @@ public enum ExplanationStatus
     /// <summary>Vollständig erklärt anhand einer von mehreren Lösungen (Verzweigungswerte aus der ersten Solver-Lösung).</summary>
     SolvedAmbiguous,
 
-    /// <summary>Vollständig erklärt, aber die Eindeutigkeit ist offen, weil der Solver das Zeitlimit erreicht hat.</summary>
+    /// <summary>
+    /// Vollständig erklärt, aber nicht bestätigt: Nach einer Verzweigung ist die Eindeutigkeit offen (Zeitlimit des
+    /// Solvers), oder bei eigenen Regeln konnte der Solver die Belegung nicht prüfen (Zeitlimit, kein Adapter).
+    /// </summary>
     SolvedUnverified,
 
     /// <summary>Unlösbar: Die Logik ist auf einen Widerspruch gestoßen oder der Solver hat die Unlösbarkeit bewiesen.</summary>

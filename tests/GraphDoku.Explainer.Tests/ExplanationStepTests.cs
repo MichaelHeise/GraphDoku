@@ -1,5 +1,6 @@
 using GraphDoku.Core.Candidates;
 using GraphDoku.Core.Model;
+using GraphDoku.Core.Rules.Catalog;
 using GraphDoku.Explainer.Tests.Helpers;
 using GraphDoku.Solver.OrTools;
 
@@ -19,7 +20,7 @@ public class ExplanationStepTests
 
         // Zeile 1 des leichten Sudokus: 5 3 . . 7 . . . .
         first.Kind.Should().Be(StepKind.EliminateCandidates);
-        first.Technique.Should().Be(ExplanationTechnique.RulePropagation);
+        first.Technique.Should().Be(ExplanationTechnique.FixedValueElimination);
         first.Constraint.Should().Be(ConstraintRef.ForGroup(1));
         first.NodeIds.Should().Equal(3, 4, 6, 7, 8, 9);
         first.Changes.Should().OnlyContain(c => c.Values.SequenceEqual(new[] { 5 }));
@@ -34,23 +35,44 @@ public class ExplanationStepTests
     [Fact]
     public void Naked_and_hidden_single_steps_have_reasons()
     {
-        var steps = Easy().Steps;
-
-        var naked = steps.First(s => s.Technique == ExplanationTechnique.NakedSingle);
+        var naked = Easy().Steps.First(s => s.Technique == ExplanationTechnique.NakedSingle);
         naked.Kind.Should().Be(StepKind.SetValue);
         naked.Constraint.Should().BeNull();
         naked.InvolvedNodeIds.Should().Equal(naked.NodeId!.Value);
         naked.Text.Should().Be($"Knoten {naked.NodeId} hat nur noch den Kandidaten {naked.Value}.");
         naked.Summary.Should().Be($"Knoten {naked.NodeId} = {naked.Value}");
 
-        var hidden = steps.First(s => s.Technique == ExplanationTechnique.HiddenSingle);
+        // Das leichte Sudoku kommt ganz mit einzigen Kandidaten aus; hidden singles zeigt „mittel“.
+        var medium = new ExplanationEngine(Solver).Explain(ExplainerPuzzles.Load("klassisch-mittel.json"));
+        var hidden = medium.Steps.First(s => s.Technique == ExplanationTechnique.HiddenSingle);
         hidden.Kind.Should().Be(StepKind.SetValue);
         hidden.Constraint.Should().NotBeNull();
         hidden.InvolvedNodeIds[0].Should().Be(hidden.NodeId!.Value);
         hidden.InvolvedNodeIds.Should().HaveCount(9, "die ganze Gruppe ist am Schluss beteiligt");
-        hidden.Text.Should().Contain("Die 9 Knoten haben verschiedene Werte, und es kommen nur die 9 Werte 1 bis 9 in Frage")
-            .And.EndWith($"Die {hidden.Value} passt dort nur noch in Knoten {hidden.NodeId}.");
+        var group = medium.Puzzle.FindConstraint(hidden.Constraint!.Value) as Group;
+        hidden.Text.Should().Be(
+            $"In Gruppe {group!.Id} „{group.Label}“ muss jede Zahl von 1 bis 9 genau einmal vorkommen. Die {hidden.Value} ist nur noch in Knoten {hidden.NodeId} möglich.");
         hidden.Changes.Should().ContainSingle().Which.Kind.Should().Be(CandidateChangeKind.Assign);
+    }
+
+    [Fact]
+    public void Hidden_single_names_the_pigeonhole_argument_when_the_domains_are_larger_than_the_group()
+    {
+        // Gruppe aus drei Knoten mit Werten 1..4; Knoten 1 und 2 nur 1..2, Knoten 3 verliert die 4 über die Kante zu
+        // Knoten 4 (= 4). Dann kommen nur noch 1, 2, 3 in Frage, und die 3 passt nur in Knoten 3.
+        var puzzle = ExplainerPuzzles.WithNodes(4, 1, 4).Given(4, 4)
+            .Group(AllDifferentRule.Name, [1, 2, 3], label: "Trio")
+            .Edge(4, 3, NotEqualRule.Name);
+        puzzle.Nodes[0].Domain = new ValueDomain(1, 2);
+        puzzle.Nodes[1].Domain = new ValueDomain(1, 2);
+
+        var result = new ExplanationEngine(Solver).Explain(puzzle);
+
+        var hidden = result.Steps.Should().Contain(s => s.Technique == ExplanationTechnique.HiddenSingle).Subject;
+        hidden.NodeId.Should().Be(3);
+        hidden.Value.Should().Be(3);
+        hidden.Text.Should().Be(
+            "Gruppe 1 „Trio“: Alle 3 Knoten der Gruppe haben verschiedene Werte, und es kommen nur noch die Werte 1, 2, 3 in Frage, genauso viele wie Knoten. Also muss jede Zahl von 1 bis 3 genau einmal vorkommen. Die 3 ist nur noch in Knoten 3 möglich.");
     }
 
     [Fact]
@@ -115,7 +137,7 @@ public class ExplanationStepTests
         act1.Should().Throw<ArgumentException>();
         act2.Should().Throw<ArgumentException>();
         act3.Should().Throw<ArgumentException>();
-        new ExplanationStep(0, StepKind.Branch, ExplanationTechnique.Branch, [assign], reason).Summary.Should().Be("Verzweigung: Knoten 1 = 2");
+        new ExplanationStep(0, StepKind.Branch, ExplanationTechnique.Branch, [assign], reason).Summary.Should().Be("Knoten 1 = 2");
     }
 
     [Fact]
@@ -124,6 +146,7 @@ public class ExplanationStepTests
         StepKind.SetValue.ToGermanText().Should().Be("gesetzter Wert");
         StepKind.EliminateCandidates.ToGermanText().Should().Be("gestrichene Kandidaten");
         StepKind.Branch.ToGermanText().Should().Be("Verzweigung");
+        ExplanationTechnique.FixedValueElimination.ToGermanText().Should().Be("Feststehenden Wert streichen");
         ExplanationTechnique.NakedSingle.ToGermanText().Should().Be("Einziger Kandidat");
         ExplanationTechnique.HiddenSingle.ToGermanText().Should().Be("Einziger Platz in der Gruppe");
         ExplanationEngine.GetRuleRank("AllDifferent").Should().BeLessThan(ExplanationEngine.GetRuleRank("LessThan"));

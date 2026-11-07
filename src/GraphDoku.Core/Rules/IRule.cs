@@ -37,5 +37,12 @@ public interface IRule
     /// <see cref="CandidateState.Apply"/> an. Jede Änderung trägt eine <see cref="Reason"/>.
     /// Die Parameter müssen gültig sein (<see cref="Validate"/>).
     /// </summary>
+    /// <remarks>
+    /// Die Schlüsse müssen korrekt sein: Ein Wert darf nur gestrichen werden, wenn keine erfüllende Belegung der
+    /// beteiligten Knoten ihn nutzt (der Erklär-Modus verlässt sich darauf). Das Ergebnis soll nur von den Kandidaten
+    /// der Knoten des Constraints abhängen. Empfohlen: Bei einer vollständig festgelegten Belegung, die die Regel
+    /// verletzt, einen Wert streichen (Widerspruch). Der Erklär-Modus lässt Belegungen mit Regeln außerhalb des
+    /// Katalogs zusätzlich vom Solver bestätigen.
+    /// </remarks>
     IReadOnlyList<CandidateChange> Propagate(CandidateState state, IConstraint constraint);
 }

@@ -20,6 +20,12 @@ public enum StepKind
 /// <summary>Schlussweise eines Schritts, in der festen Reihenfolge vom einfachsten zum schwierigsten.</summary>
 public enum ExplanationTechnique
 {
+    /// <summary>
+    /// Der Wert eines Givens oder gesetzten Knotens wird bei den Nachbarn gestrichen (<c>AllDifferent</c>,
+    /// <c>CoverRange</c>, <c>NotEqual</c>); dazu Werte außerhalb eines <c>CoverRange</c>-Bereichs.
+    /// </summary>
+    FixedValueElimination,
+
     /// <summary>Einziger Kandidat in einem Knoten (naked single).</summary>
     NakedSingle,
 
@@ -47,6 +53,7 @@ public static class StepTextExtensions
     /// <summary>Deutsche Bezeichnung der Schlussweise.</summary>
     public static string ToGermanText(this ExplanationTechnique technique) => technique switch
     {
+        ExplanationTechnique.FixedValueElimination => "Feststehenden Wert streichen",
         ExplanationTechnique.NakedSingle => "Einziger Kandidat",
         ExplanationTechnique.HiddenSingle => "Einziger Platz in der Gruppe",
         ExplanationTechnique.RulePropagation => "Regel",
@@ -125,8 +132,8 @@ public sealed class ExplanationStep
         {
             if (Kind != StepKind.EliminateCandidates)
             {
-                var text = $"Knoten {NodeId} = {Format(Value!.Value)}";
-                return Kind == StepKind.Branch ? $"Verzweigung: {text}" : text;
+                // Bei einer Verzweigung nennen schon Kind und Begründung das Raten; kein zusätzliches Präfix.
+                return $"Knoten {NodeId} = {Format(Value!.Value)}";
             }
 
             var byValues = Changes.GroupBy(c => string.Join(", ", c.Values.Select(Format)));

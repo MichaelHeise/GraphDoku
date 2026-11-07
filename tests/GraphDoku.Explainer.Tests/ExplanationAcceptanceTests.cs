@@ -55,8 +55,10 @@ public class ExplanationAcceptanceTests
         ExplainerPuzzles.ToGridString(result.Solution!).Should().Be(ExplainerPuzzles.EasySolution);
         solver.CountCalls.Should().Be(0, "ohne Verzweigung beweist die Logik selbst die Eindeutigkeit");
         result.Message.Should().Contain("ohne zu raten");
-        result.Steps.Select(s => s.Technique).Should().Contain(
-            [ExplanationTechnique.NakedSingle, ExplanationTechnique.HiddenSingle, ExplanationTechnique.RulePropagation]);
+        result.Steps.Select(s => s.Technique).Should().Contain([ExplanationTechnique.FixedValueElimination, ExplanationTechnique.NakedSingle]);
+        result.Steps.Where(s => s.Kind == StepKind.SetValue).Should().OnlyContain(
+            s => s.Technique == ExplanationTechnique.NakedSingle,
+            "nach dem Streichen feststehender Werte genügen beim leichten Sudoku einzige Kandidaten");
         result.Steps.Count(s => s.Kind == StepKind.SetValue).Should().Be(81 - 30, "jeder leere Knoten wird genau einmal gesetzt");
     }
 
@@ -112,7 +114,8 @@ public class ExplanationAcceptanceTests
             branch.Technique.Should().Be(ExplanationTechnique.Branch);
             branch.Constraint.Should().BeNull();
             branch.Value.Should().Be(result.SolverSolution![branch.NodeId!.Value]);
-            branch.Summary.Should().StartWith("Verzweigung: Knoten");
+            branch.Summary.Should().Be($"Knoten {branch.NodeId} = {branch.Value}");
+            branch.ToString().Split("Verzweigung").Should().HaveCount(2, "das Wort „Verzweigung“ steht nur einmal im Text eines Schritts");
             branch.Text.Should().Contain("Ohne Raten geht es hier nicht weiter").And.Contain("aus der Lösung des Solvers");
         }
     }
@@ -144,19 +147,46 @@ public class ExplanationAcceptanceTests
         }
     }
 
-    [Fact]
-    public void Techniques_are_applied_from_simplest_to_hardest()
+    [Theory]
+    [InlineData("klassisch-leicht.json")]
+    [InlineData("klassisch-mittel.json")]
+    [InlineData("klassisch-schwer.json")]
+    public void Techniques_are_applied_from_simplest_to_hardest(string file)
     {
-        var result = new ExplanationEngine(Solver).Explain(ExplainerPuzzles.Load("klassisch-leicht.json"));
+        var result = new ExplanationEngine(Solver).Explain(ExplainerPuzzles.Load(file));
+        var puzzle = result.Puzzle;
 
-        foreach (var step in result.Steps.Where(s => s.Technique != ExplanationTechnique.NakedSingle))
+        foreach (var step in result.Steps.Where(s => s.Technique != ExplanationTechnique.FixedValueElimination))
         {
             var before = result.GetSnapshot(step.Index);
-            before.Candidates.NodeIds
-                .Where(id => !before.IsSet(id))
-                .Should().OnlyContain(
-                    id => before.Candidates.GetCandidates(id).Count > 1,
-                    $"vor Schritt {step.Index + 1} ({step.Technique}) darf es keinen einzigen Kandidaten geben");
+
+            // Stufe 0 zuerst: Kein feststehender Wert (Given oder gesetzt) steht noch als Kandidat bei einem Nachbarn.
+            foreach (var group in puzzle.Groups)
+            {
+                foreach (var source in group.Nodes.Where(before.IsSet))
+                {
+                    var value = before.GetSetValue(source)!.Value;
+                    group.Nodes.Where(n => n != source).Should().OnlyContain(
+                        n => !before.Candidates.GetCandidates(n).Contains(value),
+                        $"vor Schritt {step.Index + 1} ({step.Technique}) muss die {value} aus Knoten {source} in {group.Ref} gestrichen sein");
+                }
+            }
+
+            if (step.Technique != ExplanationTechnique.NakedSingle)
+            {
+                before.Candidates.NodeIds
+                    .Where(id => !before.IsSet(id))
+                    .Should().OnlyContain(
+                        id => before.Candidates.GetCandidates(id).Count > 1,
+                        $"vor Schritt {step.Index + 1} ({step.Technique}) darf es keinen einzigen Kandidaten geben");
+            }
+        }
+
+        // Jede Streichung feststehender Werte folgt aus Givens oder schon gesetzten Werten.
+        foreach (var step in result.Steps.Where(s => s.Technique == ExplanationTechnique.FixedValueElimination))
+        {
+            var before = result.GetSnapshot(step.Index);
+            step.InvolvedNodeIds.Except(step.NodeIds).Should().OnlyContain(n => before.IsSet(n));
         }
     }
 
