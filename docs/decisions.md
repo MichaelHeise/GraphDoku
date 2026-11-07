@@ -1078,11 +1078,74 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
 ## Review von PR #1
 
 170. **Zeitabhängige Solver-Tests robuster** (erster echter Gitea-Lauf, PR #1): Auf dem Gitea-Runner schlugen
-     `CountSolutions_reports_timeout_with_the_solutions_found_so_far` und `CountSolutions_can_be_cancelled_while_running`
-     in beiden Läufen fehl – im 300-ms-Fenster fand die Einzel-Worker-Aufzählung des leeren Sudokus keine einzige
-     Lösung. Lokal (macOS) und im Linux-x64-Container, auch mit nur einer CPU, liefen beide grün; die vermutete
-     Ursache sind parallel laufende CP-SAT-Suchen anderer Testklassen, die auf einem Runner mit vielen gemeldeten
-     Kernen entsprechend viele Worker starten. Gegenmaßnahmen: Die Klasse `SolverBehaviorTests` läuft in einer eigenen,
-     nicht parallelen Test-Collection, die beiden Tests bekommen 2 s statt 300 ms, und ihre Fehlermeldungen nennen
-     Laufzeit und Kernzahl. Die CI gibt zur Diagnose `nproc`, das CPU-Kontingent der cgroup und `lscpu` aus. Das
+     `CountSolutions_reports_timeout_with_the_solutions_found_so_far` und
+     `CountSolutions_can_be_cancelled_while_running` in beiden Läufen fehl – im 300-ms-Fenster fand die
+     Einzel-Worker-Aufzählung des leeren Sudokus keine einzige Lösung. Lokal (macOS) und im Linux-x64-Container, auch
+     mit nur einer CPU, liefen beide grün. Die Runner-Diagnose zeigte die Ursache: Der Runner hat 4 Kerne einer
+     älteren CPU (AMD A8-7600) ohne CPU-Kontingent; dort laufen die vier Test-Assemblies und die parallelen
+     CP-SAT-Suchen anderer Testklassen gleichzeitig, und 300 ms reichten nicht für die erste Lösung. Gegenmaßnahmen:
+     Die Klasse `SolverBehaviorTests` läuft in einer eigenen, nicht parallelen Test-Collection, die beiden Tests
+     bekommen 2 s statt 300 ms, und ihre Fehlermeldungen nennen Laufzeit und Kernzahl. Die CI gibt zur Diagnose
+     `nproc`, das CPU-Kontingent der cgroup und `lscpu` aus. Danach liefen auf dem Runner alle Tests grün. Das
      Verhalten des Solvers selbst ist unverändert.
+171. **Summenregel ohne Rekursion** (Review PR #1): Die Unterstützungssuche der Summenregel (`SumRule`,
+     `SupportSearch`) war rekursiv, die Tiefe entsprach der Gruppengröße. Ab etwa 10.000 Knoten in einer Summengruppe
+     – vom Validator zugelassen – führte das zu einem nicht abfangbaren StackOverflow, der die App beendete. Die Suche
+     läuft jetzt iterativ mit eigenem Stapel. Ergebnisse, Reihenfolge, Begründungstexte und das Suchbudget (ein
+     Schritt pro betretener Tiefe) sind unverändert; ein Vergleichstest gegen Brute Force und ein Lauf mit 20.000
+     Knoten auf einem Thread mit 512 KB Stack sichern das ab.
+172. **Einzelnes Surrogat im Text ist ein Formatfehler** (Review PR #1): `PuzzleSerializer.Deserialize(string)` ließ
+     eine `ArgumentException` durch, wenn der übergebene String selbst ein einzelnes UTF-16-Surrogat enthielt (nicht
+     die JSON-Maskierung, die schon Nr. 163 abdeckt). Sie wird jetzt wie dokumentiert zur `PuzzleFormatException` mit
+     deutscher Meldung. Der Ladeweg der App war nicht betroffen (`File.ReadAllText` ersetzt ungültige Bytes).
+173. **Speichern über temporäre Datei** (Review PR #1): `PuzzleSerializer.Save` kürzte die Zieldatei mit
+     `File.WriteAllText` zuerst auf null; ein Fehler mitten im Schreiben (volle Platte, getrenntes Netzlaufwerk)
+     zerstörte so die zuletzt gespeicherte Fassung. Jetzt wird in eine versteckte temporäre Datei im selben
+     Verzeichnis geschrieben, auf die Platte geschrieben (Flush) und per `File.Move(…, overwrite: true)` über das Ziel
+     gelegt; bei jedem Fehler wird die temporäre Datei gelöscht. Damit das Verhalten sonst gleich bleibt:
+     Schreibgeschützte Dateien werden weiter abgelehnt; kann im Verzeichnis keine temporäre Datei angelegt, die
+     bestehende Datei aber beschrieben werden, wird wie früher direkt (nicht atomar) überschrieben; symbolische Links
+     werden aufgelöst, sodass der Link erhalten bleibt; unter Unix übernimmt die neue Datei die Zugriffsrechte der
+     alten. Nicht erhalten bleiben Windows-ACLs und Eigentümer/Gruppe der alten Datei. Eine interne Testnaht prüft
+     einen Fehler mitten im Schreiben.
+174. **Erklärstatus „Ungültig“ kann Schritte haben** (Review PR #1): Laut Doku-Kommentar hatte
+     `ExplanationStatus.Invalid` nie Schritte. Lehnt der Solver das Rätsel aber erst ab, nachdem die Logik nicht
+     weiterkam (z. B. eigene Regel ohne OR-Tools-Adapter), liefert die Engine `Invalid` mit den bisherigen Schritten
+     und Zuständen. Die App nutzt diese Schritte bereits. Die Doku von `Invalid`, `HasSnapshots` und `GetSnapshot`
+     beschreibt jetzt beide Fälle; das Verhalten ist unverändert und per Test festgehalten.
+175. **Hidden Singles nur für Katalogregeln** (Review PR #1): Gruppen für Hidden Singles und Zählwidersprüche wurden
+     nur am Regelnamen „AllDifferent“/„CoverRange“ erkannt. Eine eigene Regel unter diesem Namen, die z. B.
+     Wiederholungen erlaubt, ergab einen falschen Widerspruch („Unlösbar“) oder einen falschen einzigen Platz. Die
+     Gruppen verlangen jetzt zusätzlich die Katalogregel, wie schon die Eliminierung fester Werte (Nr. 95). Mit den
+     mitgelieferten Regeln tritt der Fall nicht auf.
+176. **Kanten-Marken in der Kreisdarstellung treffbar** (Review PR #1): In der Kreisdarstellung traf ein Klick eine
+     Kante nur 6 px um die Verbindungslinie, auch wenn der gezeichnete Kropki-Punkt oder Pfeil größer war; weil Knoten
+     vor Kanten geprüft wurden, wählte ein Klick auf den Teil eines beschrifteten Punkts über einem Knotenkreis den
+     Knoten. Jetzt wird vor den Knoten die gezeichnete Marke selbst geprüft (Punkt mit gemessener Beschriftung im
+     gezeichneten Radius, Pfeil genau in seinem Umriss, ohne Toleranz); nach den Knoten gilt wie bisher Linie und
+     Marke mit 6 px Toleranz. Zeichnen und Treffertest nutzen dieselben Maße aus der neuen Klasse `EdgeMarks`; das
+     gezeichnete Bild ist unverändert. Liegen Marken übereinander, gewinnt jetzt die zuletzt gezeichnete (gilt auch
+     für die Zellformen).
+177. **Weitere Maustaste während einer Geste – kein Fehler** (Review PR #1): Befund: Ein Rechtsklick während des
+     Kantenziehens schließe die Geste ab, weil `PointerReleased` die Taste nicht prüft. Nicht nachvollziehbar:
+     Avalonia meldet eine weitere Maustaste bei schon gehaltener Taste als Zeigerbewegung, nicht als Drücken oder
+     Loslassen. Ein Fenstertest über den echten Eingabeweg sichert das ab; am Code wurde nichts geändert. Offen
+     bleibt, dass ein zweiter Zeiger (Multitouch, Stift) eine laufende Geste beenden kann; dafür müsste die
+     Zeichenfläche den Zeiger der Geste mitführen.
+178. **Fehler veralteter Läufe als „veraltet“ melden** (Review PR #1): Lösen, Eindeutigkeit prüfen und Erklären
+     prüften nur bei Erfolg, ob das Rätsel inzwischen geändert oder ersetzt wurde (Nr. 110). Ein Fehler aus einem
+     alten Lauf erschien deshalb als roter Fehler für das neue Rätsel. Jetzt prüft auch der Fehlerzweig zuerst die
+     Inhaltsversion und meldet dann dieselbe „veraltet“-Meldung wie bei einem veralteten Ergebnis.
+179. **„Öffnen“ fragt nach Änderungen während der Dateiauswahl erneut** (Review PR #1): „Öffnen“ fragte nur vor der
+     Dateiauswahl nach ungespeicherten Änderungen. Ist die Auswahl nicht modal (vermutlich bei manchen
+     Linux-Desktops), konnten währenddessen gemachte Änderungen ohne Rückfrage ersetzt werden. Der Befehl merkt sich
+     jetzt die Inhaltsversion vor der Auswahl; hat sie sich geändert und ist das Dokument geändert, wird vor dem Laden
+     erneut gefragt. Bei „Abbrechen“ bleibt das Dokument erhalten.
+180. **Regelparameter: Feld und Fehlermeldung passen zusammen** (Review PR #1): Ein ungültiger Text in einem
+     ganzzahligen Parameterfeld (z. B. „x“ bei fehlendem optionalem Parameter) galt beim Neuladen des Panels als
+     gleichwertig zum Modell und blieb stehen, die Fehlermeldung verschwand aber (z. B. nach „Rückgängig“). Jetzt ist
+     ungültiger Text nie gleichwertig und wird auf den Stand des Modells zurückgesetzt – so verhielt sich das Feld
+     schon bei gültigem Modellwert, und so verhalten sich die Wertebereichsfelder. Das gilt auch, wenn ein anderes
+     Feld desselben Panels gültig bearbeitet wird. Ist der Modellwert selbst ungültig (z. B. „abc“ aus einer Datei),
+     zeigt das Feld ihn mit der Meldung „Bitte eine ganze Zahl eingeben.“ statt ihn zu verbergen. Nur leerer Text gilt
+     weiter als gleichwertig zu einem fehlenden Parameter.

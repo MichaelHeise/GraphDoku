@@ -13,8 +13,8 @@ namespace GraphDoku.Solver.Tests;
 /// <summary>
 /// Die Tests mit Zeitlimit und Abbruch messen echte Laufzeit. Parallel laufende CP-SAT-Suchen anderer Testklassen
 /// (jede mit so vielen Workern, wie die Maschine Kerne meldet) können die Einzel-Worker-Suche beim Zählen auf einem
-/// geteilten CI-Runner so ausbremsen, dass im Zeitfenster keine Lösung gefunden wird. Deshalb läuft die Klasse nie
-/// parallel zu anderen Tests derselben Assembly.
+/// langsamen CI-Runner (4 ältere Kerne) so ausbremsen, dass im Zeitfenster keine Lösung gefunden wird. Deshalb läuft
+/// die Klasse nie parallel zu anderen Tests derselben Assembly.
 /// </summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class SolverTimingTests
