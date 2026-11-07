@@ -638,10 +638,17 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             ExplanationHighlight.Current => ExplanationCurrentPen,
             ExplanationHighlight.CurrentBranch => ExplanationBranchPen,
             ExplanationHighlight.Rule => ExplanationRulePen,
-            _ when empty => EmptyNodePen,
             _ => NormalNodePen,
         });
         context.DrawEllipse(fill, pen, center, radius, radius);
+        if (empty)
+        {
+            // Widerspruch: eigener roter Ring außen. Der Knoten, dem der letzte Schritt den letzten Kandidaten nimmt, ist
+            // immer zugleich Knoten des aktuellen Schritts (gelb) – der rote Ring darf die Hervorhebung nicht ersetzen.
+            var outer = radius + Math.Max(3, radius * 0.14);
+            context.DrawEllipse(null, EmptyNodePen, center, outer, outer);
+        }
+
         if (radius < 5)
         {
             return;
@@ -668,7 +675,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     /// <summary>
     /// Kandidaten als kleines Raster im Kreis, jeder Wert an fester Stelle (9 Werte 3 × 3, 16 Werte 4 × 4, bei 0–15 als
     /// 0–F). Vom aktuellen Schritt gestrichene Werte erscheinen rot und durchgestrichen. Wird die Schrift zu klein, steht
-    /// stattdessen die Anzahl der Kandidaten im Knoten.
+    /// stattdessen nur der gestrichene Wert (falls der Schritt hier streicht) bzw. die Anzahl der Kandidaten im Knoten.
     /// </summary>
     private void DrawCandidates(DrawingContext context, Point center, double radius, ValueDomain domain, IReadOnlyList<int> candidates, IReadOnlyList<int> removed)
     {
@@ -681,7 +688,13 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         var size = Math.Round(cell * 2) / 2;
         if (count > 36 || size < 5)
         {
-            if (radius >= 8 && candidates.Count > 0)
+            if (removed.Count > 0)
+            {
+                // Zu klein für das Raster: Wenigstens die Wirkung des aktuellen Schritts (gestrichene Werte rot,
+                // durchgestrichen) bleibt auf der Zeichenfläche sichtbar, statt nur im Panel zu stehen.
+                DrawRemovedOnly(context, center, radius, domain, removed);
+            }
+            else if (radius >= 8 && candidates.Count > 0)
             {
                 var text = CandidateText(FormattableString.Invariant($"({candidates.Count})"), Math.Max(4, radius * 0.6), CandidateBrush);
                 context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
@@ -714,6 +727,24 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         {
             Draw(value, RemovedCandidateBrush, strike: true);
         }
+    }
+
+    /// <summary>Kleine Knoten: nur die vom aktuellen Schritt gestrichenen Werte, mittig, rot und durchgestrichen.</summary>
+    private void DrawRemovedOnly(DrawingContext context, Point center, double radius, ValueDomain domain, IReadOnlyList<int> removed)
+    {
+        var values = removed.Select(v => ValueText.Format(v, domain)).ToList();
+        var label = string.Join(values.Any(v => v.Length > 1) ? "," : string.Empty, values);
+        var size = Math.Round(radius * 1.1 * 2) / 2;
+        var text = CandidateText(label, size, RemovedCandidateBrush);
+        if (text.Width > radius * 1.7)
+        {
+            size = Math.Max(4, Math.Round(size * radius * 1.7 / text.Width * 2) / 2);
+            text = CandidateText(label, size, RemovedCandidateBrush);
+        }
+
+        context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
+        var half = Math.Max(text.Width / 2 + 1, radius * 0.45);
+        context.DrawLine(new Pen(RemovedCandidateBrush, Math.Max(1, size / 9), lineCap: PenLineCap.Round), new Point(center.X - half, center.Y + (half * 0.45)), new Point(center.X + half, center.Y - (half * 0.45)));
     }
 
     private FormattedText CandidateText(string text, double size, IBrush brush)

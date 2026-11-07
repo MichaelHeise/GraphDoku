@@ -3,6 +3,8 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using GraphDoku.App.Controls;
+using GraphDoku.App.Editing;
+using GraphDoku.App.Explaining;
 using GraphDoku.App.Tests.Helpers;
 using GraphDoku.App.ViewModels;
 using GraphDoku.App.Views;
@@ -121,9 +123,17 @@ public sealed partial class RenderingSmokeTests
         window.Width = 1920;
         window.Height = 1200;
         Capture(window, "erklaerung-hexadoku-gross.png");
-        viewModel.Editor.ZoomInCommand.Execute(null);
-        viewModel.Editor.ZoomInCommand.Execute(null);
-        Capture(window, "erklaerung-hexadoku-zoom.png");
+        // Auf Knoten 1 (oben links) zoomen, damit die geänderte Zeile 1 im Bild bleibt.
+        var hexEditor = viewModel.Editor;
+        var first = hexEditor.Puzzle.FindNode(1)!;
+        hexEditor.PointerWheel(hexEditor.Viewport.ToScreen(EditorGeometry.Center(hexEditor.Puzzle.Grid, first)), 6);
+        var zoomed = Capture(window, "erklaerung-hexadoku-zoom.png");
+        var hexCanvas = window.FindControl<GraphCanvas>("Canvas")!;
+        hexEditor.Explanation!.GetHighlight(1).Should().Be(ExplanationHighlight.Current);
+        CountPixels(zoomed, NodeArea(window, hexCanvas, hexEditor, first, 0.9), (r, g, b) => r > 240 && g > 225 && b < 170)
+            .Should().BeGreaterThan(20, "Knoten 1 ist im 16 × 16-Raster gelb hervorgehoben");
+        CountPixels(zoomed, NodeArea(window, hexCanvas, hexEditor, first, 0.7), (r, g, b) => r > 180 && g < 90 && b < 90)
+            .Should().BeGreaterThan(3, "der gestrichene Kandidat steht rot im 4 × 4-Raster");
         window.Close();
 
         var (small, smallModel) = OpenWindow(LoadExample("klassisch-leicht.json"));
@@ -131,9 +141,16 @@ public sealed partial class RenderingSmokeTests
         small.Height = small.MinHeight;
         await smallModel.Explain.ExplainCommand.ExecuteAsync(null);
         smallModel.Explain.Position = 40;
-        Capture(small, "erklaerung-mindestgroesse.png");
+        var smallFrame = Capture(small, "erklaerung-mindestgroesse.png");
         var canvas = small.FindControl<GraphCanvas>("Canvas")!;
         canvas.Bounds.Height.Should().BeGreaterThan(200, "die Zeichenfläche bleibt im Erklär-Modus auch bei Mindestgröße nutzbar");
+
+        // Zu klein für das Kandidatenraster: Der gestrichene Wert des aktuellen Schritts steht trotzdem rot im Knoten.
+        var smallStep = smallModel.Editor.Explanation!.CurrentStep!;
+        smallStep.Kind.Should().Be(StepKind.EliminateCandidates);
+        var changed = smallModel.Editor.Puzzle.FindNode(smallStep.NodeIds[0])!;
+        CountPixels(smallFrame, NodeArea(small, canvas, smallModel.Editor, changed, 0.9), (r, g, b) => r > 180 && g < 90 && b < 90)
+            .Should().BeGreaterThan(3, "der gestrichene Kandidat ist auch bei Mindestgröße sichtbar");
         foreach (var text in new[] { "« Anfang", "Vor ›", "Ende »", "Erklärung beenden" })
         {
             var button = small.GetVisualDescendants().OfType<Button>().First(b => Equals(b.Content, text) && b.IsEffectivelyVisible);
@@ -143,6 +160,58 @@ public sealed partial class RenderingSmokeTests
         }
 
         small.Close();
+        return true;
+    }, CancellationToken.None);
+
+    [Fact]
+    public Task Explanation_mode_marks_contradiction_and_edge_rule() => fixture.Session.Dispatch(async () =>
+    {
+        // Widerspruch: Der Knoten ohne Kandidaten ist zugleich Knoten des letzten (aktuellen) Schritts – gelb UND rot umrandet.
+        var (window, viewModel) = OpenWindow(ClassicSudoku.Create(ExplainViewModelTests.Conflicting));
+        var explain = viewModel.Explain;
+        await explain.ExplainCommand.ExecuteAsync(null);
+        explain.Outcome.Should().Be(ExplainOutcome.Unsolvable, explain.StatusMessage);
+        explain.LastCommand.Execute(null);
+        var view = viewModel.Editor.Explanation!;
+        view.EmptyNodeIds.Should().NotBeEmpty();
+        var emptyId = view.EmptyNodeIds.First();
+        view.GetHighlight(emptyId).Should().Be(ExplanationHighlight.Current, "die Engine endet mit dem Schritt, der den Knoten leert");
+        var frame = Capture(window, "erklaerung-widerspruch.png");
+        var canvas = window.FindControl<GraphCanvas>("Canvas")!;
+        var emptyNode = viewModel.Editor.Puzzle.FindNode(emptyId)!;
+        CountPixels(frame, NodeArea(window, canvas, viewModel.Editor, emptyNode, 1.3), (r, g, b) => r > 180 && g < 90 && b < 90)
+            .Should().BeGreaterThan(20, "der Knoten ohne Kandidaten bekommt einen roten Ring");
+        CountPixels(frame, NodeArea(window, canvas, viewModel.Editor, emptyNode, 0.9), (r, g, b) => r > 240 && g > 225 && b < 170)
+            .Should().BeGreaterThan(20, "die gelbe Hervorhebung des aktuellen Schritts bleibt");
+        window.Close();
+
+        // Regel einer Kante: Die Kante des Schritts ist grün und dick, die andere Kante nicht.
+        var (chainWindow, chainModel) = OpenWindow(ExplainViewModelTests.LessThanChain());
+        await chainModel.Explain.ExplainCommand.ExecuteAsync(null);
+        chainModel.Explain.Outcome.Should().Be(ExplainOutcome.Solved, chainModel.Explain.StatusMessage);
+        var edgeStep = chainModel.Explain.Result!.Steps.First(s => s.Constraint is { Kind: ConstraintKind.Edge });
+        chainModel.Explain.Position = edgeStep.Index + 1;
+        var chainFrame = Capture(chainWindow, "erklaerung-kante.png");
+        var chainCanvas = chainWindow.FindControl<GraphCanvas>("Canvas")!;
+        var editor = chainModel.Editor;
+
+        int GreenOnEdge(Edge edge)
+        {
+            // Kurzes Stück der Linie kurz hinter dem Rand des Startknotens (vor der Marke in der Mitte).
+            var from = EditorGeometry.Center(editor.Puzzle.Grid, editor.Puzzle.FindNode(edge.From)!);
+            var to = EditorGeometry.Center(editor.Puzzle.Grid, editor.Puzzle.FindNode(edge.To)!);
+            var a = editor.Viewport.ToScreen(new Core.Geometry.WorldPoint(from.X + ((to.X - from.X) * 0.25), from.Y));
+            var b = editor.Viewport.ToScreen(new Core.Geometry.WorldPoint(from.X + ((to.X - from.X) * 0.35), from.Y));
+            var left = chainCanvas.TranslatePoint(new Point(a.X, a.Y), chainWindow)!.Value;
+            var right = chainCanvas.TranslatePoint(new Point(b.X, b.Y), chainWindow)!.Value;
+            return CountPixels(chainFrame, new PixelRect((int)left.X, (int)left.Y - 4, (int)(right.X - left.X), 8), (r, g, b) => r < 90 && g > 120 && b < 120);
+        }
+
+        var ruleEdge = editor.Puzzle.FindEdge(edgeStep.Constraint!.Value.Id)!;
+        var otherEdge = editor.Puzzle.Edges.Single(e => e.Id != ruleEdge.Id);
+        GreenOnEdge(ruleEdge).Should().BeGreaterThan(10, "die Kante der Regel ist grün");
+        GreenOnEdge(otherEdge).Should().Be(0, "andere Kanten bleiben normal");
+        chainWindow.Close();
         return true;
     }, CancellationToken.None);
 

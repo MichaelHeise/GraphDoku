@@ -94,4 +94,52 @@ public sealed class ExplanationWindowTests(HeadlessSessionFixture fixture)
         window.Close();
         return true;
     }, CancellationToken.None);
+
+    [Fact]
+    public Task Menu_item_switches_candidates_in_the_view_model() => fixture.Session.Dispatch(async () =>
+    {
+        var viewModel = new MainWindowViewModel(new FakeFileDialogService(), new FakeDialogService(), new OrToolsSolver());
+        viewModel.Editor.LoadPuzzle(ClassicSudoku.Create(Easy));
+        var window = new MainWindow { DataContext = viewModel, Width = 1280, Height = 800 };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        var explain = viewModel.Explain;
+        await explain.ExplainCommand.ExecuteAsync(null);
+        explain.IsActive.Should().BeTrue(explain.StatusMessage);
+        explain.ShowCandidates.Should().BeTrue();
+
+        var top = window.GetVisualDescendants().OfType<MenuItem>().Single(m => Equals(m.Header, "_Lösen") && m.Parent is Menu);
+        var item = top.Items.OfType<MenuItem>().Single(m => Equals(m.Header, "Kandidaten anzeigen"));
+        var checkBox = window.GetVisualDescendants().OfType<CheckBox>().Single(c => Equals(c.Content, "Kandidaten"));
+        item.IsChecked.Should().BeTrue();
+
+        void Choose()
+        {
+            top.IsSubMenuOpen = true;
+            Dispatcher.UIThread.RunJobs();
+            item.Focus();
+            Dispatcher.UIThread.RunJobs();
+            window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        // Der Menüeintrag muss die Einstellung im ViewModel ändern, nicht nur sein eigenes Häkchen.
+        Choose();
+        explain.ShowCandidates.Should().BeFalse();
+        viewModel.Editor.Explanation!.ShowCandidates.Should().BeFalse();
+        checkBox.IsChecked.Should().BeFalse("Häkchen in der Schrittleiste und im Menü stimmen überein");
+        item.IsChecked.Should().BeFalse();
+
+        Choose();
+        explain.ShowCandidates.Should().BeTrue();
+        checkBox.IsChecked.Should().BeTrue();
+
+        // Umgekehrt folgt das Menü dem Häkchen der Schrittleiste.
+        checkBox.IsChecked = false;
+        Dispatcher.UIThread.RunJobs();
+        explain.ShowCandidates.Should().BeFalse();
+        item.IsChecked.Should().BeFalse();
+        window.Close();
+        return true;
+    }, CancellationToken.None);
 }

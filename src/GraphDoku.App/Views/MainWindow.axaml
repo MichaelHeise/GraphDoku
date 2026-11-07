@@ -108,7 +108,7 @@
         <Separator />
         <MenuItem Header="E_rklären" Command="{Binding Explain.ExplainCommand}" InputGesture="F7" />
         <MenuItem Header="Erklärung abbrechen" Command="{Binding Explain.CancelCommand}" />
-        <MenuItem Header="Kandidaten anzeigen" ToggleType="CheckBox" IsChecked="{Binding Explain.ShowCandidates}" />
+        <MenuItem Header="Kandidaten anzeigen" ToggleType="CheckBox" IsChecked="{Binding Explain.ShowCandidates, Mode=TwoWay}" />
         <MenuItem Header="Erklärung beenden" Command="{Binding Explain.CloseCommand}" />
       </MenuItem>
     </Menu>
@@ -181,6 +181,7 @@
                      ToolTip.Tip="{Binding Solve.ResultMessage}"
                      IsVisible="{Binding Solve.ResultMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
           <TextBlock Classes="hint" MaxLines="2" TextTrimming="WordEllipsis" IsVisible="{Binding !Solve.HasStatus}"
+                     ToolTip.Tip="{Binding $self.Text}"
                      Text="„Lösen“ trägt eine Lösung in die Knoten ein (ohne das Rätsel zu ändern); „Eindeutigkeit prüfen“ sucht nach einer zweiten Lösung; „Erklären“ zeigt den Lösungsweg Schritt für Schritt." />
           <ScrollViewer MaxHeight="72" IsVisible="{Binding Solve.HasResultDetails}">
             <ItemsControl ItemsSource="{Binding Solve.ResultDetails}">
@@ -328,7 +329,7 @@
                      IsVisible="{Binding Explain.RuleText, Converter={x:Static ObjectConverters.IsNotNull}}" />
           <Rectangle Height="1" Fill="#dddddd" Margin="0,4" />
           <TextBlock Text="Legende" FontWeight="SemiBold" />
-          <Grid ColumnDefinitions="26,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="3">
+          <Grid ColumnDefinitions="26,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="3">
             <TextBlock Grid.Row="0" Text="5" FontWeight="SemiBold" HorizontalAlignment="Center" />
             <TextBlock Grid.Row="0" Grid.Column="1" Text="Given" Classes="hint" VerticalAlignment="Center" />
             <TextBlock Grid.Row="1" Text="5" Foreground="#1d4ed8" HorizontalAlignment="Center" />
@@ -343,9 +344,11 @@
             <TextBlock Grid.Row="5" Grid.Column="1" Text="verantwortliche Regel (Gruppe/Kante grün)" Classes="hint" VerticalAlignment="Center" />
             <TextBlock Grid.Row="6" Text="5" Foreground="#dc2626" TextDecorations="Strikethrough" HorizontalAlignment="Center" />
             <TextBlock Grid.Row="6" Grid.Column="1" Text="in diesem Schritt gestrichener Kandidat" Classes="hint" VerticalAlignment="Center" />
+            <Ellipse Grid.Row="7" Width="16" Height="16" Stroke="#dc2626" StrokeThickness="2" />
+            <TextBlock Grid.Row="7" Grid.Column="1" Text="Knoten ohne Kandidaten (Widerspruch)" Classes="hint" VerticalAlignment="Center" />
           </Grid>
           <TextBlock Classes="hint" Margin="0,6,0,0"
-                     Text="Tasten (nach Klick in die Zeichenfläche): ← / → ein Schritt, Pos1 / Ende zum Anfang bzw. Ende. Jede Bearbeitung des Rätsels beendet die Erklärung." />
+                     Text="Tasten: ← / → ein Schritt, Pos1 / Ende zum Anfang bzw. Ende, sobald die Schrittleiste den Fokus hat (z. B. nach Klick auf „Vor ›“). Jede Bearbeitung des Rätsels beendet die Erklärung – auch ein Klick mit „Knoten setzen“ oder das Verschieben eines Knotens." />
         </StackPanel>
         <ContentControl Content="{Binding Editor.Properties}" IsVisible="{Binding !Explain.IsActive}">
           <ContentControl.DataTemplates>

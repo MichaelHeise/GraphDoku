@@ -22,7 +22,7 @@ public sealed class ExplainViewModelTests : IDisposable
     private const string Easy = "53..7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79";
 
     /// <summary>„Leicht“ mit einer zweiten 5 in Zeile 1: Die Logik findet einen Widerspruch.</summary>
-    private const string Conflicting = "535.7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79";
+    internal const string Conflicting = "535.7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79";
 
     /// <summary>„Leicht“ ohne die 6 in Zeile 3, Spalte 8: genau zwei Lösungen.</summary>
     private const string Ambiguous = "53..7....6..195....98......8...6...34..8.3..17...2...6.6....28....419..5....8..79";
@@ -508,6 +508,58 @@ public sealed class ExplainViewModelTests : IDisposable
         window.Explain.ExplainCommand.CanExecute(null).Should().BeFalse();
         window.Solve.TimeLimitText = "10";
         window.Explain.ExplainCommand.CanExecute(null).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Drei Knoten (Werte 1–3) in einer Reihe mit Abstand 2, verbunden durch „Kleiner als“-Kanten 1 → 2 → 3; ohne
+    /// Gruppen, damit jede Begründung an einer Kante hängt.
+    /// </summary>
+    internal static Puzzle LessThanChain()
+    {
+        var puzzle = new Puzzle("Kette", GridType.Square, new ValueDomain(1, 3));
+        puzzle.Nodes.Add(new Node(1, 0, 0));
+        puzzle.Nodes.Add(new Node(2, 2, 0));
+        puzzle.Nodes.Add(new Node(3, 4, 0));
+        puzzle.Edges.Add(new Edge(1, 1, 2, "LessThan"));
+        puzzle.Edges.Add(new Edge(2, 2, 3, "LessThan"));
+        return puzzle;
+    }
+
+    [Fact]
+    public async Task Edge_rule_steps_name_the_edge_and_highlight_its_other_node()
+    {
+        var window = CreateWindow(LessThanChain(), new OrToolsSolver());
+        var explain = window.Explain;
+        await explain.ExplainCommand.ExecuteAsync(null);
+        explain.Outcome.Should().Be(ExplainOutcome.Solved, explain.StatusMessage);
+        var edgeSteps = explain.Result!.Steps.Where(s => s.Constraint is { Kind: ConstraintKind.Edge }).ToList();
+        edgeSteps.Should().NotBeEmpty("ohne Gruppen hängt die Begründung an den Kanten");
+
+        foreach (var step in edgeSteps)
+        {
+            explain.Position = step.Index + 1;
+            var edge = window.Editor.Puzzle.FindEdge(step.Constraint!.Value.Id)!;
+            explain.RuleText.Should().Be($"Kante {edge.Id} (Knoten {edge.From} – {edge.To}) · Kleiner als");
+            var view = window.Editor.Explanation!;
+            view.Constraint.Should().Be(step.Constraint);
+            view.RuleNodeIds.Should().BeEquivalentTo(step.InvolvedNodeIds.Except(step.NodeIds));
+            view.RuleNodeIds.Should().BeSubsetOf([edge.From, edge.To], "die Begründung einer Kante nennt nur ihre Endknoten");
+            foreach (var id in step.NodeIds)
+            {
+                view.GetHighlight(id).Should().Be(ExplanationHighlight.Current);
+            }
+
+            foreach (var id in view.RuleNodeIds)
+            {
+                view.GetHighlight(id).Should().Be(ExplanationHighlight.Rule);
+            }
+        }
+
+        // Der erste Schritt streicht an Kante 1 die 3 aus Knoten 1; Knoten 2 ist die Ursache.
+        explain.Position = 1;
+        explain.RuleText.Should().Be("Kante 1 (Knoten 1 – 2) · Kleiner als");
+        window.Editor.Explanation!.CurrentNodeIds.Should().Equal(1);
+        window.Editor.Explanation.RuleNodeIds.Should().Equal(2);
     }
 
     [Fact]

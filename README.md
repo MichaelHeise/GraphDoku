@@ -108,15 +108,15 @@ Zeitlimit der Lösen-Leiste gilt auch hier.
 | Aufgabe | So geht es |
 | --- | --- |
 | Schritte ansehen | Schrittleiste: « Anfang, ‹ Zurück, Vor ›, Ende » oder Schieberegler; „Schritt n von N“ (0 = Ausgangslage) |
-| Tasten | nach Klick in die Zeichenfläche: ← / → ein Schritt, Pos1 / Ende zum Anfang bzw. Ende |
+| Tasten | wenn die Schrittleiste den Fokus hat (z. B. nach Klick auf „Vor ›“): ← / → ein Schritt, Pos1 / Ende zum Anfang bzw. Ende. Vorsicht: Ein Klick in die Zeichenfläche mit „Knoten setzen“ oder das Verschieben eines Knotens ist eine Bearbeitung und beendet die Erklärung |
 | Begründung | Panel rechts: Ergebnis, Art und Schlussweise des Schritts, Kurzfassung, Begründungstext, verantwortliche Regel |
-| Kandidaten | Häkchen „Kandidaten“ (auch Menü): kleine Ziffern im Kreis, 3 × 3 bei 1–9, 4 × 4 bei 16 Werten (0–F) |
+| Kandidaten | Häkchen „Kandidaten“ (auch Menü): kleine Ziffern im Kreis, 3 × 3 bei 1–9, 4 × 4 bei 16 Werten (0–F); sind die Knoten dafür zu klein, steht die Anzahl „(n)“ bzw. bei sehr kleinen Knoten nur der gerade gestrichene Wert im Knoten (Zoomen hilft) |
 | Beenden | „Erklärung beenden“; jede Bearbeitung des Rätsels beendet die Erklärung ebenfalls |
 
 Farben auf der Zeichenfläche: **schwarz** Givens, **blau** hergeleitete Werte, **orange** geratene Werte;
 **gelb** hinterlegt die Knoten des aktuellen Schritts (rot durchgestrichen: gerade gestrichene Kandidaten),
 **orange** mit Marke „Raten“ eine Verzweigung, **grün** die Knoten, die Gruppe bzw. die Kante der verantwortlichen
-Regel. Wie die Lösung ist die Erklärung nur Anzeige: Sie ändert das Rätsel nicht und wird nicht gespeichert.
+Regel; **rot umrandet** (außen) ein Knoten ohne Kandidaten (Widerspruch). Wie die Lösung ist die Erklärung nur Anzeige: Sie ändert das Rätsel nicht und wird nicht gespeichert.
 
 Rendering-Rauchtest: `dotnet test tests/GraphDoku.App.Tests --filter Rendering` rendert das Hauptfenster headless
 (Skia, auch mit gelöstem und mehrdeutigem Sudoku und im Erklär-Modus) und legt PNGs in `$GRAPHDOKU_RENDER_DIR` bzw. im Temp-Verzeichnis unter `GraphDoku-Render` ab.

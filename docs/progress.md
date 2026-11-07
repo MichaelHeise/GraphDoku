@@ -270,9 +270,11 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
   Werte orange; Knoten des aktuellen Schritts gelb, Verzweigungsknoten orange mit Marke „Raten“, Knoten der Begründung
   grün, Gruppe bzw. Kante der Regel grün umrandet bzw. hervorgehoben; Kandidaten als kleines Raster im Kreis (3 × 3
   bei 9 Werten, 4 × 4 bei 16, bei 0–15 als 0–F), vom aktuellen Schritt gestrichene Kandidaten rot durchgestrichen;
-  Knoten ohne Kandidaten (Widerspruch) rot umrandet.
+  Knoten ohne Kandidaten (Widerspruch) mit eigenem rotem Ring außen (auch wenn der Knoten zugleich gelb
+  hervorgehoben ist).
 - Tasten: ← / → einen Schritt, Pos1 / Ende zum Anfang bzw. Ende, wenn die Zeichenfläche (oder eine Schaltfläche)
-  den Fokus hat.
+  den Fokus hat; der Hinweis im Panel nennt die Schrittleiste als Fokus, weil ein Klick in die Zeichenfläche je nach
+  Werkzeug eine Bearbeitung ist.
 - Jede inhaltliche Änderung (Bearbeitung, Rückgängig/Wiederholen) beendet den Modus mit Hinweis in der Leiste; ein
   neues Dokument beendet ihn ohne Hinweis; eine Bearbeitung während der Berechnung verwirft deren Ergebnis, ein
   Dokumentwechsel und das Schließen des Fensters brechen sie ab. Lösung und Erklärung schließen sich auf der
@@ -298,14 +300,34 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 
 - Kein Sprung zur nächsten Verzweigung und keine Markierung der Verzweigungen am Schieberegler (die Schrittnummern
   stehen im Panel).
-- Der Widerspruch einer unlösbaren Erklärung wird am Ende nur über die Meldung und den rot umrandeten Knoten ohne
-  Kandidaten gezeigt; die Knoten von `ExplanationResult.Contradiction` werden nicht eigens hervorgehoben.
+- Der Widerspruch einer unlösbaren Erklärung wird am Ende nur über die Meldung, die rot durchgestrichenen Kandidaten
+  und den roten Außenring des Knotens ohne Kandidaten gezeigt; die Knoten von `ExplanationResult.Contradiction`
+  werden nicht eigens hervorgehoben.
 
 **Bekannte Probleme**
 
 - Bei Mindestgröße (900 × 560) bleibt der Zeichenfläche im Erklär-Modus etwa 245 px Höhe (Schrittleiste zusätzlich
-  zur Lösen-Leiste); die Kandidaten sind dann sehr klein (Zoomen hilft).
+  zur Lösen-Leiste); die Knoten haben dann etwa 7 px Radius. Das Kandidatenraster und die Anzahl „(n)“ erscheinen
+  dabei **nicht**; sichtbar bleiben nur die Hervorhebung und der vom aktuellen Schritt gestrichene Wert (rot
+  durchgestrichen). Zum Ansehen der Kandidaten muss man zoomen oder das Fenster vergrößern. (Die frühere Notiz „die
+  Kandidaten sind dann sehr klein“ war falsch – sie verschwanden ganz.)
 - Beim 16 × 16-Hexadoku sind die Kandidaten bei 1280 × 800 ohne Zoom zu klein für das Raster; dann steht nur die
   Anzahl „(n)“ im Knoten. Ab etwa 1920 × 1200 oder nach Vergrößern erscheint das 4 × 4-Raster mit 0–F.
 - Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel-Tests und
   headless Tastatureingaben, Aussehen über die gerenderten Bilder belegt.
+
+**Review-Befunde (Nachbesserung Paket 6, Oberfläche)**
+
+- Roter Ring für Knoten ohne Kandidaten erschien im „unlösbar“-Ablauf nie (die gelbe Hervorhebung des letzten
+  Schritts gewann); jetzt eigener Außenring (Entscheidung Nr. 112), Rendering-Test mit dem Widerspruchs-Sudoku.
+- Menüeintrag „Kandidaten anzeigen“ änderte nur sein eigenes Häkchen (`MenuItem.IsChecked` ist in Avalonia 12
+  standardmäßig OneWay); jetzt `Mode=TwoWay`, Fenstertest über das Menü (Nr. 114).
+- Bei Mindestgröße waren die Kandidaten ganz verschwunden; jetzt steht wenigstens der gestrichene Wert im Knoten
+  (Nr. 113), Rendering-Test prüft ihn.
+- Regeln an Kanten (Regeltext „Kante n (Knoten a – b) · Kleiner als“, grüne Knoten, grüne dicke Kante) sind jetzt
+  getestet: ViewModel-Test und Rendering-Test mit einer „Kleiner als“-Kette aus drei Knoten (`erklaerung-kante.png`).
+  Das Hexadoku-Zoombild zoomt auf Knoten 1, damit die geänderte Zeile 1 mit Hervorhebung und gestrichenem Kandidaten
+  im Bild ist (geprüft).
+- Tastenhinweis im Panel nennt nicht mehr „nach Klick in die Zeichenfläche“ (ein Klick mit „Knoten setzen“ beendet die
+  Erklärung), Hinweis der Lösen-Leiste mit Tooltip (Nr. 115).
+- Gesamt danach: 533 Tests (Core 175, Solver 89, Explainer 59, App 210), alle grün in Release.

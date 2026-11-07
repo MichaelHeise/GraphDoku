@@ -672,3 +672,25 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
     Änderungen am `SolveViewModel` erfordert und keinen fachlichen Gewinn gebracht.
 111. **Bestehender Rendering-Test angepasst:** `Busy_and_error_states_render` sucht „Abbrechen“ jetzt nur in der
     Lösen-Leiste, weil die Schrittleiste eine zweite (unsichtbare) Schaltfläche „Abbrechen“ enthält.
+112. **Roter Ring für Knoten ohne Kandidaten zusätzlich außen** (Review-Befund zu Paket 6): Bisher ersetzte die gelbe
+    Hervorhebung des aktuellen Schritts den roten Ring. Weil die Engine direkt nach dem Schritt endet, der einen Knoten
+    leert, ist dieser Knoten an der letzten Position immer Knoten des aktuellen Schritts – der rote Ring erschien im
+    normalen „unlösbar“-Ablauf also nie. Jetzt bekommt ein Knoten ohne Kandidaten einen eigenen roten Ring **außerhalb**
+    des Knotenrings (Abstand max(3 px, 0,14 r)); Hervorhebung (gelb/grün) und Auswahlring bleiben erhalten. Die Legende
+    im Panel hat dafür eine Zeile „Knoten ohne Kandidaten (Widerspruch)“. Rendering-Test `erklaerung-widerspruch.png`.
+113. **Sehr kleine Knoten zeigen den gestrichenen Wert** (Review-Befund): Unter 5 px Schriftgröße für das Raster und unter
+    8 px Radius für „(n)“ war im Knoten nichts mehr zu sehen – bei Mindestgröße (900 × 560, Radius etwa 7 px) zeigte die
+    Zeichenfläche nur noch, welche Knoten gelb sind. Jetzt steht in Knoten, die zu klein für das Raster sind, der vom
+    aktuellen Schritt gestrichene Wert (mehrere ohne Trenner bzw. mit Komma bei mehrstelligen Werten) rot und
+    durchgestrichen in der Mitte; sonst wie bisher „(n)“ ab 8 px Radius, darunter nichts. Die übrigen Kandidaten sind bei
+    dieser Größe nicht zu sehen (Zoomen hilft); das Häkchen „Kandidaten“ blendet auch diese Anzeige aus.
+114. **Menüeintrag „Kandidaten anzeigen“ mit `Mode=TwoWay`** (Review-Befund): `MenuItem.IsChecked` bindet in Avalonia 12
+    standardmäßig nur in eine Richtung; der Menüeintrag schaltete daher nur sein eigenes Häkchen um. Ein Fenstertest wählt
+    den Eintrag jetzt über die Tastatur (Menü öffnen, Eintrag fokussieren, Eingabe) und prüft ViewModel und Häkchen der
+    Schrittleiste.
+115. **Tastenhinweis ohne „Klick in die Zeichenfläche“** (Review-Befund): Ein Klick mit „Knoten setzen“ setzt einen Knoten,
+    ein leichtes Ziehen mit „Auswahl“ verschiebt ihn – beides beendet die Erklärung (Nr. 103). Der Hinweis im Panel (und
+    das README) nennt jetzt die Schrittleiste als Fokus („z. B. nach Klick auf „Vor ›““) und warnt vor diesen
+    Bearbeitungen. Am Verhalten (Nr. 108) und am blauen Auswahlring, der die Hervorhebungsfarbe des Rings ersetzt
+    (Nr. 105), ändert sich nichts. Der Hinweistext der Lösen-Leiste hat einen Tooltip mit dem vollen Text, weil er bei
+    Mindestgröße abgeschnitten wird.
