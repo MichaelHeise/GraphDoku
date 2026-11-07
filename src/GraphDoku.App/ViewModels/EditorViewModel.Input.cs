@@ -257,7 +257,8 @@ public sealed partial class EditorViewModel
     /// <summary>
     /// Zeichen für ein Given in die ausgewählten Knoten. Dezimal: Ziffern (und „-“ am Anfang); aufeinanderfolgende
     /// Ziffern bilden eine mehrstellige Zahl, solange sie im Wertebereich liegt (z. B. „1“, „6“ → 16), sonst beginnt
-    /// eine neue Zahl. Bereich genau 0–15: jedes Zeichen 0–9/A–F ist ein vollständiger Wert. Liefert false, wenn das
+    /// eine neue Zahl. Hexadoku (<see cref="ValueText.IsHex"/>): jedes Zeichen 0–9/A–F ist ein vollständiger Wert (außerhalb
+    /// eines eigenen Knotenbereichs abgelehnt). Liefert false, wenn das
     /// Zeichen nicht zuständig ist (keine Knoten gewählt oder kein Wertezeichen).
     /// </summary>
     public bool EnterValueCharacter(char character)
@@ -269,7 +270,7 @@ public sealed partial class EditorViewModel
         }
 
         var domains = nodes.Select(Puzzle.GetEffectiveDomain).Distinct().ToList();
-        if (domains.All(ValueText.IsHexDomain))
+        if (nodes.All(n => ValueText.IsHex(Puzzle, n)))
         {
             if (ValueText.ParseHexDigit(character) is not int hexValue)
             {
@@ -277,6 +278,13 @@ public sealed partial class EditorViewModel
             }
 
             EndValueEntry();
+            if (!domains.All(d => d.Contains(hexValue)))
+            {
+                // Eigener Bereich im Hexadoku (z. B. 8–15): wie bei der Dezimaleingabe ablehnen und melden.
+                StatusMessage = $"Der Wert {ValueText.Format(hexValue, hex: true)} liegt außerhalb des Wertebereichs {string.Join(", ", domains)}.";
+                return true;
+            }
+
             ApplyGiven(nodes, hexValue, new object());
             return true;
         }
@@ -356,7 +364,7 @@ public sealed partial class EditorViewModel
         }
 
         StatusMessage = nodes.Count == 1
-            ? $"Given {ValueText.Format(value, Puzzle.GetEffectiveDomain(nodes[0]))} in Knoten {nodes[0].Id}."
+            ? $"Given {ValueText.Format(value, Puzzle, nodes[0])} in Knoten {nodes[0].Id}."
             : $"Given {value} in {nodes.Count} Knoten.";
     }
 

@@ -258,6 +258,68 @@ public class EditorGeometryTests
     }
 
     [Fact]
+    public void Parameter_hints_show_no_json_identifiers()
+    {
+        // Review-Befund: Der Hinweis zum Modus der Differenz zeigte „"exact": genau k, "atLeast": …“.
+        var mode = Core.Rules.RuleRegistry.Default.Rules.Single(r => r.TypeName == "Difference").Parameters.Single(p => p.Name == "mode");
+        ParameterTexts.Hint(mode).Should().Be("genau k oder mindestens k; Standard: genau k");
+        var repeats = Core.Rules.RuleRegistry.Default.Rules.Single(r => r.TypeName == "Sum").Parameters.Single(p => p.Name == "allowRepeats");
+        ParameterTexts.Hint(repeats).Should().Be("dürfen sich Werte wiederholen? Standard: nein");
+        new ViewModels.RuleParameterViewModel(mode, new RuleParams(), _ => { }).Description.Should().Be(ParameterTexts.Hint(mode));
+
+        foreach (var parameter in Core.Rules.RuleRegistry.Default.Rules.SelectMany(r => r.Parameters))
+        {
+            var hint = ParameterTexts.Hint(parameter);
+            hint.Should().NotContain("\"", parameter.Name);
+            hint.Should().NotContainAny(["true", "false"], parameter.Name);
+            foreach (var value in parameter.AllowedValues ?? [])
+            {
+                hint.Should().NotContain(value, parameter.Name);
+            }
+        }
+
+        // Ein gleichnamiger Parameter einer eigenen Regel behält seine eigene Beschreibung.
+        ParameterTexts.Hint(new Core.Rules.RuleParameter("mode", Core.Rules.RuleParameterType.Choice, "eigener Modus")).Should().Be("eigener Modus");
+    }
+
+    [Fact]
+    public void Edge_marks_stay_in_the_middle_between_neighbours()
+    {
+        var (position, gap) = EditorGeometry.EdgeMarkPosition(new WorldPoint(0, 0), new WorldPoint(1, 0), 0.38, []);
+        position.Should().Be(new WorldPoint(0.5, 0));
+        gap.Should().BeApproximately(0.24, 1e-9);
+
+        // Knoten neben der Strecke, deren Kreis sie nicht berührt (Abstand 0,5 > 0,38), ändern nichts.
+        (position, gap) = EditorGeometry.EdgeMarkPosition(new WorldPoint(0, 0), new WorldPoint(1, 0), 0.38, [new WorldPoint(0.5, 0.5), new WorldPoint(0.5, -0.5)]);
+        position.Should().Be(new WorldPoint(0.5, 0));
+        gap.Should().BeApproximately(0.24, 1e-9);
+    }
+
+    [Fact]
+    public void Edge_marks_move_off_a_node_in_the_middle_of_a_longer_edge()
+    {
+        // Review-Befund: Die Marke einer Kante zum übernächsten Knoten lag auf dem mittleren Knoten und verdeckte dessen Wert.
+        var (position, gap) = EditorGeometry.EdgeMarkPosition(new WorldPoint(0, 0), new WorldPoint(2, 0), 0.38, [new WorldPoint(1, 0)]);
+        position.X.Should().BeApproximately(0.5, 1e-9, "im ersten freien Stück zwischen erstem und mittlerem Knoten");
+        position.Y.Should().Be(0);
+        gap.Should().BeApproximately(0.24, 1e-9);
+
+        // Senkrecht ebenso; drei Knoten dazwischen (Abstand 4): das freie Stück, das der Mitte am nächsten liegt.
+        (position, _) = EditorGeometry.EdgeMarkPosition(new WorldPoint(3, 4), new WorldPoint(3, 0), 0.38, [new WorldPoint(3, 1), new WorldPoint(3, 2), new WorldPoint(3, 3)]);
+        position.X.Should().BeApproximately(3, 1e-9);
+        position.Y.Should().BeApproximately(2.5, 1e-9, "zwischen den Knoten bei y = 3 und y = 2, vom Anfang (y = 4) aus");
+
+        // Mitte frei, aber ein Kreis streift die Strecke: Marke bleibt in der Mitte, der Platz wird kleiner.
+        (position, gap) = EditorGeometry.EdgeMarkPosition(new WorldPoint(0, 0), new WorldPoint(2, 0), 0.38, [new WorldPoint(0.6, 0.3)]);
+        position.Should().Be(new WorldPoint(1, 0));
+        gap.Should().BeLessThan(2 - (2 * 0.38)).And.BeGreaterThan(0);
+
+        // Kein freies Stück (Kreise überlappen die ganze Strecke): Mitte wie bisher.
+        (position, _) = EditorGeometry.EdgeMarkPosition(new WorldPoint(0, 0), new WorldPoint(1, 0), 0.38, [new WorldPoint(0.5, 0)]);
+        position.Should().Be(new WorldPoint(0.5, 0));
+    }
+
+    [Fact]
     public void Snap_for_move_keeps_triangle_orientation()
     {
         var origin = new GridPoint(0, 0); // zeigt nach oben

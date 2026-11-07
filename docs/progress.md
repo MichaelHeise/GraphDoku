@@ -318,6 +318,23 @@ Beispiele zusammen dauert etwa eine Sekunde. Erzeugung (einmalig): Killer ≈ 25
 - Der Generator-Dialog ist modal; Auswahl und Rätsel lassen sich während der Vorschau nicht ändern (gewollt, Nr. 133).
 - Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel-Tests, Aussehen
   über die headless gerenderten Bilder.
+- Haben Knoten zugleich Kanten mit Marke zum direkten und zum übernächsten Nachbarn, liegen beide Marken im selben
+  Spalt übereinander (Nr. 147).
+
+**Review-Befunde (Nachbesserung Paket 5, Editor)**
+
+- Marken langer Kanten (z. B. freier Abstand 2) lagen auf dem Knoten dazwischen und verdeckten dessen Wert; jetzt im
+  freien Stück der Kante (Nr. 147), Unit-Tests für `EditorGeometry.EdgeMarkPosition` und Rendering-Test
+  (`lange-kanten.png`: Differenz, „Kleiner als“, Verhältnis mit Abstand 2, Givens bleiben lesbar).
+- Eigener Wertebereich im Hexadoku (z. B. 8–15) schaltete die A–F-Anzeige und -Eingabe ab; jetzt entscheidet der
+  Rätselbereich (Nr. 150), Hex-Eingaben außerhalb des eigenen Bereichs werden gemeldet. ViewModel-Test.
+- Generator bei Kanten-Id `int.MaxValue`: Vorschau meldete Erfolg, „Kanten erzeugen“ hätte die App beendet; jetzt Fehler
+  in der Vorschau und abgefangene Ausnahme in `Apply` (Nr. 149). Core- und ViewModel-Tests.
+- Zielsummen auf dem Sechseckgitter lagen im Knotenkreis neben dem Wert; jetzt außerhalb (Nr. 148), Rendering-Test
+  mit Pixelprüfung (`summen-sechseck.png`).
+- Hinweis zum Modus der Differenz zeigte JSON-Bezeichner („"exact": …“), ebenso „Standard: false“ bei Wiederholungen;
+  jetzt deutsche Hinweise (Nr. 151), Test über alle Katalogparameter.
+- Gesamt danach: 677 Tests (Core 232, Solver 104, Explainer 81, App 260), alle grün in Release.
 
 ## Paket 6 – Erklär-Modus (Bibliotheksteil)
 

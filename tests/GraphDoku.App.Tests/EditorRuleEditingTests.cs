@@ -192,6 +192,47 @@ public class EditorRuleEditingTests
     }
 
     [Fact]
+    public void Own_value_domain_inside_a_hexadoku_keeps_hex_display_and_input()
+    {
+        // Review-Befund: Mit eigenem Bereich 8..15 im Hexadoku fiel der Knoten auf Dezimal zurück („Given: 12“,
+        // Eingabe „D“ wurde stillschweigend ignoriert).
+        var puzzle = Grid(2, 1);
+        puzzle.Domain = new ValueDomain(0, 15);
+        var editor = EditorDriver.CreateEditor(puzzle);
+        editor.SelectNodes([1]);
+        editor.EnterValueCharacter('C').Should().BeTrue();
+        editor.Puzzle.FindNode(1)!.Given.Should().Be(12);
+
+        var panel = (NodeSelectionPropertiesViewModel)editor.Properties!;
+        panel.DomainMin = "8";
+        panel.DomainMax = "15";
+        panel.ApplyDomainCommand.Execute(null);
+        editor.Puzzle.FindNode(1)!.Domain.Should().Be(new ValueDomain(8, 15));
+        ((NodeSelectionPropertiesViewModel)editor.Properties!).Summary.Should().Contain("Given: C");
+        ValueText.IsHex(editor.Puzzle, editor.Puzzle.FindNode(1)!).Should().BeTrue();
+
+        editor.EnterValueCharacter('D').Should().BeTrue();
+        editor.Puzzle.FindNode(1)!.Given.Should().Be(13);
+        editor.StatusMessage.Should().Be("Given D in Knoten 1.");
+
+        // Werte außerhalb des eigenen Bereichs werden wie bei der Dezimaleingabe abgelehnt und gemeldet.
+        editor.EnterValueCharacter('3').Should().BeTrue();
+        editor.Puzzle.FindNode(1)!.Given.Should().Be(13);
+        editor.StatusMessage.Should().Be("Der Wert 3 liegt außerhalb des Wertebereichs 8..15.");
+
+        // Ein eigener Bereich, der über 0..15 hinausgeht, schaltet auf Dezimal; ein Rätsel mit anderem globalem
+        // Bereich zeigt auch einen eigenen Bereich 0..15 dezimal.
+        var node = editor.Puzzle.FindNode(2)!;
+        node.Domain = new ValueDomain(0, 20);
+        ValueText.IsHex(editor.Puzzle, node).Should().BeFalse();
+        var decimalPuzzle = Grid(1, 1);
+        decimalPuzzle.Nodes[0].Domain = new ValueDomain(0, 15);
+        ValueText.IsHex(decimalPuzzle, decimalPuzzle.Nodes[0]).Should().BeFalse();
+        ValueText.Format(12, decimalPuzzle, decimalPuzzle.Nodes[0]).Should().Be("12");
+        ValueText.Format(12, editor.Puzzle, editor.Puzzle.FindNode(1)!).Should().Be("C");
+    }
+
+    [Fact]
     public void Typing_in_the_domain_fields_survives_other_edits()
     {
         var editor = EditorDriver.CreateEditor(Grid(2, 1));

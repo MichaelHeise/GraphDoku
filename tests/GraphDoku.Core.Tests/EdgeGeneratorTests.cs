@@ -328,6 +328,39 @@ public class EdgeGeneratorTests
     }
 
     [Fact]
+    public void Edge_ids_do_not_overflow_when_an_existing_id_is_int_max_value()
+    {
+        // Review-Befund: NextEdgeId() lief bei Id int.MaxValue auf int.MinValue über, der Generator zählte dann ab 1
+        // (Kollision mit der vorhandenen Id 1) und ApplyTo warf erst beim Einfügen.
+        var puzzle = Patch(GridType.Square, 3, 1);
+        puzzle.Edges.Add(new Edge(1, 1, 2, RatioRule.Name));
+        puzzle.Edges.Add(new Edge(int.MaxValue, 2, 3, LessThanRule.Name));
+
+        var result = Generate(puzzle, DistanceRule.Orthogonal);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Edges.Should().BeEmpty();
+        result.Errors.Should().ContainSingle().Which.Should().Contain("keine freien Kanten-Ids").And.Contain("2147483647");
+    }
+
+    [Fact]
+    public void Edge_ids_up_to_int_max_value_are_used_but_never_wrapped()
+    {
+        var puzzle = Patch(GridType.Square, 3, 1);
+        puzzle.Edges.Add(new Edge(int.MaxValue - 1, 1, 2, RatioRule.Name));
+
+        // Zwei neue Kanten bräuchten int.MaxValue und int.MaxValue + 1: Fehler statt negativer Id.
+        Generate(puzzle, DistanceRule.Orthogonal).Errors.Should().ContainSingle().Which.Should().Contain("keine freien Kanten-Ids");
+
+        // Eine neue Kante passt genau.
+        var one = Generate(puzzle, DistanceRule.Orthogonal, nodes: [2, 3]);
+        one.IsSuccess.Should().BeTrue();
+        one.Edges.Should().ContainSingle().Which.Id.Should().Be(int.MaxValue);
+        one.ApplyTo(puzzle);
+        puzzle.Edges.Should().OnlyContain(e => e.Id > 0);
+    }
+
+    [Fact]
     public void Nodes_at_the_same_position_are_never_connected_with_each_other()
     {
         var puzzle = Patch(GridType.Square, 2, 1);

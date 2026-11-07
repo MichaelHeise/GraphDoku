@@ -191,6 +191,25 @@ public class EdgeGeneratorViewModelTests
     }
 
     [Fact]
+    public void Edge_id_int_max_value_is_reported_instead_of_crashing_on_apply()
+    {
+        // Review-Befund: Die Vorschau meldete Erfolg (Ids 1, 2), Apply warf dann InvalidOperationException aus ApplyTo.
+        var puzzle = Grid(3, 1);
+        puzzle.Edges.Add(new Edge(1, 1, 2, "Ratio", new RuleParams().Set("factor", 2)));
+        puzzle.Edges.Add(new Edge(int.MaxValue, 2, 3, "LessThan"));
+        var editor = EditorDriver.CreateEditor(puzzle);
+        var before = editor.Snapshot();
+        var generator = Generator(editor);
+
+        generator.CanApply.Should().BeFalse();
+        generator.PreviewErrors.Should().ContainSingle().Which.Should().Contain("keine freien Kanten-Ids");
+        generator.Apply().Should().BeFalse();
+        editor.StatusMessage.Should().StartWith("Keine Kanten erzeugt: ").And.Contain("keine freien Kanten-Ids");
+        editor.Puzzle.ShouldEqual(before);
+        editor.CanUndo.Should().BeFalse();
+    }
+
+    [Fact]
     public void Invalid_parameters_and_unreadable_numbers_show_errors_and_block_apply()
     {
         var editor = EditorDriver.CreateEditor(Grid(3, 3));

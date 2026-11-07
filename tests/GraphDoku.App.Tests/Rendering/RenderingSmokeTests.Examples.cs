@@ -78,6 +78,118 @@ public sealed partial class RenderingSmokeTests
     }, CancellationToken.None);
 
     [Fact]
+    public Task Marks_of_longer_edges_do_not_cover_the_node_in_between() => fixture.Session.Dispatch(() =>
+    {
+        // Review-Befund: Kanten zum übernächsten Knoten (freier Abstand 2) setzten ihre Marke auf die Mitte des Knotens
+        // dazwischen; seit die Marken über den Knoten liegen, verdeckte das dessen Wert.
+        var puzzle = new Puzzle("Lange Kanten", GridType.Square, new ValueDomain(1, 9));
+        for (var y = 0; y < 3; y++)
+        {
+            for (var x = 0; x < 5; x++)
+            {
+                puzzle.Nodes.Add(new Node((y * 5) + x + 1, x, y));
+            }
+        }
+
+        puzzle.Nodes[1].Given = 8;
+        puzzle.Nodes[3].Given = 8;
+        var (window, viewModel) = OpenWindow(puzzle);
+        var canvas = window.FindControl<GraphCanvas>("Canvas")!;
+        var editor = viewModel.Editor;
+        var middles = new[] { 2, 4, 7, 9, 12, 14 }.Select(id => editor.Puzzle.FindNode(id)!).ToList();
+        var plain = Capture(window, "lange-kanten-ohne.png");
+        var before = middles.Select(n => Darkness(plain, NodeArea(window, canvas, editor, n, 0.55))).ToList();
+
+        var generator = new EdgeGenerator();
+        foreach (var (row, rule) in new[] { (0, "Difference"), (1, "LessThan"), (2, "Ratio") })
+        {
+            var ids = Enumerable.Range((row * 5) + 1, 5).ToList();
+            generator.Generate(editor.Puzzle, new EdgeGenerationRequest(DistanceRule.Range(2, 2), rule) { NodeIds = ids }).ApplyTo(editor.Puzzle);
+        }
+
+        editor.Puzzle.Edges.Should().HaveCount(9);
+        editor.LoadPuzzle(editor.Puzzle.Clone());
+        var frame = Capture(window, "lange-kanten.png");
+        for (var i = 0; i < middles.Count; i++)
+        {
+            var after = Darkness(frame, NodeArea(window, canvas, editor, middles[i], 0.55));
+            output.WriteLine($"Knoten {middles[i].Id}: Dunkelheit ohne Kanten {before[i]}, mit {after}");
+            after.Should().BeCloseTo(before[i], (uint)Math.Max(300, before[i] / 20), $"keine Marke auf Knoten {middles[i].Id}");
+        }
+
+        // Die Marken sind trotzdem da, jeweils im ersten Spalt ihrer Kante (Kante 6–8 zwischen 6 und 7, 11–13 zwischen 11
+        // und 12); der letzte Spalt einer Zeile (9–10, 14–15) trägt nur die Linie der Kante 8–10 bzw. 13–15.
+        PixelRect Gap(int left, int right)
+        {
+            var a = editor.Viewport.ToScreen(EditorGeometry.Center(GridType.Square, editor.Puzzle.FindNode(left)!));
+            var b = editor.Viewport.ToScreen(EditorGeometry.Center(GridType.Square, editor.Puzzle.FindNode(right)!));
+            var mid = canvas.TranslatePoint(new Point((a.X + b.X) / 2, (a.Y + b.Y) / 2), window)!.Value;
+            var half = (int)(editor.Viewport.Scale * 0.08);
+            return new PixelRect((int)mid.X - half, (int)mid.Y - half, 2 * half, 2 * half);
+        }
+
+        CountDarkPixels(frame, Gap(11, 12)).Should().BeGreaterThan(CountDarkPixels(frame, Gap(14, 15)) + 50, "schwarzer Punkt der Kante 11–13");
+        Darkness(frame, Gap(6, 7)).Should().BeGreaterThan(Darkness(frame, Gap(9, 10)) + 2000, "Pfeil der Kante 6–8");
+
+        editor.Viewport.ZoomAt(editor.ScreenOf(new GridPoint(2, 1)), 1.6);
+        Capture(window, "lange-kanten-zoom.png");
+        window.Close();
+    }, CancellationToken.None);
+
+    [Fact]
+    public Task Hex_cage_sums_stay_outside_the_node_circle() => fixture.Session.Dispatch(() =>
+    {
+        // Review-Befund: Auf dem Sechseckgitter lag die Summe im Knotenkreis direkt neben dem Wert („17 5“).
+        var puzzle = new Puzzle("Waben-Käfige", GridType.Hex, new ValueDomain(1, 9));
+        for (var r = -2; r <= 2; r++)
+        {
+            for (var q = -2; q <= 2; q++)
+            {
+                if (Math.Abs(q + r) <= 2)
+                {
+                    puzzle.Nodes.Add(new Node(puzzle.NextNodeId(), q, r));
+                }
+            }
+        }
+
+        var byPosition = puzzle.Nodes.ToDictionary(n => (n.X, n.Y));
+        var anchors = new[] { (0, -2), (-2, 0), (0, 0) };
+        var targets = new[] { 23, 17, 30 };
+        for (var i = 0; i < anchors.Length; i++)
+        {
+            var (q, r) = anchors[i];
+            var members = new[] { (q, r), (q + 1, r), (q, r + 1) }.Where(byPosition.ContainsKey).Select(p => byPosition[p].Id).ToList();
+            byPosition[(q, r)].Given = 5;
+            puzzle.Groups.Add(new Group(i + 1, members, "Sum", new RuleParams().Set("target", targets[i]), label: $"Käfig {i + 1}"));
+        }
+
+        var (window, viewModel) = OpenWindow(puzzle);
+        var canvas = window.FindControl<GraphCanvas>("Canvas")!;
+        var editor = viewModel.Editor;
+        var frame = Capture(window, "summen-sechseck.png");
+        editor.HideAllGroupsCommand.Execute(null);
+        var hidden = Capture(window, "summen-sechseck-ausgeblendet.png");
+        foreach (var (q, r) in anchors)
+        {
+            var node = byPosition[(q, r)];
+
+            // Im Kreis (bis 0,7 Radien um die Mitte) ändert die Summe nichts, in der Ecke oben links ist sie zu sehen.
+            var inside = NodeArea(window, canvas, editor, node, 0.7);
+            Darkness(frame, inside).Should().BeCloseTo(Darkness(hidden, inside), 400, $"die Summe von Knoten {node.Id} liegt außerhalb des Kreises");
+            var center = editor.Viewport.ToScreen(EditorGeometry.Center(GridType.Hex, node));
+            var scale = editor.Viewport.Scale;
+            var corner = canvas.TranslatePoint(new Point(center.X - (scale * 0.5), center.Y - (scale * 0.3)), window)!.Value;
+            var area = new PixelRect((int)(corner.X - (scale * 0.12)), (int)(corner.Y - (scale * 0.12)), (int)(scale * 0.24), (int)(scale * 0.24));
+            CountDarkPixels(frame, area).Should().BeGreaterThan(CountDarkPixels(hidden, area) + 5, $"Summe an Knoten {node.Id}");
+        }
+
+        editor.Viewport.ZoomAt(editor.ScreenOf(new GridPoint(-2, 0)), 2.5);
+        editor.ShowAllGroupsCommand.Execute(null);
+        Capture(window, "summen-sechseck-zoom.png");
+        window.Close();
+    }, CancellationToken.None);
+
+    [Fact]
     public Task Edge_generator_dialog_renders_preview_and_errors() => fixture.Session.Dispatch(() =>
     {
         var editor = EditorDriver.CreateEditor(ClassicSudoku.Create());

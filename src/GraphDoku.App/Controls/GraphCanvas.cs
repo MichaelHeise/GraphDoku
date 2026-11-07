@@ -485,7 +485,18 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             var brush = ruleOfStep ? ExplanationRuleBrush : selected ? AccentBrush : EdgeBrush;
             if (marks)
             {
-                DrawEdgeMark(context, edge, a + (vector / 2), unit, radius, length - (2 * radius), brush, selected);
+                if (edge.Rule is "Difference" or "Ratio" or "LessThan")
+                {
+                    // Nicht auf einen Knoten zwischen den Enden (Kante zum übernächsten Knoten): Die Marke liegt über den
+                    // Knoten und verdeckte dort dessen Wert.
+                    var (position, gap) = EditorGeometry.EdgeMarkPosition(
+                        EditorGeometry.Center(puzzle.Grid, fromNode),
+                        EditorGeometry.Center(puzzle.Grid, toNode),
+                        EditorGeometry.NodeRadius(puzzle.Grid),
+                        NodesBetween(puzzle.Grid, nodes, fromNode, toNode));
+                    DrawEdgeMark(context, edge, ToPoint(viewport.ToScreen(position)), unit, radius, gap * viewport.Scale, brush, selected);
+                }
+
                 continue;
             }
 
@@ -498,6 +509,24 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             if (length > 2 * radius)
             {
                 context.DrawLine(pen, a + (unit * radius), b - (unit * radius));
+            }
+        }
+    }
+
+    /// <summary>Mittelpunkte der Knoten, deren Kreis die Strecke zwischen den beiden Knoten berühren kann (ohne die Enden).</summary>
+    private static IEnumerable<WorldPoint> NodesBetween(GridType grid, Dictionary<int, Node> nodes, Node from, Node to)
+    {
+        var a = EditorGeometry.Center(grid, from);
+        var b = EditorGeometry.Center(grid, to);
+        var r = EditorGeometry.NodeRadius(grid);
+        var (left, right) = (Math.Min(a.X, b.X) - r, Math.Max(a.X, b.X) + r);
+        var (top, bottom) = (Math.Min(a.Y, b.Y) - r, Math.Max(a.Y, b.Y) + r);
+        foreach (var node in nodes.Values)
+        {
+            var c = EditorGeometry.Center(grid, node);
+            if (c.X >= left && c.X <= right && c.Y >= top && c.Y <= bottom && c.DistanceTo(a) > 1e-9 && c.DistanceTo(b) > 1e-9)
+            {
+                yield return c;
             }
         }
     }
@@ -627,13 +656,13 @@ public sealed class GraphCanvas : Control, ICustomHitTest
 
             if (node.Given is int given)
             {
-                var text = CreateText(ValueText.Format(given, puzzle.GetEffectiveDomain(node)), radius * 1.1, TextBrush, FontWeight.SemiBold);
+                var text = CreateText(ValueText.Format(given, puzzle, node), radius * 1.1, TextBrush, FontWeight.SemiBold);
                 context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
             }
             else if (_editor.SolutionValue(node.Id) is int solved)
             {
                 // Lösungswert (nur Anzeige, nicht im Rätsel): andere Farbe und Strichstärke als ein Given.
-                var text = CreateText(ValueText.Format(solved, puzzle.GetEffectiveDomain(node)), radius * 1.05, differs ? SolutionDifferenceBrush : SolutionBrush, FontWeight.Normal);
+                var text = CreateText(ValueText.Format(solved, puzzle, node), radius * 1.05, differs ? SolutionDifferenceBrush : SolutionBrush, FontWeight.Normal);
                 context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
             }
         }
@@ -676,20 +705,21 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         }
 
         var domain = puzzle.GetEffectiveDomain(node);
+        var hex = ValueText.IsHex(puzzle, node);
         if (node.Given is int given)
         {
-            var text = CreateText(ValueText.Format(given, domain), radius * 1.1, TextBrush, FontWeight.SemiBold);
+            var text = CreateText(ValueText.Format(given, hex), radius * 1.1, TextBrush, FontWeight.SemiBold);
             context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
         }
         else if (explanation.GetSetValue(node.Id) is int value)
         {
             var brush = explanation.IsGuessed(node.Id) ? GuessedValueBrush : SolutionBrush;
-            var text = CreateText(ValueText.Format(value, domain), radius * 1.05, brush, FontWeight.Normal);
+            var text = CreateText(ValueText.Format(value, hex), radius * 1.05, brush, FontWeight.Normal);
             context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
         }
         else if (explanation.ShowCandidates)
         {
-            DrawCandidates(context, center, radius, domain, explanation.GetCandidates(node.Id), explanation.GetRemovedCandidates(node.Id));
+            DrawCandidates(context, center, radius, domain, hex, explanation.GetCandidates(node.Id), explanation.GetRemovedCandidates(node.Id));
         }
     }
 
@@ -698,7 +728,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     /// 0–F). Vom aktuellen Schritt gestrichene Werte erscheinen rot und durchgestrichen. Wird die Schrift zu klein, steht
     /// stattdessen nur der gestrichene Wert (falls der Schritt hier streicht) bzw. die Anzahl der Kandidaten im Knoten.
     /// </summary>
-    private void DrawCandidates(DrawingContext context, Point center, double radius, ValueDomain domain, IReadOnlyList<int> candidates, IReadOnlyList<int> removed)
+    private void DrawCandidates(DrawingContext context, Point center, double radius, ValueDomain domain, bool hex, IReadOnlyList<int> candidates, IReadOnlyList<int> removed)
     {
         var count = (long)domain.Max - domain.Min + 1;
         var columns = (int)Math.Ceiling(Math.Sqrt(count));
@@ -713,7 +743,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             {
                 // Zu klein für das Raster: Wenigstens die Wirkung des aktuellen Schritts (gestrichene Werte rot,
                 // durchgestrichen) bleibt auf der Zeichenfläche sichtbar, statt nur im Panel zu stehen.
-                DrawRemovedOnly(context, center, radius, domain, removed);
+                DrawRemovedOnly(context, center, radius, hex, removed);
             }
             else if (radius >= 8 && candidates.Count > 0)
             {
@@ -730,7 +760,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         {
             var index = value - domain.Min;
             var cellCenter = new Point(left + ((index % columns) + 0.5) * cell, top + ((index / columns) + 0.5) * cell);
-            var text = CandidateText(ValueText.Format(value, domain), size, brush);
+            var text = CandidateText(ValueText.Format(value, hex), size, brush);
             context.DrawText(text, new Point(cellCenter.X - (text.Width / 2), cellCenter.Y - (text.Height / 2)));
             if (strike)
             {
@@ -751,9 +781,9 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     }
 
     /// <summary>Kleine Knoten: nur die vom aktuellen Schritt gestrichenen Werte, mittig, rot und durchgestrichen.</summary>
-    private void DrawRemovedOnly(DrawingContext context, Point center, double radius, ValueDomain domain, IReadOnlyList<int> removed)
+    private void DrawRemovedOnly(DrawingContext context, Point center, double radius, bool hex, IReadOnlyList<int> removed)
     {
-        var values = removed.Select(v => ValueText.Format(v, domain)).ToList();
+        var values = removed.Select(v => ValueText.Format(v, hex)).ToList();
         var label = string.Join(values.Any(v => v.Length > 1) ? "," : string.Empty, values);
         var size = Math.Round(radius * 1.1 * 2) / 2;
         var text = CandidateText(label, size, RemovedCandidateBrush);
@@ -844,6 +874,19 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             if (puzzle.Grid == GridType.Square)
             {
                 topLeft = new Point(screenCorner.X + 2, screenCorner.Y + 1);
+            }
+            else if (puzzle.Grid == GridType.Hex)
+            {
+                // Sechseck: Der Knotenkreis füllt die Zelle fast aus (Radius 0,38 bei Innenkreis 0,5), 42 % zur Mitte lägen
+                // im Kreis direkt neben dem Wert. Daher so weit zur Ecke, dass das Etikett den Kreis gerade nicht
+                // berührt, höchstens bis zur Ecke.
+                var toCorner = screenCorner - screenCenter;
+                var cornerDistance = Math.Sqrt((toCorner.X * toCorner.X) + (toCorner.Y * toCorner.Y));
+                var unit = toCorner / cornerDistance;
+                var support = ((text.Width / 2) + 1.5) * Math.Abs(unit.X) + (text.Height / 2 * Math.Abs(unit.Y));
+                var distance = Math.Min(cornerDistance, radius + 1.5 + support);
+                var at = screenCenter + (unit * distance);
+                topLeft = new Point(at.X - (text.Width / 2), at.Y - (text.Height / 2));
             }
             else
             {

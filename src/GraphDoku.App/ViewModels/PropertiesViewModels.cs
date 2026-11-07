@@ -341,7 +341,7 @@ public sealed partial class NodeSelectionPropertiesViewModel : PropertiesViewMod
         var ids = Editor.SelectedNodeIds;
         if (ids.Count == 1 && Editor.Puzzle.FindNode(ids[0]) is { } node)
         {
-            var given = node.Given is int g ? ValueText.Format(g, Editor.Puzzle.GetEffectiveDomain(node)) : "–";
+            var given = node.Given is int g ? ValueText.Format(g, Editor.Puzzle, node) : "–";
             Summary = $"Knoten {node.Id} an Position ({node.X}, {node.Y})\nGiven: {given}\nWertebereich: {Editor.Puzzle.GetEffectiveDomain(node)}";
         }
         else

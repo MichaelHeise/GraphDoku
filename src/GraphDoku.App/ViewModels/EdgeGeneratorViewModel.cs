@@ -179,7 +179,18 @@ public sealed partial class EdgeGeneratorViewModel : ViewModelBase
         }
 
         var command = new AddGeneratedEdgesCommand(result);
-        _editor.Execute(command);
+        try
+        {
+            _editor.Execute(command);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // ApplyTo prüft vor dem Einfügen (Rätsel und Verlauf bleiben unverändert); die Meldung gehört in die
+            // Statuszeile, nicht in einen Absturz.
+            _editor.StatusMessage = $"Keine Kanten erzeugt: {ex.Message}";
+            return false;
+        }
+
         _editor.StatusMessage = result.Message;
         return true;
     }

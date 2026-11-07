@@ -39,7 +39,8 @@ public sealed partial class RuleParameterViewModel : ViewModelBase
 
     public string Label => Definition.IsRequired ? $"{DisplayName} (Pflicht)" : DisplayName;
 
-    public string Description => Definition.Description;
+    /// <summary>Hinweistext unter dem Feld (deutsch, siehe <see cref="ParameterTexts.Hint"/>).</summary>
+    public string Description => ParameterTexts.Hint(Definition);
 
     public bool IsInteger => Definition.Type == RuleParameterType.Integer;
 

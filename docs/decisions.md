@@ -882,3 +882,32 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
     `OpenFileAsync`, löst sie mit `SolveCommand` und prüft mit `CheckUniquenessCommand` die Eindeutigkeit (alle außer
     `klassisch-leer.json` eindeutig); das deckt die Paket-5-Akzeptanz auf ViewModel-Ebene. Neu ist ein Rendering-Test,
     der jede Datei über „Öffnen“ rendert.
+147. **Kantenmarken nicht auf Knoten zwischen den Enden** (Review-Befund zu Nr. 142): Seit die Marken über den Knoten
+    liegen, verdeckte die Marke einer Kante zum übernächsten Knoten (z. B. freier Abstand 2) den Wert des Knotens
+    dazwischen. `EditorGeometry.EdgeMarkPosition` legt die Marke in die Mitte, wenn diese frei ist; liegt die Mitte in
+    einem anderen Knotenkreis, kommt sie in das freie Stück der Strecke, dessen Mitte der Streckenmitte am nächsten
+    liegt (bei Gleichstand das zum Anfang hin, also zwischen erstem und mittlerem Knoten); ohne freies Stück bleibt sie in
+    der Mitte. Die Pfeilgröße richtet sich nach diesem freien Stück. Grenze: Haben dieselben Knoten zusätzlich Kanten zu
+    ihren direkten Nachbarn mit Marke, liegen beide Marken im selben Spalt übereinander (kein Ausweichen zwischen
+    Marken).
+148. **Zielsummen auf dem Sechseckgitter außerhalb des Knotenkreises** (Review-Befund zu Nr. 141): Der Kreis füllt die
+    Wabe fast aus (Radius 0,38, Innenkreis 0,5); 42 % zur Ecke lagen im Kreis direkt neben dem Wert. Jetzt wird das
+    Etikett von der Mitte Richtung linker oberer Ecke gerade so weit gerückt, dass es den Kreis nicht berührt, höchstens
+    bis zur Ecke. Quadrat und Dreieck unverändert.
+149. **Kanten-Ids des Generators ohne Überlauf** (Review-Befund): Die erste Id wird in `long` berechnet (größte Id + 1,
+    mindestens 1). Reichen die Ids bis `int.MaxValue` nicht für alle neuen Kanten, liefert der Generator einen Fehler
+    („keine freien Kanten-Ids mehr übrig …“) statt Kollision oder negativer Ids; die Vorschau zeigt ihn, „Kanten erzeugen“
+    ist gesperrt. Zusätzlich fängt `EdgeGeneratorViewModel.Apply` eine `InvalidOperationException` aus `ApplyTo` ab und
+    meldet sie in der Statuszeile (vorher hätte sie die App beendet). `Puzzle.NextEdgeId()` selbst bleibt unverändert
+    (offen aus dem Core-Teil).
+150. **A–F-Darstellung nach dem Rätselbereich** (Review-Befund zu Nr. 32/144): Ob Werte eines Knotens als 0–F angezeigt
+    und eingegeben werden, entscheidet `ValueText.IsHex(puzzle, node)`: globaler Bereich genau 0–15 und eigener Bereich
+    des Knotens innerhalb 0–15. Ein eigener Bereich 8–15 im Hexadoku bleibt also bei A–F (vorher Rückfall auf Dezimal,
+    „D“ wurde stillschweigend ignoriert). Umgekehrt zeigt ein Knoten mit eigenem Bereich 0–15 in einem Rätsel mit
+    anderem globalem Bereich jetzt dezimal (vorher A–F). Hex-Zeichen außerhalb des eigenen Bereichs werden wie bei der
+    Dezimaleingabe abgelehnt und gemeldet („Der Wert 3 liegt außerhalb des Wertebereichs 8..15.“).
+151. **Deutsche Hinweise zu Parametern ohne JSON-Bezeichner** (Review-Befund): `ParameterTexts.Hint` ersetzt die
+    Core-Beschreibung, wo sie JSON-Werte nennt: Differenz/`mode` „genau k oder mindestens k; Standard: genau k“,
+    Summe/`allowRepeats` „dürfen sich Werte wiederholen? Standard: nein“ (vorher „Standard: false“ neben dem Häkchen).
+    Zuordnung über Name und Core-Beschreibung, damit gleichnamige Parameter eigener Regeln ihre Beschreibung behalten.
+    Die Beschreibungen im Core bleiben unverändert (sie nennen bewusst die Dateiwerte).

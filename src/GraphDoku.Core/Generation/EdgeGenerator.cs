@@ -108,7 +108,9 @@ public sealed class EdgeGenerationResult
 /// unabhängig von der <see cref="EdgeDirectionPolicy"/> (bei <see cref="EdgeDirectionPolicy.ReverseReadingOrder"/> also
 /// nach To, dann From).</item>
 /// <item>Kanten-Ids beginnen bei <see cref="Puzzle.NextEdgeId"/>, mindestens bei 1: Auch wenn eine ungeprüft geöffnete
-/// Datei Kanten mit Ids ≤ 0 enthält, erzeugt der Generator keine weitere ungültige Id.</item>
+/// Datei Kanten mit Ids ≤ 0 enthält, erzeugt der Generator keine weitere ungültige Id. Reichen die Ids bis
+/// <see cref="int.MaxValue"/> nicht für alle neuen Kanten (größte vorhandene Id zu nahe daran), ist das ein Fehler im
+/// Ergebnis statt eines Überlaufs.</item>
 /// </list>
 /// </summary>
 public sealed class EdgeGenerator
@@ -142,10 +144,8 @@ public sealed class EdgeGenerator
             .Select(e => PairKey(e.From, e.To))
             .ToHashSet();
 
-        var edges = new List<Edge>();
+        var created = new List<(Node From, Node To)>();
         var skipped = 0;
-        // Ids ≤ 0 sind ungültig (PuzzleValidator); NextEdgeId() kann sie liefern, wenn alle vorhandenen Ids ≤ 0 sind.
-        var nextId = Math.Max(1, puzzle.NextEdgeId());
         foreach (var (first, second) in pairs)
         {
             if (!existing.Add(PairKey(first.Id, second.Id)))
@@ -154,9 +154,20 @@ public sealed class EdgeGenerator
                 continue;
             }
 
-            var (from, to) = request.Direction == EdgeDirectionPolicy.ReadingOrder ? (first, second) : (second, first);
-            edges.Add(new Edge(nextId++, from.Id, to.Id, rule.TypeName, parameters.Clone()));
+            created.Add(request.Direction == EdgeDirectionPolicy.ReadingOrder ? (first, second) : (second, first));
         }
+
+        // Ids ≤ 0 sind ungültig (PuzzleValidator), daher mindestens ab 1. In long gerechnet: Bei einer vorhandenen Id
+        // nahe int.MaxValue liefe NextEdgeId() bzw. das Hochzählen sonst über (negative oder doppelte Ids).
+        var firstId = Math.Max(1L, puzzle.Edges.Count == 0 ? 1L : puzzle.Edges.Max(e => (long)e.Id) + 1);
+        if (created.Count > 0 && firstId + created.Count - 1 > int.MaxValue)
+        {
+            return Failure([$"Für {created.Count} neue Kanten sind keine freien Kanten-Ids mehr übrig (die größte vorhandene Id ist {firstId - 1}); bitte die Kanten-Ids in der Datei verkleinern."]);
+        }
+
+        var edges = created
+            .Select((pair, i) => new Edge((int)(firstId + i), pair.From.Id, pair.To.Id, rule.TypeName, parameters.Clone()))
+            .ToList();
 
         return new EdgeGenerationResult(edges, pairs.Count, skipped, [], Describe(rule, request.Distance, edges.Count, pairs.Count, skipped));
     }

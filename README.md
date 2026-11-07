@@ -84,7 +84,8 @@ Fenster: links die **Gruppenliste**, in der Mitte die **Zeichenfläche**, rechts
 
 Unfertige Rätsel lassen sich speichern und wieder öffnen; was noch fehlt (z. B. eine Gruppe mit zu wenigen Knoten),
 steht im Statusbereich. Kantenmarken: Ungleich = Linie, Differenz = weißer Punkt (mit k, falls nicht 1), Verhältnis =
-schwarzer Punkt (mit Faktor, falls nicht 2), Kleiner als = Pfeil vom kleineren zum größeren Wert. Summen-Gruppen (Killer-Käfige)
+schwarzer Punkt (mit Faktor, falls nicht 2), Kleiner als = Pfeil vom kleineren zum größeren Wert; bei Kanten über
+einen Knoten hinweg sitzt die Marke im ersten freien Stück neben diesem Knoten. Summen-Gruppen (Killer-Käfige)
 zeigen ihre Zielsumme klein oben links in ihrer ersten Zelle; Thermometer erscheinen als Linie mit Kolben am Anfang.
 
 ## Lösen in der App
@@ -216,7 +217,7 @@ Knotenbelegungen, freie Hilfsvariablen machen sie aber langsamer.
 - `params` enthält nur die Parameter der Regel; unbekannte Parameter, unbekannte Felder und unbekannte Regeltypen
   werden mit verständlicher deutscher Meldung abgelehnt (mit Angabe von Kante/Gruppe).
 - Lösungen werden nie gespeichert.
-- Beim Hexadoku (Wertebereich genau 0–15) zeigt der Editor 10–15 als A–F an und nimmt A–F als Eingabe; gespeichert werden immer Zahlen.
+- Beim Hexadoku (Wertebereich genau 0–15) zeigt der Editor 10–15 als A–F an und nimmt A–F als Eingabe, auch bei Knoten mit eigenem Bereich innerhalb 0–15; gespeichert werden immer Zahlen.
 
 ## CI
 
