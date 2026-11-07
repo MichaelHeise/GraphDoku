@@ -621,4 +621,5 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 - Tests: 817, alle grün in Release (Core 259, Solver 105, Explainer 85, App 368), 0 Warnungen.
 - Nebenbei: `.claude/worktrees/` in `.gitignore` (Arbeitsverzeichnisse der Agenten waren versehentlich als
   eingebettete Repositories eingecheckt und sofort wieder entfernt worden).
-- Offen: Handtest am Desktop, Bestätigung von Stufe 0 (Nr. 95), Mehrfachzeiger-Gesten (Nr. 177).
+- Stufe 0 des Erklär-Modus (Nr. 95) vom Projektinhaber bestätigt.
+- Offen: Handtest am Desktop, Mehrfachzeiger-Gesten (Nr. 177).

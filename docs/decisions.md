@@ -567,6 +567,7 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
     Wert“ in `FindContradiction` ist damit überflüssig. `Sum` (Wiederholungsverbot) bleibt in Stufe 3, weil sich dessen
     Streichungen nicht verlässlich von den Schrankenschlüssen trennen lassen. Die Spezifikation nennt die Stufen 1–3;
     die vorgezogene Stufe ist eine Auslegung („einfachster Schluss“) und sollte vom Lead bestätigt werden.
+    **Bestätigt vom Projektinhaber am 7. November 2026** (beim Review von PR #1): Stufe 0 bleibt.
 96. **Eigene Regel setzt einen gestrichenen Wert → Widerspruch statt Ausnahme.** Liefert eine Regel `Assign(v)` für
     einen Knoten, bei dem `v` kein Kandidat mehr ist, ist das vor der ersten Verzweigung ein Beweis der Unlösbarkeit:
     Status `Unsolvable`, `Contradiction` mit Constraint und Knoten der Regel und dem Text der Regel plus „Die 4 ist für

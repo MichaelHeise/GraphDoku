@@ -417,6 +417,11 @@ Widerlegungsversuch überstehen.
 - Die Ursache des roten CI-Laufs war zuerst falsch vermutet (viele gemeldete Kerne); die Runner-Diagnose zeigte eine
   langsame 4-Kern-CPU (Nr. 170).
 
+### Entscheidung des Projektinhabers
+
+- Stufe 0 des Erklär-Modus (Nr. 95) ist **bestätigt** und bleibt. Damit ist der entsprechende offene Punkt aus
+  Abschnitt 4 erledigt.
+
 ### Neu bekannte Einschränkungen
 
 - Speichern ist in zwei Fällen nicht atomar: durch einen symbolischen Dateilink und in einem schreibgeschützten
@@ -429,5 +434,4 @@ Widerlegungsversuch überstehen.
 
 1. Den PR von `fix/pr1-review-findings` in `feature/initial-implementation` prüfen und mergen; danach sollte PR #1
    grün sein.
-2. Stufe 0 des Erklär-Modus (Nr. 95) bestätigen oder verwerfen.
-3. Von Hand testen (Abschnitt 6, Punkt 2), dann PR #1 nach `main` mergen.
+2. Von Hand testen (Abschnitt 6, Punkt 2), dann PR #1 nach `main` mergen.
