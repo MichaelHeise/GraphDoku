@@ -107,6 +107,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         _editor = DataContext as EditorViewModel;
         if (_editor is not null)
         {
+            _editor.MeasureMarkLabel = MeasureMarkLabel;
             _editor.VisualChanged += OnVisualChanged;
             _editor.PropertyChanged += OnEditorPropertyChanged;
             _editor.SetViewSize(Bounds.Width, Bounds.Height);
@@ -583,8 +584,8 @@ public sealed class GraphCanvas : Control, ICustomHitTest
 
     private static void DrawEdgeMark(DrawingContext context, Edge edge, Point middle, Vector unit, double nodeRadius, double gap, IBrush lineBrush, bool selected)
     {
-        // Markengröße relativ zum Knotenradius, damit sie auch im engeren Dreiecksgitter zwischen die Kreise passt.
-        var dot = Math.Clamp(nodeRadius * 0.32, 3.5, 14);
+        // Markengröße relativ zum Knotenradius (EdgeMarks, gemeinsam mit dem Treffertest des Editors).
+        var dot = EdgeMarks.DotRadius(nodeRadius);
         if (selected && edge.Rule is "Difference" or "Ratio" or "LessThan")
         {
             // Hof um die Marke: Bei eng liegenden Knoten füllt die Marke den Spalt fast ganz aus, die blaue Linie allein
@@ -597,35 +598,35 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         switch (edge.Rule)
         {
             case "Difference":
-            {
-                var k = SafeInt(edge.Params, "k");
-                var atLeast = SafeString(edge.Params, "mode") == "atLeast";
-                var label = k == 1 && !atLeast ? null : (atLeast ? "≥" : string.Empty) + (k?.ToString(CultureInfo.InvariantCulture) ?? "?");
-                DrawDot(context, middle, dot, selected ? NodeSelectedFill : Brushes.White, lineBrush, ring, label, TextBrush);
+                DrawDot(context, middle, dot, selected ? NodeSelectedFill : Brushes.White, lineBrush, ring, EdgeMarks.DotLabel(edge), TextBrush);
                 break;
-            }
 
             case "Ratio":
-            {
-                var factor = SafeInt(edge.Params, "factor") ?? 2;
-                DrawDot(context, middle, dot, Brushes.Black, lineBrush, ring, factor == 2 ? null : factor.ToString(CultureInfo.InvariantCulture), Brushes.White);
+                DrawDot(context, middle, dot, Brushes.Black, lineBrush, ring, EdgeMarks.DotLabel(edge), Brushes.White);
                 break;
-            }
 
             case "LessThan":
             {
-                // Pfeil von „from“ (kleiner) nach „to“ (größer); höchstens so lang wie der Spalt zwischen den Kreisen
-                // (darüber hinaus läge er auf den Werten), aber nie kleiner als 5 px.
-                var size = Math.Max(5, Math.Min(Math.Clamp(nodeRadius * 0.36, 5, 16), gap * 0.42));
+                // Pfeil von „from“ (kleiner) nach „to“ (größer).
+                var size = EdgeMarks.ArrowSize(nodeRadius, gap);
                 var normal = new Vector(-unit.Y, unit.X);
-                var tip = middle + (unit * size);
+                var outline = EdgeMarks.ArrowOutline; // gemeinsam mit dem Treffertest (EdgeMarks.Contains)
                 var geometry = new StreamGeometry();
                 using (var g = geometry.Open())
                 {
-                    g.BeginFigure(tip, true);
-                    g.LineTo(middle - (unit * size) + (normal * size * 0.75));
-                    g.LineTo(middle - (unit * size * 0.45));
-                    g.LineTo(middle - (unit * size) - (normal * size * 0.75));
+                    for (var i = 0; i < outline.Count; i++)
+                    {
+                        var corner = middle + (unit * size * outline[i].Along) + (normal * size * outline[i].Across);
+                        if (i == 0)
+                        {
+                            g.BeginFigure(corner, true);
+                        }
+                        else
+                        {
+                            g.LineTo(corner);
+                        }
+                    }
+
                     g.EndFigure(true);
                 }
 
@@ -641,8 +642,8 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         FormattedText? text = null;
         if (label is not null)
         {
-            text = CreateText(label, Math.Max(9, radius * 1.3), textBrush, FontWeight.SemiBold);
-            radius = Math.Max(radius, (Math.Max(text.Width, text.Height) / 2) + 3);
+            text = CreateMarkLabel(label, EdgeMarks.LabelFontSize(radius), textBrush);
+            radius = EdgeMarks.LabeledDotRadius(radius, text.Width, text.Height);
         }
 
         context.DrawEllipse(fill, new Pen(stroke, strokeWidth), center, radius, radius);
@@ -650,6 +651,15 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         {
             context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
         }
+    }
+
+    private static FormattedText CreateMarkLabel(string label, double size, IBrush brush) => CreateText(label, size, brush, FontWeight.SemiBold);
+
+    /// <summary>Misst die Beschriftung eines Kropki-Punkts für den Treffertest (<see cref="EditorViewModel.MeasureMarkLabel"/>).</summary>
+    private static (double Width, double Height) MeasureMarkLabel(string label, double size)
+    {
+        var text = CreateMarkLabel(label, size, TextBrush);
+        return (text.Width, text.Height);
     }
 
     private void DrawEdgePreview(DrawingContext context, Puzzle puzzle, Viewport viewport, Dictionary<int, Node> nodes)
@@ -1097,18 +1107,6 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         try
         {
             return parameters.GetIntOrNull(name);
-        }
-        catch (RuleParamsException)
-        {
-            return null;
-        }
-    }
-
-    private static string? SafeString(RuleParams parameters, string name)
-    {
-        try
-        {
-            return parameters.GetString(name, null);
         }
         catch (RuleParamsException)
         {

@@ -368,6 +368,146 @@ public class EditorViewModelTests
     }
 
     [Fact]
+    public void Clicking_inside_a_large_mark_off_the_line_selects_the_edge()
+    {
+        // Review-Befund: In der Kreisdarstellung traf ein Klick eine Kante nur 6 px um die Linie, auch wenn die
+        // gezeichnete Marke (eingepasst Maßstab 468: Punkt mit 14 px Radius) viel größer war.
+        var puzzle = new Puzzle("Paar", GridType.Square);
+        puzzle.Nodes.Add(new Node(1, 0, 0));
+        puzzle.Nodes.Add(new Node(2, 1, 0));
+        puzzle.Edges.Add(new Edge(1, 1, 2, "Ratio", new RuleParams().Set("factor", 2)));
+        var editor = EditorDriver.CreateEditor(puzzle);
+        editor.Viewport.Scale.Should().BeApproximately(468, 1e-6);
+        var mark = editor.ScreenOf(0.5, 0);
+
+        editor.Click(new ScreenPoint(mark.X, mark.Y + 11));
+
+        editor.SelectedEdgeId.Should().Be(1);
+
+        // Außerhalb der Marke und weiter als 6 px von der Linie: weiterhin nichts.
+        editor.Click(new ScreenPoint(mark.X, mark.Y + 16));
+        editor.SelectedEdgeId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Clicking_a_mark_that_overlaps_a_node_selects_the_edge()
+    {
+        // Review-Befund: Die Marke liegt über den Knoten. Beim Standardmaßstab 48 ist ein beschrifteter Punkt (k = 2)
+        // breiter als der Spalt zwischen den Kreisen; ein Klick auf den Teil über einem Knotenkreis wählte den Knoten
+        // statt der Kante. Die Linie selbst liegt unter den Knoten und bleibt dort unerreichbar.
+        var puzzle = new Puzzle("Paar", GridType.Square);
+        puzzle.Nodes.Add(new Node(1, 0, 0));
+        puzzle.Nodes.Add(new Node(2, 1, 0));
+        puzzle.Nodes.Add(new Node(3, 0, 1));
+        puzzle.Edges.Add(new Edge(1, 1, 2, "Difference", new RuleParams().Set("k", 2)));
+        puzzle.Edges.Add(new Edge(2, 1, 3, "NotEqual"));
+        var editor = EditorDriver.CreateEditor(puzzle);
+        editor.MeasureMarkLabel = (_, size) => (size * 0.6, size * 1.2); // etwa wie die Schrift der Zeichenfläche
+        editor.Viewport.ZoomAt(new ScreenPoint(500, 400), Viewport.DefaultScale / editor.Viewport.Scale);
+        var a = editor.ScreenOf(new GridPoint(0, 0));
+        var mark = editor.ScreenOf(0.5, 0);
+        var nodeRadius = EditorGeometry.NodeRadius(GridType.Square) * editor.Viewport.Scale;
+        var insideNode = new ScreenPoint(a.X + nodeRadius - 2, a.Y);
+        editor.HitNode(editor.Viewport.ToWorld(insideNode))!.Id.Should().Be(1);
+        (mark.X - insideNode.X).Should().BeGreaterThan(EditorViewModel.EdgeHitTolerance, "nur die beschriftete Marke reicht bis hierher");
+
+        editor.Click(insideNode);
+
+        editor.SelectedEdgeId.Should().Be(1);
+        editor.SelectedNodeIds.Should().BeEmpty();
+
+        // Ohne Marke (Linie unter dem Knoten) gewinnt der Knoten.
+        editor.Click(new ScreenPoint(a.X, a.Y + nodeRadius - 2));
+        editor.SelectedEdgeId.Should().BeNull();
+        editor.SelectedNodeIds.Should().Equal(1);
+    }
+
+    [Fact]
+    public void Label_measure_enlarges_the_hit_area_of_a_labelled_dot()
+    {
+        // Beschriftete Punkte (k = 2) sind größer als unbeschriftete; die Zeichenfläche misst die Beschriftung.
+        var puzzle = new Puzzle("Paar", GridType.Square);
+        puzzle.Nodes.Add(new Node(1, 0, 0));
+        puzzle.Nodes.Add(new Node(2, 1, 0));
+        puzzle.Edges.Add(new Edge(1, 1, 2, "Difference", new RuleParams().Set("k", 2)));
+        var editor = EditorDriver.CreateEditor(puzzle);
+        editor.MeasureMarkLabel = (_, size) => (size * 0.6, size * 1.2);
+        editor.Viewport.ZoomAt(new ScreenPoint(500, 400), Viewport.DefaultScale / editor.Viewport.Scale);
+        var mark = editor.ScreenOf(0.5, 0);
+        var radius = EdgeMarks.Radius(puzzle.Edges[0], EditorGeometry.NodeRadius(GridType.Square) * editor.Viewport.Scale, double.MaxValue, editor.MeasureMarkLabel);
+        radius.Should().BeGreaterThan(EdgeMarks.DotRadius(EditorGeometry.NodeRadius(GridType.Square) * editor.Viewport.Scale));
+
+        editor.Click(new ScreenPoint(mark.X, mark.Y + radius - 0.5));
+        editor.SelectedEdgeId.Should().Be(1);
+        editor.Click(new ScreenPoint(mark.X, mark.Y + radius + 0.5));
+        editor.SelectedEdgeId.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(30, 4.6)]
+    [InlineData(40, 5.8)]
+    public void Clicking_a_node_beside_a_small_mark_selects_the_node(double scale, double fromMark)
+    {
+        // Nachprüfung I1: Vor dem Knoten zählt nur die gezeichnete Marke. Bei kleinem Maßstab (große Rätsel) ist der
+        // Punkt kleiner als die Toleranz von 6 px; ein Klick in den Knoten knapp neben dem Punkt wählte die Kante,
+        // und der Knoten ließ sich dort nicht mehr verschieben.
+        var puzzle = new Puzzle("Paar", GridType.Square);
+        puzzle.Nodes.Add(new Node(1, 0, 0));
+        puzzle.Nodes.Add(new Node(2, 1, 0));
+        puzzle.Edges.Add(new Edge(1, 1, 2, "Ratio", new RuleParams().Set("factor", 2)));
+        var editor = EditorDriver.CreateEditor(puzzle);
+        editor.Viewport.ZoomAt(new ScreenPoint(500, 400), scale / editor.Viewport.Scale);
+        var mark = editor.ScreenOf(0.5, 0);
+        var dot = EdgeMarks.DotRadius(EditorGeometry.NodeRadius(GridType.Square) * editor.Viewport.Scale);
+        var beside = new ScreenPoint(mark.X - fromMark, mark.Y);
+        fromMark.Should().BeGreaterThan(dot).And.BeLessThan(EditorViewModel.EdgeHitTolerance);
+        editor.HitNode(editor.Viewport.ToWorld(beside))!.Id.Should().Be(1);
+
+        editor.Click(beside);
+
+        editor.SelectedNodeIds.Should().Equal(1);
+        editor.SelectedEdgeId.Should().BeNull();
+
+        // Auf dem Punkt selbst weiterhin die Kante; im Spalt knapp daneben fängt sie die Toleranz nach dem Knoten.
+        editor.Click(mark);
+        editor.SelectedEdgeId.Should().Be(1);
+        var inGap = new ScreenPoint(mark.X, mark.Y + EditorViewModel.EdgeHitTolerance - 0.5);
+        (inGap.Y - mark.Y).Should().BeGreaterThan(dot);
+        editor.HitNode(editor.Viewport.ToWorld(inGap)).Should().BeNull();
+        editor.Click(inGap);
+        editor.SelectedEdgeId.Should().Be(1);
+
+        // Ziehen aus dem Knoten neben dem Punkt verschiebt den Knoten.
+        editor.Drag([beside, new ScreenPoint(beside.X, beside.Y + (2 * editor.Viewport.Scale))]);
+        var moved = editor.Puzzle.FindNode(1)!;
+        (moved.X, moved.Y).Should().NotBe((0, 0));
+        (editor.Puzzle.FindNode(2)!.X, editor.Puzzle.FindNode(2)!.Y).Should().Be((1, 0));
+    }
+
+    [Fact]
+    public void Clicking_the_back_corner_of_a_large_arrow_selects_the_edge()
+    {
+        // Nachprüfung I1: Die hinteren Ecken des Pfeils liegen etwa 1,25 halbe Pfeillängen von der Mitte entfernt; ein
+        // Klick dorthin traf die Kante nicht. Neben dem Umriss (in der Kerbe hinter dem Pfeil) weiterhin nicht.
+        var puzzle = new Puzzle("Paar", GridType.Square);
+        puzzle.Nodes.Add(new Node(1, 0, 0));
+        puzzle.Nodes.Add(new Node(2, 1, 0));
+        puzzle.Edges.Add(new Edge(1, 1, 2, "LessThan"));
+        var editor = EditorDriver.CreateEditor(puzzle);
+        var mark = editor.ScreenOf(0.5, 0);
+        var size = EdgeMarks.ArrowSize(EditorGeometry.NodeRadius(GridType.Square) * editor.Viewport.Scale, double.MaxValue);
+        size.Should().Be(16);
+        var corner = new ScreenPoint(mark.X - (0.9 * size), mark.Y + (0.67 * size));
+        Math.Sqrt(Math.Pow(corner.X - mark.X, 2) + Math.Pow(corner.Y - mark.Y, 2)).Should().BeGreaterThan(size + 1, "außerhalb des bisherigen Radius (halbe Pfeillänge)");
+
+        editor.Click(corner);
+
+        editor.SelectedEdgeId.Should().Be(1);
+        editor.HitEdge(editor.Viewport.ToWorld(corner), marksOnly: true)!.Id.Should().Be(1);
+        editor.HitEdge(editor.Viewport.ToWorld(new ScreenPoint(mark.X - size, mark.Y + (0.2 * size))), marksOnly: true).Should().BeNull();
+    }
+
+    [Fact]
     public void Selecting_a_group_in_the_list_shows_its_properties()
     {
         var editor = EditorDriver.CreateEditor(ClassicSudoku.Create());
