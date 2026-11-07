@@ -44,6 +44,7 @@ Solver werden lediglich mitgeliefert. Die Zuordnung der Lizenzen beruht auf den 
 | xunit.runner.visualstudio | 3.1.5 | Apache-2.0 | https://github.com/xunit/visualstudio.xunit |
 | Microsoft.NET.Test.Sdk | 18.11.0 | MIT | https://github.com/microsoft/vstest |
 | FluentAssertions | 7.2.2 | Apache-2.0 | https://github.com/fluentassertions/fluentassertions |
+| Avalonia.Headless, Avalonia.Skia (Rendering-Rauchtest) | 12.1.5 | MIT | https://github.com/AvaloniaUI/Avalonia |
 
 FluentAssertions wird bewusst in Version 7 verwendet: Ab Version 8 steht das Paket unter einer kommerziellen Lizenz
 (Xceed), die für dieses proprietäre Projekt nicht vorgesehen ist.

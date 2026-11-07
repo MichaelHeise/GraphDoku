@@ -13,7 +13,7 @@ Die verbindliche Spezifikation liegt in `docs/spec/`.
 | --- | --- | --- |
 | 1 – Gerüst und Kernmodell | Solution, Datenmodell, Regel-Registry, Parameterprüfung, JSON laden/speichern, Vorlage „Klassisch 9×9“, CI | erledigt |
 | 2 – OR-Tools-Solver | `ISolver`, Lösen, Eindeutigkeit prüfen, Zeitlimit, Abbruch | erledigt |
-| 3 – Editor | Zeichenfläche, Knoten/Kanten/Gruppen bearbeiten, Undo/Redo, Öffnen/Speichern | offen |
+| 3 – Editor | Zeichenfläche, Knoten/Kanten/Gruppen bearbeiten, Undo/Redo, Öffnen/Speichern | erledigt |
 | 4 – Lösen in der App | „Lösen“, „Eindeutigkeit prüfen“, asynchron mit Abbruch | offen |
 | 5 – Generator und alle Regeln im Editor | Kanten-Generator, Beispielrätsel (Killer, Kropki, Hexadoku, Dreiecksgitter) | offen |
 | 6 – Erklär-Modus | Kandidaten, Propagation mit Begründung, Schrittleiste | offen |
@@ -58,6 +58,33 @@ dotnet test GraphDoku.sln -c Release --no-build
 Hinweis: Avalonia bringt eine Build-Telemetrie mit (`Avalonia.BuildServices`). Sie ist im Repo über
 `Directory.Build.targets` abgeschaltet; zusätzlich kann `AVALONIA_TELEMETRY_OPTOUT=1` gesetzt werden.
 
+## Editor bedienen
+
+Fenster: links die **Gruppenliste**, in der Mitte die **Zeichenfläche**, rechts das **Eigenschaften-Panel**, unten der
+**Statusbereich** (letzte Aktion, Hinweis zum Werkzeug, Prüfmeldungen des Rätsels).
+
+| Aufgabe | So geht es |
+| --- | --- |
+| Neues Rätsel | Datei → Neu … (Name, Gittertyp Quadrat/Dreieck/Sechseck, globaler Wertebereich) oder Vorlage „Klassisch 9×9“ |
+| Knoten setzen | Werkzeug „Knoten setzen“, klicken oder über mehrere Gitterpunkte ziehen |
+| Auswählen | Werkzeug „Auswahl“: Klick, Shift-Klick (hinzufügen/entfernen), Rahmen ziehen (Shift: hinzufügen), Strg/Cmd+A |
+| Verschieben | ausgewählte Knoten ziehen; sie rasten auf Gitterpunkte ein |
+| Löschen | Entf (Mac: fn+⌫) löscht ausgewählte Knoten (mit ihren Kanten), die gewählte Kante oder Gruppe |
+| Givens | Knoten auswählen und Ziffern tippen (mehrstellig nacheinander, bei 0–15 auch A–F); ⌫ löscht Givens |
+| Kante | Werkzeug „Kante ziehen“, Regel in der Werkzeugleiste wählen, von Knoten zu Knoten ziehen; Kante anklicken, um Regel und Parameter zu ändern |
+| Gruppe | Knoten auswählen (die Reihenfolge zählt, z. B. für Thermometer), im Panel Regel wählen, „Gruppe erstellen“ (Strg/Cmd+G); Beschriftung, Farbe, Regel, Parameter und Reihenfolge im Panel |
+| Gruppen hervorheben | Häkchen in der Gruppenliste bzw. „Alle ein“/„Alle aus“ |
+| Ansicht | Mausrad zoomt, mittlere/rechte Maustaste oder Leertaste + Ziehen verschiebt, „Einpassen“ (Strg/Cmd+0) |
+| Rückgängig | Strg/Cmd+Z, Wiederholen Strg/Cmd+Y oder Shift+Strg/Cmd+Z (alle Bearbeitungen) |
+| Dateien | Öffnen (Strg/Cmd+O), Speichern (Strg/Cmd+S), Speichern unter (Shift+Strg/Cmd+S); „ *“ im Titel = ungespeichert |
+
+Unfertige Rätsel lassen sich speichern und wieder öffnen; was noch fehlt (z. B. eine Gruppe mit zu wenigen Knoten),
+steht im Statusbereich. Kantenmarken: Ungleich = Linie, Differenz = weißer Punkt (mit k, falls nicht 1), Verhältnis =
+schwarzer Punkt (mit Faktor, falls nicht 2), Kleiner als = Pfeil vom kleineren zum größeren Wert.
+
+Rendering-Rauchtest: `dotnet test tests/GraphDoku.App.Tests --filter Rendering` rendert das Hauptfenster headless
+(Skia) und legt PNGs in `$GRAPHDOKU_RENDER_DIR` bzw. im Temp-Verzeichnis unter `GraphDoku-Render` ab.
+
 ## Projektstruktur
 
 ```text
@@ -71,7 +98,7 @@ tests/
   GraphDoku.Core.Tests/
   GraphDoku.Solver.Tests/
   GraphDoku.Explainer.Tests/
-  GraphDoku.App.Tests/   ViewModel-Tests
+  GraphDoku.App.Tests/   ViewModel-Tests, Akzeptanztest Editor, Rendering-Rauchtests (headless)
 puzzles/                 Beispielrätsel als JSON (auch Testdaten): klassisch-leer, -leicht, -mittel, -schwer
 docs/
   spec/                  Spezifikation (Projektkonzept, Agenten-Anleitung)
@@ -127,12 +154,13 @@ Knotenbelegungen, freie Hilfsvariablen machen sie aber langsamer.
 - `params` enthält nur die Parameter der Regel; unbekannte Parameter, unbekannte Felder und unbekannte Regeltypen
   werden mit verständlicher deutscher Meldung abgelehnt (mit Angabe von Kante/Gruppe).
 - Lösungen werden nie gespeichert.
-- Beim Hexadoku (Wertebereich genau 0–15) wird die App 10–15 als A–F anzeigen (ab dem Editor, Paket 3); gespeichert werden immer Zahlen.
+- Beim Hexadoku (Wertebereich genau 0–15) zeigt der Editor 10–15 als A–F an und nimmt A–F als Eingabe; gespeichert werden immer Zahlen.
 
 ## CI
 
 Gitea Actions (`.gitea/workflows/ci.yml`) läuft bei jedem Push und Pull Request auf einem Ubuntu-Runner
 (`ubuntu-latest`): Restore, Release-Build und alle Tests; die Testergebnisse (TRX) werden als Artefakt hochgeladen.
+Für den headless Rendering-Rauchtest installiert die CI bei Bedarf `libfontconfig1` (von SkiaSharp benötigt).
 
 ## Lizenz
 

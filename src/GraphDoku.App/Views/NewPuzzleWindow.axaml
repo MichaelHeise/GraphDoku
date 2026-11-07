@@ -1,0 +1,34 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GraphDoku.App.ViewModels"
+        x:Class="GraphDoku.App.Views.NewPuzzleWindow"
+        x:DataType="vm:NewPuzzleViewModel"
+        Title="Neues Rätsel"
+        Width="380" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="16" Spacing="8">
+    <TextBlock Text="Name" />
+    <TextBox Text="{Binding Name}" />
+    <TextBlock Text="Gittertyp" Margin="0,4,0,0" />
+    <ComboBox ItemsSource="{Binding GridOptions}" SelectedItem="{Binding SelectedGrid}" HorizontalAlignment="Stretch">
+      <ComboBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:GridOption">
+          <TextBlock Text="{Binding Name}" />
+        </DataTemplate>
+      </ComboBox.ItemTemplate>
+    </ComboBox>
+    <TextBlock Text="Globaler Wertebereich" Margin="0,4,0,0" />
+    <StackPanel Orientation="Horizontal" Spacing="6">
+      <TextBox Text="{Binding DomainMin}" Width="80" />
+      <TextBlock Text="bis" VerticalAlignment="Center" />
+      <TextBox Text="{Binding DomainMax}" Width="80" />
+    </StackPanel>
+    <TextBlock Text="{Binding Error}" Foreground="#b42318" TextWrapping="Wrap"
+               IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    <TextBlock Text="Hexadoku: 0 bis 15 (Anzeige und Eingabe 0–9, A–F)." Foreground="#666666" FontSize="12" TextWrapping="Wrap" />
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+      <Button Content="Abbrechen" Click="OnCancel" IsCancel="True" />
+      <Button Content="Erstellen" Click="OnOk" IsDefault="True" IsEnabled="{Binding IsValid}" />
+    </StackPanel>
+  </StackPanel>
+</Window>

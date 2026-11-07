@@ -3,25 +3,276 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:GraphDoku.App.ViewModels"
-        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
+        xmlns:controls="using:GraphDoku.App.Controls"
+        xmlns:rules="using:GraphDoku.Core.Rules"
+        xmlns:views="using:GraphDoku.App.Views"
+        mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
         x:Class="GraphDoku.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="{Binding Title}"
-        Width="900" Height="600">
+        Width="1280" Height="800" MinWidth="900" MinHeight="560">
   <Design.DataContext>
     <vm:MainWindowViewModel />
   </Design.DataContext>
 
-  <DockPanel Margin="24">
-    <StackPanel DockPanel.Dock="Top" Spacing="12">
-      <TextBlock Text="{Binding Headline}" FontSize="24" FontWeight="SemiBold" />
-      <TextBlock Text="{Binding Placeholder}" TextWrapping="Wrap" />
-      <StackPanel Orientation="Horizontal" Spacing="12">
-        <Button Content="Klassisches 9×9 erzeugen" Command="{Binding CreateClassicSudokuCommand}" />
-        <TextBlock Text="{Binding Status}" VerticalAlignment="Center" />
+  <Window.Resources>
+    <!-- Parameterfelder, erzeugt aus den Parameterbeschreibungen der Regel (IRule.Parameters). -->
+    <DataTemplate x:Key="ParameterList" x:DataType="vm:ConstraintPropertiesViewModel">
+      <StackPanel Spacing="6">
+        <TextBlock Text="Parameter" FontWeight="SemiBold" Margin="0,6,0,0" IsVisible="{Binding HasParameters}" />
+        <TextBlock Text="Diese Regel hat keine Parameter." Classes="hint" IsVisible="{Binding !HasParameters}" />
+        <ItemsControl ItemsSource="{Binding Parameters}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:RuleParameterViewModel">
+              <StackPanel Spacing="2" Margin="0,0,0,8">
+                <TextBlock Text="{Binding Label}" />
+                <TextBox Text="{Binding Text}" IsVisible="{Binding IsInteger}" />
+                <CheckBox Content="{Binding Name}" IsChecked="{Binding BoolValue}" IsVisible="{Binding IsBoolean}" />
+                <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding ChoiceValue}" IsVisible="{Binding IsChoice}" HorizontalAlignment="Stretch" />
+                <TextBlock Text="{Binding Description}" Classes="hint" />
+                <TextBlock Text="{Binding Error}" Classes="error" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
       </StackPanel>
-      <TextBlock Text="Registrierte Regeltypen:" FontWeight="SemiBold" Margin="0,12,0,0" />
-    </StackPanel>
-    <ItemsControl ItemsSource="{Binding AvailableRules}" />
+    </DataTemplate>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="TextBlock.header">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="Foreground" Value="#666666" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.error">
+      <Setter Property="Foreground" Value="#b42318" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="StackPanel.toolbar > :is(Button)">
+      <Setter Property="Padding" Value="10,4" />
+    </Style>
+    <Style Selector="StackPanel.toolbar > RadioButton">
+      <Setter Property="Margin" Value="0,0,4,0" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel>
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="_Datei">
+        <MenuItem Header="_Neu …" Command="{Binding NewCommand}" InputGesture="Ctrl+N" />
+        <MenuItem Header="Vorlage „Klassisch 9×9“" Command="{Binding NewClassicCommand}" />
+        <Separator />
+        <MenuItem Header="Ö_ffnen …" Command="{Binding OpenCommand}" InputGesture="Ctrl+O" />
+        <MenuItem Header="_Speichern" Command="{Binding SaveCommand}" InputGesture="Ctrl+S" />
+        <MenuItem Header="Speichern _unter …" Command="{Binding SaveAsCommand}" InputGesture="Ctrl+Shift+S" />
+      </MenuItem>
+      <MenuItem Header="_Bearbeiten">
+        <MenuItem Header="{Binding Editor.UndoText}" Command="{Binding Editor.UndoCommand}" InputGesture="Ctrl+Z" />
+        <MenuItem Header="{Binding Editor.RedoText}" Command="{Binding Editor.RedoCommand}" InputGesture="Ctrl+Y" />
+        <Separator />
+        <MenuItem Header="Auswahl löschen (Entf)" Command="{Binding Editor.DeleteSelectionCommand}" />
+        <MenuItem Header="Givens der Auswahl löschen (⌫)" Command="{Binding Editor.ClearGivensCommand}" />
+        <MenuItem Header="Alle Knoten auswählen" Command="{Binding Editor.SelectAllCommand}" InputGesture="Ctrl+A" />
+        <Separator />
+        <MenuItem Header="Gruppe aus Auswahl erstellen" Command="{Binding Editor.CreateGroupFromSelectionCommand}" InputGesture="Ctrl+G" />
+      </MenuItem>
+      <MenuItem Header="_Ansicht">
+        <MenuItem Header="Einpassen" Command="{Binding Editor.FitViewCommand}" InputGesture="Ctrl+0" />
+        <MenuItem Header="Vergrößern" Command="{Binding Editor.ZoomInCommand}" />
+        <MenuItem Header="Verkleinern" Command="{Binding Editor.ZoomOutCommand}" />
+        <Separator />
+        <MenuItem Header="Alle Gruppen einblenden" Command="{Binding Editor.ShowAllGroupsCommand}" />
+        <MenuItem Header="Alle Gruppen ausblenden" Command="{Binding Editor.HideAllGroupsCommand}" />
+      </MenuItem>
+    </Menu>
+
+    <Border DockPanel.Dock="Top" BorderBrush="#dddddd" BorderThickness="0,0,0,1" Padding="8,6">
+      <StackPanel Orientation="Horizontal" Spacing="6" Classes="toolbar">
+        <RadioButton GroupName="tool" Content="Auswahl" IsChecked="{Binding Editor.IsSelectTool}" ToolTip.Tip="Auswählen und Verschieben" />
+        <RadioButton GroupName="tool" Content="Knoten setzen" IsChecked="{Binding Editor.IsPlaceNodeTool}" ToolTip.Tip="Klick oder Ziehen setzt Knoten" />
+        <RadioButton GroupName="tool" Content="Kante ziehen" IsChecked="{Binding Editor.IsDrawEdgeTool}" ToolTip.Tip="Von Knoten zu Knoten ziehen" />
+        <RadioButton GroupName="tool" Content="Ansicht verschieben" IsChecked="{Binding Editor.IsPanTool}" ToolTip.Tip="Auch: mittlere/rechte Maustaste oder Leertaste + Ziehen" />
+        <Rectangle Width="1" Fill="#dddddd" Margin="6,2" />
+        <TextBlock Text="Kantenregel:" VerticalAlignment="Center" />
+        <ComboBox ItemsSource="{Binding Editor.EdgeRules}" SelectedItem="{Binding Editor.NewEdgeRule}" MinWidth="130">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="rules:IRule">
+              <TextBlock Text="{Binding DisplayName}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Rectangle Width="1" Fill="#dddddd" Margin="6,2" />
+        <Button Content="Rückgängig" ToolTip.Tip="{Binding Editor.UndoText}" Command="{Binding Editor.UndoCommand}" />
+        <Button Content="Wiederholen" ToolTip.Tip="{Binding Editor.RedoText}" Command="{Binding Editor.RedoCommand}" />
+        <Button Content="Einpassen" Command="{Binding Editor.FitViewCommand}" />
+      </StackPanel>
+    </Border>
+
+    <!-- Statusbereich: letzte Aktion, Werkzeughinweis und Prüfmeldungen des PuzzleValidator. -->
+    <Border DockPanel.Dock="Bottom" BorderBrush="#dddddd" BorderThickness="0,1,0,0" Padding="8,4" Background="#f4f4f2">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Text="{Binding Editor.StatusMessage}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+        <TextBlock DockPanel.Dock="Top" Text="{Binding Editor.ToolHint}" Classes="hint" />
+        <TextBlock DockPanel.Dock="Top" Text="{Binding Editor.ValidationSummary}" Margin="0,4,0,0"
+                   Foreground="{Binding Editor.HasValidationProblems, Converter={x:Static views:Converters.ProblemBrush}}" />
+        <ScrollViewer MaxHeight="90" IsVisible="{Binding Editor.HasValidationProblems}">
+          <ItemsControl ItemsSource="{Binding Editor.ValidationProblems}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <TextBlock Text="{Binding StringFormat='• {0}'}" Classes="error" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
+    <!-- Gruppenliste -->
+    <Border DockPanel.Dock="Left" Width="240" BorderBrush="#dddddd" BorderThickness="0,0,1,0" Padding="8">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Text="Gruppen" Classes="header" />
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4" Margin="0,0,0,6">
+          <Button Content="Alle ein" Command="{Binding Editor.ShowAllGroupsCommand}" Padding="8,2" />
+          <Button Content="Alle aus" Command="{Binding Editor.HideAllGroupsCommand}" Padding="8,2" />
+        </StackPanel>
+        <TextBlock DockPanel.Dock="Bottom" Classes="hint" Margin="0,6,0,0"
+                   Text="Häkchen: Hervorhebung ein/aus. Eintrag anklicken: Gruppe bearbeiten." />
+        <ListBox ItemsSource="{Binding Editor.Groups}" SelectedItem="{Binding Editor.SelectedGroupItem}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:GroupItemViewModel">
+              <DockPanel>
+                <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsVisible}" MinWidth="0" Margin="0,0,4,0" ToolTip.Tip="Hervorhebung ein/aus" />
+                <Border DockPanel.Dock="Left" Width="12" Height="12" CornerRadius="6" Background="{Binding ColorHex}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Details}" Classes="hint" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+              </DockPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Border>
+
+    <!-- Eigenschaften-Panel -->
+    <Border DockPanel.Dock="Right" Width="300" BorderBrush="#dddddd" BorderThickness="1,0,0,0">
+      <ScrollViewer Padding="10">
+        <ContentControl Content="{Binding Editor.Properties}">
+          <ContentControl.DataTemplates>
+            <DataTemplate x:DataType="vm:PuzzlePropertiesViewModel">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Rätsel" Classes="header" />
+                <TextBlock Text="Name" />
+                <TextBox Text="{Binding Name}" />
+                <TextBlock Text="{Binding GridText, StringFormat='Gitter: {0}'}" />
+                <TextBlock Text="Globaler Wertebereich" Margin="0,6,0,0" />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBox Text="{Binding DomainMin}" Width="70" />
+                  <TextBlock Text="bis" VerticalAlignment="Center" />
+                  <TextBox Text="{Binding DomainMax}" Width="70" />
+                </StackPanel>
+                <TextBlock Text="{Binding DomainError}" Classes="error" IsVisible="{Binding DomainError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <TextBlock Text="{Binding Statistics}" Classes="hint" Margin="0,6,0,0" />
+                <TextBlock Classes="hint" Margin="0,10,0,0"
+                           Text="Knoten setzen: Werkzeug „Knoten setzen“. Knoten auswählen, um Givens einzutragen oder Gruppen zu bilden. Eine Kante anklicken, um ihre Regel zu bearbeiten." />
+              </StackPanel>
+            </DataTemplate>
+
+            <DataTemplate x:DataType="vm:NodeSelectionPropertiesViewModel">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Auswahl" Classes="header" />
+                <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                <CheckBox Content="Auswahlreihenfolge anzeigen" IsChecked="{Binding Editor.ShowSelectionOrder}" />
+                <TextBlock Text="Neue Gruppe aus Auswahl" FontWeight="SemiBold" Margin="0,8,0,0" />
+                <ComboBox ItemsSource="{Binding Editor.GroupRules}" SelectedItem="{Binding Editor.NewGroupRule}" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="rules:IRule">
+                      <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Content="Gruppe erstellen" Command="{Binding Editor.CreateGroupFromSelectionCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                <TextBlock Classes="hint" Text="Die Gruppe übernimmt die Auswahlreihenfolge (wichtig für Thermometer). Rahmenauswahl ordnet zeilenweise, Shift-Klick hängt an." />
+                <TextBlock Text="Givens" FontWeight="SemiBold" Margin="0,8,0,0" />
+                <TextBlock Classes="hint" Text="Ziffern tippen trägt ein (mehrstellig nacheinander, bei Wertebereich 0–15 auch A–F). ⌫ löscht Givens, Entf löscht die Knoten." />
+                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6">
+                  <Button Content="Givens löschen" Command="{Binding Editor.ClearGivensCommand}" />
+                  <Button Content="Knoten löschen" Command="{Binding Editor.DeleteSelectionCommand}" />
+                </WrapPanel>
+              </StackPanel>
+            </DataTemplate>
+
+            <DataTemplate x:DataType="vm:EdgePropertiesViewModel">
+              <StackPanel Spacing="6">
+                <TextBlock Text="{Binding Header}" Classes="header" />
+                <TextBlock Text="{Binding Endpoints}" TextWrapping="Wrap" />
+                <TextBlock Text="Regel" Margin="0,6,0,0" />
+                <ComboBox ItemsSource="{Binding Rules}" SelectedItem="{Binding SelectedRule}" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="rules:IRule">
+                      <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="{Binding UnknownRule, StringFormat='Unbekannte Regel: {0}'}" Classes="error"
+                           IsVisible="{Binding UnknownRule, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ParameterList}" />
+                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6" Margin="0,8,0,0">
+                  <Button Content="Richtung umkehren" Command="{Binding ReverseCommand}" IsVisible="{Binding IsDirected}" />
+                  <Button Content="Kante löschen" Command="{Binding DeleteCommand}" />
+                </WrapPanel>
+              </StackPanel>
+            </DataTemplate>
+
+            <DataTemplate x:DataType="vm:GroupPropertiesViewModel">
+              <StackPanel Spacing="6">
+                <TextBlock Text="{Binding Header}" Classes="header" />
+                <TextBlock Text="Beschriftung" />
+                <TextBox Text="{Binding Label}" Watermark="z. B. Zeile 1" />
+                <TextBlock Text="Farbe" />
+                <ComboBox ItemsSource="{Binding ColorOptions}" SelectedItem="{Binding SelectedColor}" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ColorOption">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Border Width="14" Height="14" CornerRadius="7" Background="{Binding Swatch}" BorderBrush="#999999" BorderThickness="1" />
+                        <TextBlock Text="{Binding Name}" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="Regel" Margin="0,6,0,0" />
+                <ComboBox ItemsSource="{Binding Rules}" SelectedItem="{Binding SelectedRule}" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="rules:IRule">
+                      <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="{Binding UnknownRule, StringFormat='Unbekannte Regel: {0}'}" Classes="error"
+                           IsVisible="{Binding UnknownRule, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ParameterList}" />
+                <TextBlock Text="Knoten in Reihenfolge" Margin="0,6,0,0" />
+                <TextBlock Text="{Binding NodeOrder}" TextWrapping="Wrap" Classes="hint" />
+                <TextBlock Classes="hint" IsVisible="{Binding IsOrdered}"
+                           Text="Die Reihenfolge ist für diese Regel bedeutsam. Auf der Zeichenfläche zeigen Zahlen und der Kolben den Anfang." />
+                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6" Margin="0,8,0,0">
+                  <Button Content="Reihenfolge umkehren" Command="{Binding ReverseOrderCommand}" />
+                  <Button Content="Gruppe löschen" Command="{Binding DeleteCommand}" />
+                </WrapPanel>
+              </StackPanel>
+            </DataTemplate>
+          </ContentControl.DataTemplates>
+        </ContentControl>
+      </ScrollViewer>
+    </Border>
+
+    <controls:GraphCanvas x:Name="Canvas" DataContext="{Binding Editor}" />
   </DockPanel>
 </Window>

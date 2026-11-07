@@ -33,14 +33,15 @@
 
 - ~~`ISolver` und OR-Tools-Adapter pro Regel (Paket 2).~~ Erledigt in Paket 2.
 - Erklär-Modus (Paket 6); `Propagate` ist vorhanden, wird dort ggf. verfeinert.
-- Validierungsmeldungen sind reine Texte (die Element-Id steht nur im Text). Braucht der Editor (Paket 3) einen
-  Verweis auf das fehlerhafte Element zum Markieren, wird dort ein strukturierter Meldungstyp ergänzt.
+- Validierungsmeldungen sind reine Texte (die Element-Id steht nur im Text). Der Editor (Paket 3) zeigt sie als
+  Liste im Statusbereich; ein strukturierter Meldungstyp zum Markieren des Elements ist weiterhin offen.
 
 **Bekannte Probleme**
 
 - Die Gitea-CI konnte lokal nicht ausgeführt werden; die Schritte wurden lokal mit denselben Befehlen nachgestellt.
   Der erste Lauf auf dem Ubuntu-Runner steht noch aus.
-- Keine Headless-UI-Tests: Avalonia.Headless.XUnit 12 benötigt xUnit v3 (siehe `docs/decisions.md`, Nr. 7).
+- ~~Keine Headless-UI-Tests: Avalonia.Headless.XUnit 12 benötigt xUnit v3 (siehe `docs/decisions.md`, Nr. 7).~~
+  Seit Paket 3 gibt es Rendering-Rauchtests mit Avalonia.Headless ohne das xUnit-Paket (Nr. 47).
 - Der OR-Tools-Rauchtest braucht beim ersten Laden der nativen Bibliothek einige Sekunden.
 
 ## Paket 2 – OR-Tools-Solver
@@ -83,3 +84,52 @@
 - Zeitlimit- und Abbruchtests nutzen ein unlösbares Färbungsrätsel (Mycielski-Graph M6 mit 5 Farben), das CP-SAT
   9.15 lokal nicht in 20 s widerlegen kann. Sollte eine künftige OR-Tools-Version es schnell widerlegen, müssen diese
   Tests ein anderes schweres Rätsel bekommen.
+
+## Paket 3 – Editor (Grundfunktionen)
+
+**Erledigt**
+
+- Zeichenfläche `GraphCanvas` (eigenes Control, Zeichnen per `DrawingContext`): Raster für Quadrat-, Dreiecks- und
+  Sechseckgitter, Knoten als Kreise mit Givens (bei Bereich 0–15 als A–F), Kanten mit Regelmarken (Ungleich schlicht,
+  Differenz weißer Punkt, Verhältnis schwarzer Punkt, Kleiner als Pfeil), Gruppen als farbiger Umriss, gewählte
+  Gruppe flächig, Thermometer als Linie mit Kolben, Reihenfolge-Nummern, Auswahlrahmen, Kantenvorschau.
+- Zoom (Mausrad um den Zeiger) und Pan (mittlere/rechte Maustaste, Leertaste + Ziehen, Werkzeug), „Einpassen“.
+- Werkzeuge „Auswahl“, „Knoten setzen“, „Kante ziehen“, „Ansicht verschieben“. Knoten setzen (Klick oder Ziehen),
+  verschieben (einrastend, Mehrfachauswahl, Dreiecksgitter formtreu, keine Überlagerung), löschen (Entf);
+  Rahmenauswahl, Shift-Klick, Alles auswählen, Escape.
+- Kanten per Ziehen von Knoten zu Knoten; Regel neuer Kanten in der Werkzeugleiste; Eigenschaften-Panel mit Regelwahl
+  und Parameterfeldern aus den Parameterbeschreibungen der Regel; Richtung umkehren (Kleiner als), Kante löschen.
+- Gruppen aus der Auswahl (Reihenfolge bleibt erhalten), Regel und Parameter, Farbe (Palette oder automatisch),
+  Beschriftung, Reihenfolge umkehren, löschen; Gruppenliste mit Ein-/Ausblenden der Hervorhebung.
+- Givens per Tastatur (mehrstellig, negative Werte, A–F bei 0–15), ⌫ löscht Givens.
+- Undo/Redo für alle Bearbeitungen (Command-Muster, `EditHistory`), zusammenhängende Gesten und Eingaben als ein
+  Schritt; Strg/Cmd+Z, Strg/Cmd+Y, Shift+Strg/Cmd+Z.
+- Neu (Name, Gittertyp, globaler Wertebereich), Vorlage „Klassisch 9×9“, Öffnen, Speichern, Speichern unter
+  (StorageProvider, JSON über `PuzzleSerializer`, deutsche Fehlermeldungen), Rückfrage bei ungespeicherten Änderungen
+  (auch beim Schließen), Dirty-Anzeige im Titel; Name und Wertebereich des Rätsels im Panel bearbeitbar.
+- Statusbereich: letzte Aktion, Werkzeughinweis, Prüfmeldungen des `PuzzleValidator` nach jeder Bearbeitung.
+- Tests (App 111): Verlauf, Viewport, Geometriehilfen, Werkzeuge und Gesten, Undo/Redo je Bearbeitungsart (jeweils
+  exakter Strukturvergleich vor/nach), Given-Eingabe, Datei-Befehle mit Fehlerfällen, Rendering-Rauchtests
+  (Hauptfenster mit klassischem Sudoku, alle drei Gitter mit Kanten, Gruppen, Auswahl; Dialog „Neu“) mit
+  Pixelprüfung.
+- **Akzeptanz:** `ClassicSudokuAcceptanceTests` baut über die Editor-Befehle ein klassisches Sudoku (81 Knoten gemalt,
+  27 `AllDifferent`-Gruppen aus Rahmenauswahlen mit Beschriftung, 30 Givens per Tastatur), speichert es über
+  „Speichern“, öffnet es in einem neuen Fenster und vergleicht mit `PuzzleComparer` gegen `ClassicSudoku.Create` und
+  gegen den Editorstand; zusätzlich prüft der Solver die Eindeutigkeit.
+- Gesamt: 346 Tests (Core 144, Solver 89, Explainer 2, App 111), alle grün in Release.
+
+**Offen**
+
+- Eigene Wertebereiche pro Knoten im Editor bearbeiten (werden geladen, gespeichert und bei der Eingabe beachtet).
+- Prüfmeldungen markieren das betroffene Element noch nicht auf der Zeichenfläche.
+- Lösungswerte in den Knoten (Paket 4), Kanten-Generator und Beispielrätsel (Paket 5).
+- Kein Kopieren/Einfügen, keine Summenbeschriftung von Käfigen auf der Zeichenfläche (nicht gefordert).
+
+**Bekannte Probleme**
+
+- Die Bedienung am echten Desktop wurde nur kurz geprüft (App startet auf macOS und läuft); Maus- und Tastaturlogik
+  ist über ViewModel-Tests abgedeckt, das Aussehen über die headless gerenderten Bilder.
+- Der Rendering-Rauchtest braucht auf Linux `libfontconfig.so.1`; die CI installiert es bei Bedarf (Nr. 48). Der
+  erste Lauf auf dem Ubuntu-Runner steht noch aus.
+- Auf dem Mac ist die Taste ⌫ Backspace: Sie löscht Givens, nicht Knoten; Knoten löscht fn+⌫ (Entf), das Menü oder
+  das Panel (Nr. 52).

@@ -22,6 +22,19 @@ jobs:
         with:
           global-json-file: global.json
 
+      # Der Rendering-Rauchtest (GraphDoku.App.Tests) rendert headless mit Skia. libSkiaSharp.so aus
+      # SkiaSharp.NativeAssets.Linux ist gegen libfontconfig.so.1 gelinkt; ein X-Server wird nicht gebraucht.
+      - name: Systembibliothek für Headless-Rendering (fontconfig)
+        run: |
+          if ldconfig -p | grep -q 'libfontconfig\.so\.1'; then
+            echo "libfontconfig.so.1 ist vorhanden."
+          else
+            SUDO=""
+            if [ "$(id -u)" != "0" ]; then SUDO="sudo"; fi
+            $SUDO apt-get update
+            $SUDO apt-get install -y --no-install-recommends libfontconfig1
+          fi
+
       - name: NuGet-Cache
         uses: actions/cache@v4
         with:

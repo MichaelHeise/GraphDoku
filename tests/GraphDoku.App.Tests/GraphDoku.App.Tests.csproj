@@ -5,4 +5,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GraphDoku.App\GraphDoku.App.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Rendering-Rauchtest ohne Fenstersystem (siehe docs/decisions.md). Bewusst nicht Avalonia.Headless.XUnit (braucht xUnit v3). -->
+    <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="Avalonia.Skia" />
+  </ItemGroup>
 </Project>

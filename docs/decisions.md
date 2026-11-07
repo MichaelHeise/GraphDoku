@@ -235,3 +235,94 @@ jeweils mit Grund. Neue Einträge kommen ans Ende des jeweiligen Abschnitts.
     Lizenzen (u. a. COIN-OR unter EPL-2.0). Die nuspec nennt nur pauschal Apache-2.0. Die Lizenzen wurden nach den
     Projektangaben der Komponenten zugeordnet, nicht aus den Paketen selbst gelesen (die Pakete enthalten keine
     Lizenztexte der Komponenten); vor einer Auslieferung sollte das juristisch geprüft werden.
+
+## Editor (Paket 3)
+
+47. **Rendering-Rauchtest mit Avalonia.Headless statt Avalonia.Headless.XUnit** (ergänzt Nr. 7): `GraphDoku.App.Tests`
+    referenziert `Avalonia.Headless` und `Avalonia.Skia` (12.1.5) und startet die Sitzung selbst
+    (`HeadlessUnitTestSession.StartNew(typeof(HeadlessTestApp))`, `UseSkia()`,
+    `UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })`, `WithInterFont()`); alle
+    Rendering-Tests teilen sich die Sitzung über eine xUnit-Collection-Fixture und laufen über `Session.Dispatch`
+    auf deren Dispatcher-Thread. So bleibt xUnit 2.9. Die Tests öffnen das echte Hauptfenster mit geladenem Rätsel,
+    holen das Bild mit `CaptureRenderedFrame()` und legen PNGs ab (Verzeichnis aus `GRAPHDOKU_RENDER_DIR`, sonst
+    `<Temp>/GraphDoku-Render`). Geprüft werden einfache Pixelmerkmale (Schrift in einem Knoten mit Given, keine in
+    einem leeren Knoten); die Bilder wurden während der Entwicklung angesehen und Darstellungsfehler behoben.
+48. **CI: `libfontconfig1`** (ergänzt Nr. 9): `libSkiaSharp.so` aus `SkiaSharp.NativeAssets.Linux` ist gegen
+    `libfontconfig.so.1` gelinkt (ELF-`NEEDED`-Eintrag geprüft). Die CI installiert das Paket per `apt-get`, falls es
+    fehlt (mit `sudo`, wenn der Runner nicht als root läuft). Ein X-Server wird nicht gebraucht. Die Variante
+    `SkiaSharp.NativeAssets.Linux.NoDependencies` wurde verworfen, weil sie dieselbe Datei wie das von Avalonia.Skia
+    mitgebrachte Paket liefert.
+49. **ViewModels ohne Avalonia-Typen:** Die Zeichenfläche `GraphCanvas` (eigenes `Control` mit `Render`-Override und
+    `DrawingContext`) zeichnet nur und reicht Zeiger-, Rad- und Tastaturereignisse in Bildschirmkoordinaten an das
+    `EditorViewModel` weiter (eigene Typen `ScreenPoint`, `PointerButton`, `EditorModifiers`). Zoom und Pan liegen in
+    `Viewport` (ViewModel-Schicht), Treffertests und alle Gesten im ViewModel. Dateiauswahl und Dialoge laufen über
+    `IFileDialogService`/`IDialogService` (Avalonia-StorageProvider bzw. kleine modale Fenster; in Tests ersetzt).
+    Gearbeitet wird mit lokalen Pfaden (`TryGetLocalPath`); eine Datei ohne lokalen Pfad wird mit Meldung abgelehnt.
+50. **Undo/Redo als Command-Muster:** `IEditCommand` (Execute/Undo/TryMerge) und `EditHistory` (Name statt
+    „UndoStack“ wegen Analyseregel CA1711). Befehle: Knoten setzen, verschieben, Givens setzen/löschen, Elemente
+    löschen, Kante/Gruppe anlegen, Kante/Gruppe/Rätsel ändern. Zusammengeführt wird über einen
+    Zusammenführungsschlüssel (ein Objekt pro Geste bzw. Eingabefeld): ein Ziehen (Verschieben, Knoten malen), eine
+    mehrstellige Given-Eingabe und fortlaufendes Tippen in einem Feld des Eigenschaften-Panels ergeben je einen
+    Schritt. Die Dirty-Anzeige vergleicht Zustands-Ids, stimmt also auch nach Undo/Redo zurück zum gespeicherten Stand.
+    **Keine** Undo-Schritte: Auswahl, Ein-/Ausblenden von Gruppen, Zoom/Pan. Neu, Öffnen und Vorlage beginnen einen
+    neuen, leeren Verlauf (kein Undo über einen Dokumentwechsel). Nach Undo/Redo wird die Auswahl nur bereinigt, nicht
+    wiederhergestellt.
+51. **Auswahl ist exklusiv:** Knoten *oder* eine Kante *oder* eine Gruppe. Eine Gruppe in der Liste zu wählen wählt die
+    Gruppe selbst (nicht ihre Knoten), damit Entf die Gruppe und nicht ihre Knoten löscht. Rahmenauswahl ordnet die
+    Knoten zeilenweise (oben nach unten, dann links nach rechts), Shift-Klick hängt an bzw. entfernt, Shift-Rahmen
+    hängt an. Neue Gruppen übernehmen die Auswahlreihenfolge. **Reihenfolge sichtbar machen** (Thermometer): kleine
+    Nummern an den Knoten (bei der Auswahl ab zwei Knoten, abschaltbar; immer bei der gewählten Gruppe), geordnete
+    Gruppen zusätzlich als Thermometerlinie mit Kolben am ersten Knoten; im Gruppen-Panel „Reihenfolge umkehren“.
+52. **Tastatur:** Ziffern tragen Givens in alle ausgewählten Knoten ein. Aufeinanderfolgende Ziffern bilden eine
+    mehrstellige Zahl, solange sie im Wertebereich aller gewählten Knoten liegt (1–16: „1“, „6“ → 16; danach „2“ → 2,
+    neue Zahl); ein Präfix, das selbst nicht im Bereich liegt, aber zu einem gültigen Wert führen kann, wartet auf
+    weitere Ziffern (10–20: „1“ wartet, „5“ → 15); „-“ am Anfang für negative Bereiche. Eine neue Auswahl oder eine
+    andere Bearbeitung beendet die Eingabe. Ist der Bereich genau 0–15, ist jedes Zeichen 0–9/A–F ein ganzer Wert
+    (Nr. 32). **⌫ (Backspace) löscht die Givens der Auswahl, Entf (Delete; auf dem Mac fn+⌫) löscht die Auswahl**
+    (Knoten mit ihren Kanten, die Kante oder die Gruppe); beides auch über Menü und Panel. Escape bricht eine Geste
+    ab bzw. hebt die Auswahl auf. Strg (Windows/Linux) und Cmd (macOS): Z/Y/Shift+Z (Undo/Redo, nicht wenn ein
+    Textfeld den Fokus hat – dort gilt dessen eigenes Undo), N, O, S, Shift+S, A, G (Gruppe), 0 (Einpassen).
+    Eingaben auf der Zeichenfläche gehen nur an sie, wenn sie den Fokus hat (Klick hinein).
+53. **Gesten:** „Knoten setzen“ setzt per Klick oder Ziehen Knoten auf freie Gitterpunkte (entlang der Mausbewegung
+    interpoliert, damit schnelles Ziehen keine Lücken lässt); ein Klick auf einen vorhandenen Knoten wählt ihn.
+    Verschieben (Werkzeug „Auswahl“, gewählten Knoten ziehen): Der gegriffene Knoten rastet auf den nächsten
+    Gitterpunkt, alle gewählten Knoten bewegen sich um denselben Gitterversatz; auf dem Dreiecksgitter nur um gerade
+    Versätze (x + y), damit die Ausrichtung der Dreiecke und damit die Form erhalten bleibt. Auf von anderen Knoten
+    belegte Punkte wird nicht geschoben (die Auswahl bleibt am letzten freien Punkt). Pan: mittlere oder rechte
+    Maustaste, Leertaste + Ziehen oder Werkzeug „Ansicht verschieben“; Mausrad zoomt um den Mauszeiger
+    (Maßstab 4–600 px pro Einheit).
+54. **Kanten im Editor:** Die Regel neuer Kanten wird in der Werkzeugleiste gewählt (Standard „Ungleich“), neue Kanten
+    erhalten `CreateDefaultParams()` (Difference: k = 1). Eine Kante mit gleicher Regel zwischen denselben Knoten
+    (ungerichtet in beiden Richtungen, gerichtet nur gleiche Richtung) lehnt der Editor mit Meldung ab; verschiedene
+    Regeln am selben Knotenpaar sind erlaubt (Nr. 23 bleibt: Dateien mit Doppelkanten werden nicht abgelehnt).
+55. **Löschen eines Knotens** entfernt seine Kanten und nimmt ihn aus allen Gruppen; Gruppen, die dadurch leer werden,
+    werden mitgelöscht (eine leere Gruppe hat keine Bedeutung). Undo stellt Listen und Reihenfolgen exakt wieder her.
+56. **Eigenschaften-Panel** aus `IRule.Parameters`: ganze Zahlen als Textfeld (leer = Parameter weglassen; bei
+    Pflichtparametern erscheint dann die Prüfmeldung, ungültiger Text wird mit Hinweis nicht übernommen),
+    Wahrheitswerte als Häkchen, Auswahlwerte als Liste. Ein Regelwechsel setzt die Standardparameter der neuen Regel.
+    Bereits in Paket 3 sind damit **alle acht Katalogregeln** an Kanten bzw. Gruppen wählbar, „Richtung umkehren“ für
+    `LessThan` und „Reihenfolge umkehren“ für Gruppen inklusive (die Spezifikation nennt das erst in Paket 5; dort
+    bleiben Kanten-Generator und Beispielrätsel). Ohne Auswahl zeigt das Panel Name und globalen Wertebereich des
+    Rätsels (beides bearbeitbar, mit Undo); der Gittertyp wird nur bei „Neu“ gewählt. Eigene Wertebereiche pro Knoten
+    sind im Editor noch nicht bearbeitbar (werden aber geladen, gespeichert und bei der Given-Eingabe beachtet).
+57. **Öffnen ohne inhaltliche Prüfung:** Die App lädt mit `PuzzleSerializer.Load(..., validate: false)`. Formatfehler
+    (z. B. falsche `formatVersion`, unbekannte Felder) werden weiterhin abgelehnt und als deutsche Meldung gezeigt;
+    inhaltliche Probleme (unfertige Gruppen, fehlende Pflichtparameter, unbekannte Regeln) erscheinen im
+    Statusbereich, damit unfertig gespeicherte Rätsel (Nr. 26) weiter bearbeitet werden können. Die Prüfmeldungen
+    (`PuzzleValidator`) werden nach jeder Bearbeitung neu berechnet und bleiben reine Texte (siehe Paket 1, „Offen“).
+58. **Dokument:** Start mit leerem Quadratgitter „Unbenannt“, Werte 1–9. Titel „Name * – GraphDoku“ (Dateiname, sonst
+    Rätselname; „ *“ = ungespeichert). Vor Neu/Vorlage/Öffnen und beim Schließen des Fensters wird bei ungespeicherten
+    Änderungen gefragt (Speichern / Verwerfen / Abbrechen). „Speichern“ ohne bekannten Pfad wirkt wie „Speichern
+    unter“; vorgeschlagen wird der Rätselname mit `.json` (unzulässige Zeichen durch `_` ersetzt).
+59. **Darstellung:** Knotenkreise mit Radius 0,38 (Quadrat, Sechseck) bzw. 0,2 Welteinheiten (Dreieck, dort liegen
+    Nachbarn nur 1/√3 auseinander). Raster ab 8 px pro Einheit und höchstens 60 000 sichtbaren Zellen. Gruppen werden
+    mit ihrem Umriss (Zellkanten, die keine andere Zelle der Gruppe teilt) in der Gruppenfarbe hervorgehoben; eine
+    Fläche bekommen nur die gewählte Gruppe und Gruppen mit eigener Farbe – sonst ergäben die sich überlappenden
+    Zeilen, Spalten und Blöcke der Vorlage einen unruhigen Flickenteppich (im Rendering-Rauchtest gesehen). Gruppen
+    ohne eigene Farbe werden nach ihrer Id aus einer festen Palette gefärbt; die Farbe wird dann nicht gespeichert
+    (`color` bleibt leer, „Automatisch“). Kantenmarken: `NotEqual` schlichte Linie, `Difference` weißer Punkt (mit
+    „k“ bzw. „≥k“, außer bei k = 1 genau), `Ratio` schwarzer Punkt (mit Faktor, außer bei 2), `LessThan` Pfeil in der
+    Mitte von `from` nach `to`, unbekannte Regel gestrichelt. Die App nutzt fest das helle Theme
+    (`RequestedThemeVariant="Light"`), damit Zeichenfläche und Bedienelemente zusammenpassen.
+60. Der Akzeptanztest prüft das im Editor gebaute Sudoku zusätzlich mit dem `OrToolsSolver` auf Eindeutigkeit
+    (App-Tests erreichen den Solver über die Projektreferenz der App).
