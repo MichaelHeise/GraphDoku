@@ -3,11 +3,219 @@ using GraphDoku.Core.Model;
 
 namespace GraphDoku.App.Editing;
 
+/// <summary>
+/// Darstellung der Knoten auf der Zeichenfläche (Paket 7): als Kreis oder als Zelle in der Form des Gitters (Quadrat,
+/// Dreieck nach oben/unten, Sechseck). Reine Ansichtseinstellung, nicht Teil des Rätsels und nie in der Rätseldatei.
+/// </summary>
+public enum NodeShape
+{
+    /// <summary>Knoten als Kreise (Standard, Festlegung der Spezifikation).</summary>
+    Circle,
+
+    /// <summary>Knoten als Zellen des Gitters (Quadrat, Dreieck oder Sechseck je nach Gittertyp).</summary>
+    Cell,
+}
+
 /// <summary>Maße und Hilfsfunktionen der Zeichenfläche in Weltkoordinaten.</summary>
 public static class EditorGeometry
 {
     /// <summary>Radius der Knotenkreise. Dreiecksmittelpunkte liegen enger (Abstand 1/√3), daher kleiner.</summary>
     public static double NodeRadius(GridType grid) => grid == GridType.Triangle ? 0.2 : 0.38;
+
+    /// <summary>
+    /// Radius des Inhalts eines Knotens (Wert, Kandidatenraster, Marken, Thermometer): bei Kreisen der Kreisradius, bei
+    /// Zellen etwas weniger als der Innenkreis der Zelle (Quadrat 0,5, Dreieck 1/(2√3) ≈ 0,29, Sechseck 0,5 – die
+    /// Ecken des Sechsecks lassen weniger Platz für das Raster, daher 0,4).
+    /// </summary>
+    public static double ContentRadius(GridType grid, NodeShape shape) => shape == NodeShape.Circle
+        ? NodeRadius(grid)
+        : grid switch
+        {
+            GridType.Triangle => 0.24,
+            GridType.Hex => 0.4,
+            _ => 0.42,
+        };
+
+    /// <summary>
+    /// Freihalteradius um einen Knotenmittelpunkt für Kantenlinien und -marken: bei Kreisen der Kreis, bei Zellen das
+    /// Innere mit Wert und Kandidaten (80 % des Inhaltsradius) – Linien laufen dort nur über den Zellrand.
+    /// </summary>
+    public static double ClearRadius(GridType grid, NodeShape shape) => shape == NodeShape.Circle
+        ? NodeRadius(grid)
+        : ContentRadius(grid, shape) * 0.8;
+
+    /// <summary>Zellen: Länge eines Kantenstegs über einem Zellrand (die Hälfte des Inhaltsradius).</summary>
+    public static double CellEdgeStubLength(GridType grid) => ContentRadius(grid, NodeShape.Cell) * 0.5;
+
+    /// <summary>
+    /// Zellen: sichtbare Stücke einer Kante – ein kurzer Steg (<see cref="CellEdgeStubLength"/>) über jedem Zellrand,
+    /// den die Strecke a–b kreuzt (<see cref="BorderCrossings"/>), ohne die Freihaltekreise um die Enden und die
+    /// <paramref name="others"/>. Bei Nachbarzellen ist das ein Steg über die Mitte der gemeinsamen Seite, bei Zellen,
+    /// die sich nur in einer Ecke berühren, einer über der Ecke, bei längeren Kanten einer pro Zellrand. So laufen keine
+    /// Linien durch das Innere fremder Zellen.
+    /// </summary>
+    public static IReadOnlyList<(WorldPoint From, WorldPoint To)> CellEdgeStubs(GridType grid, WorldPoint a, WorldPoint b, IEnumerable<WorldPoint> others)
+    {
+        ArgumentNullException.ThrowIfNull(others);
+        var length = a.DistanceTo(b);
+        var clear = ClearRadius(grid, NodeShape.Cell);
+        if (length < 1e-9 || length <= 2 * clear)
+        {
+            return [];
+        }
+
+        var free = FreeIntervals(a, b, clear, others, out _);
+        var half = CellEdgeStubLength(grid) / 2;
+        WorldPoint At(double t) => new(a.X + ((b.X - a.X) * t / length), a.Y + ((b.Y - a.Y) * t / length));
+        var result = new List<(WorldPoint From, WorldPoint To)>();
+        foreach (var crossing in BorderCrossings(grid, a, b))
+        {
+            foreach (var (freeFrom, freeTo) in free)
+            {
+                var from = Math.Max(crossing - half, freeFrom);
+                var to = Math.Min(crossing + half, freeTo);
+                if (to - from > 1e-6)
+                {
+                    result.Add((At(from), At(to)));
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Stellen (Abstand von <paramref name="a"/>), an denen die Strecke a–b einen Zellrand des Gitters kreuzt, aufsteigend;
+    /// Durchgänge durch eine Ecke zählen einmal. Läuft von Zelle zu Zelle (Austritt aus dem konvexen Umriss), daher
+    /// unabhängig von der Länge der Strecke nur so viele Schritte wie gekreuzte Zellen.
+    /// </summary>
+    public static IReadOnlyList<double> BorderCrossings(GridType grid, WorldPoint a, WorldPoint b)
+    {
+        var length = a.DistanceTo(b);
+        if (length < 1e-9)
+        {
+            return [];
+        }
+
+        var ux = (b.X - a.X) / length;
+        var uy = (b.Y - a.Y) / length;
+        var target = GridGeometry.ToNearestGridPoint(grid, b);
+        var cell = GridGeometry.ToNearestGridPoint(grid, a);
+        var crossings = new List<double>();
+        var t = 0.0;
+        for (var guard = 0; guard < 100000 && cell != target; guard++)
+        {
+            var vertices = GridGeometry.GetCellVertices(grid, cell.X, cell.Y);
+            var center = GridGeometry.ToWorld(grid, cell);
+            var exit = double.MaxValue;
+            for (var i = 0; i < vertices.Count; i++)
+            {
+                var p = vertices[i];
+                var q = vertices[(i + 1) % vertices.Count];
+
+                // Nach außen zeigende Normale der Seite p–q; nur Seiten, auf die die Strecke zuläuft, kommen als Austritt in Frage.
+                var (nx, ny) = (q.Y - p.Y, p.X - q.X);
+                if ((nx * (((p.X + q.X) / 2) - center.X)) + (ny * (((p.Y + q.Y) / 2) - center.Y)) < 0)
+                {
+                    (nx, ny) = (-nx, -ny);
+                }
+
+                var toward = (nx * ux) + (ny * uy);
+                if (toward <= 1e-12)
+                {
+                    continue;
+                }
+
+                var s = ((nx * (p.X - a.X)) + (ny * (p.Y - a.Y))) / toward;
+                if (s > t + 1e-9)
+                {
+                    exit = Math.Min(exit, s);
+                }
+            }
+
+            if (exit >= length)
+            {
+                break;
+            }
+
+            if (crossings.Count == 0 || exit - crossings[^1] > 1e-4)
+            {
+                crossings.Add(exit);
+            }
+
+            t = exit;
+            cell = GridGeometry.ToNearestGridPoint(grid, new WorldPoint(a.X + (ux * (t + 1e-6)), a.Y + (uy * (t + 1e-6))));
+        }
+
+        return crossings;
+    }
+
+    /// <summary>Umriss der Zelle eines Knotens (Weltkoordinaten).</summary>
+    public static IReadOnlyList<WorldPoint> CellVertices(GridType grid, Node node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        return GridGeometry.GetCellVertices(grid, node.X, node.Y);
+    }
+
+    /// <summary>
+    /// true, wenn der Punkt im Knoten liegt: bei Kreisen im Knotenkreis, bei Zellen im Zellumriss (Rand eingeschlossen).
+    /// </summary>
+    public static bool Contains(GridType grid, NodeShape shape, Node node, WorldPoint point)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        return shape == NodeShape.Circle
+            ? Center(grid, node).DistanceTo(point) <= NodeRadius(grid)
+            : PolygonContains(CellVertices(grid, node), point);
+    }
+
+    /// <summary>true, wenn der Punkt im konvexen Vieleck liegt (Rand eingeschlossen, Umlaufsinn beliebig).</summary>
+    public static bool PolygonContains(IReadOnlyList<WorldPoint> polygon, WorldPoint point)
+    {
+        ArgumentNullException.ThrowIfNull(polygon);
+        if (polygon.Count < 3)
+        {
+            return false;
+        }
+
+        var sign = 0;
+        for (var i = 0; i < polygon.Count; i++)
+        {
+            var a = polygon[i];
+            var b = polygon[(i + 1) % polygon.Count];
+            var cross = ((b.X - a.X) * (point.Y - a.Y)) - ((b.Y - a.Y) * (point.X - a.X));
+            if (Math.Abs(cross) < 1e-12)
+            {
+                continue;
+            }
+
+            var current = Math.Sign(cross);
+            if (sign != 0 && current != sign)
+            {
+                return false;
+            }
+
+            sign = current;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Vieleck zur Mitte hin um <paramref name="inset"/> verkleinert (zentrische Streckung, gleiche Einheit wie die
+    /// Ecken) – für Rahmen, die innerhalb der Zelle bleiben sollen und nicht in die Nachbarzelle ragen.
+    /// </summary>
+    public static IReadOnlyList<WorldPoint> Inset(IReadOnlyList<WorldPoint> polygon, WorldPoint center, double inset)
+    {
+        ArgumentNullException.ThrowIfNull(polygon);
+        var apothem = double.MaxValue;
+        for (var i = 0; i < polygon.Count; i++)
+        {
+            apothem = Math.Min(apothem, DistanceToSegment(center, polygon[i], polygon[(i + 1) % polygon.Count]));
+        }
+
+        var factor = apothem is > 1e-12 and < double.MaxValue ? Math.Max(0, 1 - (inset / apothem)) : 1;
+        return [.. polygon.Select(v => new WorldPoint(center.X + ((v.X - center.X) * factor), center.Y + ((v.Y - center.Y) * factor)))];
+    }
 
     public static WorldPoint Center(GridType grid, Node node)
     {
@@ -101,7 +309,9 @@ public static class EditorGeometry
     /// Endkreisen. Liegt die Mitte in einem anderen Knotenkreis (<paramref name="others"/>, z. B. Kante zum übernächsten
     /// Knoten), wandert die Marke in das freie Stück der Strecke, dessen Mitte der Streckenmitte am nächsten liegt (bei
     /// Gleichstand das zum Anfang hin) – sonst deckte sie den Wert dieses Knotens ab (die Marken liegen über den Knoten).
-    /// Ohne freies Stück bleibt es bei der Mitte.
+    /// Ohne freies Stück bleibt es bei der Mitte. Bei Zellen (Paket 7) ist <paramref name="radius"/> der Freihalteradius
+    /// (<see cref="ClearRadius"/>); die Marke liegt dann auf dem Rand zwischen zwei Zellen, bei Nachbarzellen genau auf
+    /// der Mitte der gemeinsamen Seite.
     /// </summary>
     public static (WorldPoint Position, double Gap) EdgeMarkPosition(WorldPoint a, WorldPoint b, double radius, IEnumerable<WorldPoint> others)
     {
@@ -118,47 +328,10 @@ public static class EditorGeometry
 
         var ux = dx / length;
         var uy = dy / length;
-
-        // Von anderen Kreisen bedeckte Stücke [von, bis] entlang der Strecke (0 = a), nur zwischen den Endkreisen.
-        var blocked = new List<(double From, double To)>();
-        foreach (var c in others)
-        {
-            var t = ((c.X - a.X) * ux) + ((c.Y - a.Y) * uy);
-            var d = Math.Abs(((c.X - a.X) * uy) - ((c.Y - a.Y) * ux));
-            if (d >= radius)
-            {
-                continue;
-            }
-
-            var half = Math.Sqrt((radius * radius) - (d * d));
-            var from = Math.Max(radius, t - half);
-            var to = Math.Min(length - radius, t + half);
-            if (to > from)
-            {
-                blocked.Add((from, to));
-            }
-        }
-
-        if (blocked.Count == 0)
+        var free = FreeIntervals(a, b, radius, others, out var blocked);
+        if (!blocked)
         {
             return (middle, inner);
-        }
-
-        var free = new List<(double From, double To)>();
-        var position = radius;
-        foreach (var (from, to) in blocked.OrderBy(x => x.From))
-        {
-            if (from > position)
-            {
-                free.Add((position, from));
-            }
-
-            position = Math.Max(position, to);
-        }
-
-        if (length - radius > position)
-        {
-            free.Add((position, length - radius));
         }
 
         var mid = length / 2;
@@ -176,6 +349,82 @@ public static class EditorGeometry
         var best = free.MinBy(f => Math.Abs(((f.From + f.To) / 2) - mid) + (1e-9 * f.From));
         var at = (best.From + best.To) / 2;
         return (new WorldPoint(a.X + (ux * at), a.Y + (uy * at)), best.To - best.From);
+    }
+
+    /// <summary>
+    /// Sichtbare Stücke der Kantenlinie a–b: ohne die Kreise vom Radius <paramref name="radius"/> um die Enden und um
+    /// die <paramref name="others"/>. Bei Zellen (Paket 7) bleiben so Wert und Kandidaten frei; die Linie erscheint nur
+    /// als kurzes Stück über jedem Zellrand, den sie kreuzt.
+    /// </summary>
+    public static IReadOnlyList<(WorldPoint From, WorldPoint To)> FreeSegments(WorldPoint a, WorldPoint b, double radius, IEnumerable<WorldPoint> others)
+    {
+        ArgumentNullException.ThrowIfNull(others);
+        var dx = b.X - a.X;
+        var dy = b.Y - a.Y;
+        var length = Math.Sqrt((dx * dx) + (dy * dy));
+        if (length < 1e-9 || length <= 2 * radius)
+        {
+            return [];
+        }
+
+        var ux = dx / length;
+        var uy = dy / length;
+        return [.. FreeIntervals(a, b, radius, others, out _)
+            .Where(f => f.To - f.From > 1e-9)
+            .Select(f => (new WorldPoint(a.X + (ux * f.From), a.Y + (uy * f.From)), new WorldPoint(a.X + (ux * f.To), a.Y + (uy * f.To))))];
+    }
+
+    /// <summary>
+    /// Freie Stücke [von, bis] entlang a–b (0 = a) zwischen den Endkreisen, ohne die von anderen Kreisen bedeckten.
+    /// <paramref name="blocked"/>: ob überhaupt ein anderer Kreis die Strecke bedeckt.
+    /// </summary>
+    private static List<(double From, double To)> FreeIntervals(WorldPoint a, WorldPoint b, double radius, IEnumerable<WorldPoint> others, out bool blocked)
+    {
+        var dx = b.X - a.X;
+        var dy = b.Y - a.Y;
+        var length = Math.Sqrt((dx * dx) + (dy * dy));
+        var ux = dx / length;
+        var uy = dy / length;
+
+        // Von anderen Kreisen bedeckte Stücke [von, bis] entlang der Strecke (0 = a), nur zwischen den Endkreisen.
+        var covered = new List<(double From, double To)>();
+        foreach (var c in others)
+        {
+            var t = ((c.X - a.X) * ux) + ((c.Y - a.Y) * uy);
+            var d = Math.Abs(((c.X - a.X) * uy) - ((c.Y - a.Y) * ux));
+            if (d >= radius)
+            {
+                continue;
+            }
+
+            var half = Math.Sqrt((radius * radius) - (d * d));
+            var from = Math.Max(radius, t - half);
+            var to = Math.Min(length - radius, t + half);
+            if (to > from)
+            {
+                covered.Add((from, to));
+            }
+        }
+
+        blocked = covered.Count > 0;
+        var free = new List<(double From, double To)>();
+        var position = radius;
+        foreach (var (from, to) in covered.OrderBy(x => x.From))
+        {
+            if (from > position)
+            {
+                free.Add((position, from));
+            }
+
+            position = Math.Max(position, to);
+        }
+
+        if (length - radius > position)
+        {
+            free.Add((position, length - radius));
+        }
+
+        return free;
     }
 
     private static bool IsEven(int value) => value % 2 == 0;

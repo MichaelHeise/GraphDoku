@@ -25,6 +25,7 @@ public sealed partial class EditorViewModel
     private object? _gestureKey;
     private Dictionary<int, GridPoint> _moveOrigins = [];
     private GridPoint _moveAnchorOrigin;
+    private (double X, double Y) _grabOffset;
     private (int Dx, int Dy) _appliedDelta;
     private GridPoint? _lastPlacedPoint;
     private bool _spaceHeld;
@@ -371,6 +372,14 @@ public sealed partial class EditorViewModel
     private void PressSelect(Node? node, WorldPoint world, EditorModifiers modifiers)
     {
         var shift = modifiers.HasFlag(EditorModifiers.Shift);
+        // Zellen füllen die Fläche lückenlos (Paket 7): Kanten sind dann nur über ihre Linienstücke am Zellrand und ihre
+        // Marke zu treffen und haben dort Vorrang vor der Zelle (Nr. 154).
+        if (NodeShape == NodeShape.Cell && !shift && HitEdge(world) is { } cellEdge)
+        {
+            SelectEdge(cellEdge.Id);
+            return;
+        }
+
         if (node is not null)
         {
             if (shift)
@@ -410,11 +419,17 @@ public sealed partial class EditorViewModel
         var anchor = _pressNodeId is int id ? Puzzle.FindNode(id) : null;
         _moveAnchorOrigin = anchor is null ? default : new GridPoint(anchor.X, anchor.Y);
         _appliedDelta = (0, 0);
+
+        // Greifpunkt relativ zum Mittelpunkt: Eingerastet wird der Mittelpunkt, nicht der Zeiger. Sonst sprünge eine am
+        // Rand gepackte Zelle (Zelldarstellung, Nr. 155) schon nach wenigen Pixeln in die Nachbarzelle.
+        var grabbed = Viewport.ToWorld(_pressPoint);
+        var center = anchor is null ? grabbed : EditorGeometry.Center(Puzzle.Grid, anchor);
+        _grabOffset = (grabbed.X - center.X, grabbed.Y - center.Y);
     }
 
     private void MoveTo(WorldPoint world)
     {
-        var target = EditorGeometry.SnapForMove(Puzzle.Grid, world, _moveAnchorOrigin);
+        var target = EditorGeometry.SnapForMove(Puzzle.Grid, new WorldPoint(world.X - _grabOffset.X, world.Y - _grabOffset.Y), _moveAnchorOrigin);
         var delta = (target.X - _moveAnchorOrigin.X, target.Y - _moveAnchorOrigin.Y);
         if (delta == _appliedDelta || _moveOrigins.Count == 0)
         {
@@ -528,14 +543,16 @@ public sealed partial class EditorViewModel
         StatusMessage = $"Kante {edge.Id} ({rule.DisplayName}) von Knoten {edge.From} nach {edge.To} erstellt.";
     }
 
-    /// <summary>Oberster Knoten, dessen Kreis den Weltpunkt enthält.</summary>
+    /// <summary>
+    /// Oberster Knoten, der den Weltpunkt enthält: bei Kreisen im Knotenkreis, bei Zellen (<see cref="NodeShape"/>) im
+    /// Zellumriss.
+    /// </summary>
     public Node? HitNode(WorldPoint world)
     {
-        var radius = EditorGeometry.NodeRadius(Puzzle.Grid);
         for (var i = Puzzle.Nodes.Count - 1; i >= 0; i--)
         {
             var node = Puzzle.Nodes[i];
-            if (EditorGeometry.Center(Puzzle.Grid, node).DistanceTo(world) <= radius)
+            if (EditorGeometry.Contains(Puzzle.Grid, NodeShape, node, world))
             {
                 return node;
             }
@@ -544,10 +561,17 @@ public sealed partial class EditorViewModel
         return null;
     }
 
-    /// <summary>Kante in der Nähe des Weltpunkts (Toleranz in Pixeln).</summary>
+    /// <summary>
+    /// Kante in der Nähe des Weltpunkts (Toleranz in Pixeln). Bei Kreisen zählt die ganze Strecke zwischen den
+    /// Mittelpunkten; bei Zellen nur die sichtbaren Stege über den Zellrändern (<see cref="EditorGeometry.CellEdgeStubs"/>)
+    /// und die Marke, damit ein Klick ins Innere einer Zelle die Zelle trifft.
+    /// </summary>
     public Edge? HitEdge(WorldPoint world)
     {
         var tolerance = EdgeHitTolerance / Viewport.Scale;
+        var cells = NodeShape == NodeShape.Cell;
+        var clear = EditorGeometry.ClearRadius(Puzzle.Grid, NodeShape);
+        var markRadius = Math.Max(tolerance, EditorGeometry.ContentRadius(Puzzle.Grid, NodeShape) * 0.32);
         Edge? best = null;
         var bestDistance = double.MaxValue;
         foreach (var edge in Puzzle.Edges)
@@ -557,7 +581,27 @@ public sealed partial class EditorViewModel
                 continue;
             }
 
-            var distance = EditorGeometry.DistanceToSegment(world, EditorGeometry.Center(Puzzle.Grid, a), EditorGeometry.Center(Puzzle.Grid, b));
+            var from = EditorGeometry.Center(Puzzle.Grid, a);
+            var to = EditorGeometry.Center(Puzzle.Grid, b);
+            double distance;
+            if (!cells)
+            {
+                distance = EditorGeometry.DistanceToSegment(world, from, to);
+            }
+            else
+            {
+                var others = NodesNear(from, to, clear);
+                distance = EditorGeometry.CellEdgeStubs(Puzzle.Grid, from, to, others)
+                    .Select(s => EditorGeometry.DistanceToSegment(world, s.From, s.To))
+                    .DefaultIfEmpty(double.MaxValue)
+                    .Min();
+                if (EdgeHasMark(edge.Rule))
+                {
+                    var mark = EditorGeometry.EdgeMarkPosition(from, to, clear, others).Position;
+                    distance = Math.Min(distance, Math.Max(0, mark.DistanceTo(world) - markRadius + tolerance));
+                }
+            }
+
             if (distance <= tolerance && distance < bestDistance)
             {
                 best = edge;
@@ -566,5 +610,26 @@ public sealed partial class EditorViewModel
         }
 
         return best;
+    }
+
+    /// <summary>Regeln mit Marke auf der Kante (Kropki-Punkte, Pfeil); „Ungleich“ ist nur eine Linie.</summary>
+    public static bool EdgeHasMark(string rule) => rule is "Difference" or "Ratio" or "LessThan";
+
+    /// <summary>
+    /// Mittelpunkte der Knoten, deren Freihaltekreis (Radius <paramref name="radius"/>) die Strecke a–b berühren kann,
+    /// ohne die Enden selbst.
+    /// </summary>
+    public IEnumerable<WorldPoint> NodesNear(WorldPoint a, WorldPoint b, double radius)
+    {
+        var (left, right) = (Math.Min(a.X, b.X) - radius, Math.Max(a.X, b.X) + radius);
+        var (top, bottom) = (Math.Min(a.Y, b.Y) - radius, Math.Max(a.Y, b.Y) + radius);
+        foreach (var node in Puzzle.Nodes)
+        {
+            var c = EditorGeometry.Center(Puzzle.Grid, node);
+            if (c.X >= left && c.X <= right && c.Y >= top && c.Y <= bottom && c.DistanceTo(a) > 1e-9 && c.DistanceTo(b) > 1e-9)
+            {
+                yield return c;
+            }
+        }
     }
 }

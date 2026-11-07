@@ -78,6 +78,10 @@
         <Separator />
         <MenuItem Header="Alle Gruppen einblenden" Command="{Binding Editor.ShowAllGroupsCommand}" />
         <MenuItem Header="Alle Gruppen ausblenden" Command="{Binding Editor.HideAllGroupsCommand}" />
+        <Separator />
+        <!-- Darstellung der Knoten (Paket 7, Entscheidung Nr. 152): reine Ansichtseinstellung, nicht in der Rätseldatei. -->
+        <MenuItem Header="Knoten als Kreise" ToggleType="Radio" GroupName="nodeShape" IsChecked="{Binding Editor.IsCircleShape, Mode=TwoWay}" />
+        <MenuItem Header="{Binding Editor.CellShapeText}" ToggleType="Radio" GroupName="nodeShape" IsChecked="{Binding Editor.IsCellShape, Mode=TwoWay}" />
       </MenuItem>
       <MenuItem Header="_Lösen">
         <MenuItem Header="_Lösen" Command="{Binding Solve.SolveCommand}" InputGesture="F5" />
@@ -241,6 +245,15 @@
     <!-- Statusbereich: letzte Aktion, Werkzeughinweis und Prüfmeldungen des PuzzleValidator. -->
     <Border DockPanel.Dock="Bottom" BorderBrush="#dddddd" BorderThickness="0,1,0,0" Padding="8,4" Background="#f4f4f2">
       <DockPanel>
+        <!-- Darstellung der Knoten (Paket 7, Entscheidung Nr. 153): rechts im Statusbereich wie die Ansichtsumschalter
+             gängiger Programme; in der Werkzeugleiste ist bei 1280 px kein Platz mehr (sie bräche um). -->
+        <StackPanel x:Name="NodeShapeBar" DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top" Margin="12,0,0,0">
+          <TextBlock Text="Knoten als" VerticalAlignment="Center" Classes="hint" Margin="0,0,4,0" />
+          <RadioButton GroupName="nodeShapeBar" Content="Kreise" IsChecked="{Binding Editor.IsCircleShape}" MinHeight="0"
+                       ToolTip.Tip="Knoten als Kreise darstellen (auch Ansicht → Knoten als Kreise)" />
+          <RadioButton GroupName="nodeShapeBar" Content="Zellen" IsChecked="{Binding Editor.IsCellShape}" MinHeight="0"
+                       ToolTip.Tip="Knoten als Zellen des Gitters darstellen – Quadrate, Dreiecke bzw. Sechsecke (auch Ansicht → Knoten als Zellen). Ändert das Rätsel und die Datei nicht." />
+        </StackPanel>
         <TextBlock DockPanel.Dock="Top" Text="{Binding Editor.StatusMessage}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
         <TextBlock DockPanel.Dock="Top" Text="{Binding Editor.ToolHint}" Classes="hint" />
         <TextBlock DockPanel.Dock="Top" Text="{Binding Editor.ValidationSummary}" Margin="0,4,0,0"

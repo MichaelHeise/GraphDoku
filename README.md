@@ -17,7 +17,7 @@ Die verbindliche Spezifikation liegt in `docs/spec/`.
 | 4 – Lösen in der App | „Lösen“, „Eindeutigkeit prüfen“, asynchron mit Abbruch | erledigt |
 | 5 – Generator und alle Regeln im Editor | Kanten-Generator, Beispielrätsel (Killer, Kropki, Hexadoku, Dreiecksgitter) | erledigt |
 | 6 – Erklär-Modus | Kandidaten, Propagation mit Begründung, Schrittleiste | erledigt |
-| 7 – optional: Zellformen | Dreieck, Quadrat, Sechseck als Darstellung | offen |
+| 7 – optional: Zellformen | Dreieck, Quadrat, Sechseck als Darstellung | erledigt |
 
 Details: `docs/progress.md`; Abweichungen von der Spezifikation: `docs/decisions.md`.
 
@@ -79,6 +79,7 @@ Fenster: links die **Gruppenliste**, in der Mitte die **Zeichenfläche**, rechts
 | Eigener Wertebereich | Knoten auswählen, im Panel „Eigener Wertebereich“ von–bis eingeben, „Bereich setzen“; „Globalen Bereich verwenden“ entfernt ihn |
 | Gruppen hervorheben | Häkchen in der Gruppenliste bzw. „Alle ein“/„Alle aus“ |
 | Ansicht | Mausrad zoomt, mittlere/rechte Maustaste oder Leertaste + Ziehen verschiebt, „Einpassen“ (Strg/Cmd+0) |
+| Knoten als Zellen | Ansicht → „Knoten als Zellen (…)“ oder unten rechts „Knoten als ○ Kreise ○ Zellen“: Knoten erscheinen als Quadrate, Dreiecke bzw. Sechsecke des Gitters statt als Kreise. Alles lässt sich weiter bedienen (Klick irgendwo in die Zelle; Kanten über ihren Steg oder ihre Marke am Zellrand anklicken). Reine Ansicht: ändert weder das Rätsel noch die Datei und gilt bis zum Beenden der App |
 | Rückgängig | Strg/Cmd+Z, Wiederholen Strg/Cmd+Y oder Shift+Strg/Cmd+Z (alle Bearbeitungen) |
 | Dateien | Öffnen (Strg/Cmd+O), Speichern (Strg/Cmd+S), Speichern unter (Shift+Strg/Cmd+S); „ *“ im Titel = ungespeichert |
 
@@ -87,6 +88,8 @@ steht im Statusbereich. Kantenmarken: Ungleich = Linie, Differenz = weißer Punk
 schwarzer Punkt (mit Faktor, falls nicht 2), Kleiner als = Pfeil vom kleineren zum größeren Wert; bei Kanten über
 einen Knoten hinweg sitzt die Marke im ersten freien Stück neben diesem Knoten. Summen-Gruppen (Killer-Käfige)
 zeigen ihre Zielsumme klein oben links in ihrer ersten Zelle; Thermometer erscheinen als Linie mit Kolben am Anfang.
+In der Zelldarstellung sitzen die Marken auf der Mitte der gemeinsamen Seite zweier Zellen, Kanten ohne Marke
+(„Ungleich“) als kurzer Steg über jedem Zellrand, den sie kreuzen.
 
 ## Lösen in der App
 
@@ -116,7 +119,7 @@ Zeitlimit der Lösen-Leiste gilt auch hier.
 | Schritte ansehen | Schrittleiste: « Anfang, ‹ Zurück, Vor ›, Ende » oder Schieberegler; „Schritt n von N“ (0 = Ausgangslage) |
 | Tasten | wenn die Schrittleiste den Fokus hat (z. B. nach Klick auf „Vor ›“): ← / → ein Schritt, Pos1 / Ende zum Anfang bzw. Ende. Vorsicht: Ein Klick in die Zeichenfläche mit „Knoten setzen“ oder das Verschieben eines Knotens ist eine Bearbeitung und beendet die Erklärung |
 | Begründung | Panel rechts: Ergebnis, Art und Schlussweise des Schritts, Kurzfassung, Begründungstext, verantwortliche Regel |
-| Kandidaten | Häkchen „Kandidaten“ (auch Menü): kleine Ziffern im Kreis, 3 × 3 bei 1–9, 4 × 4 bei 16 Werten (0–F); sind die Knoten dafür zu klein, steht die Anzahl „(n)“ bzw. bei sehr kleinen Knoten nur der gerade gestrichene Wert im Knoten (Zoomen hilft) |
+| Kandidaten | Häkchen „Kandidaten“ (auch Menü): kleine Ziffern im Kreis bzw. in der Zelle, 3 × 3 bei 1–9, 4 × 4 bei 16 Werten (0–F); sind die Knoten dafür zu klein, steht die Anzahl „(n)“ bzw. bei sehr kleinen Knoten nur der gerade gestrichene Wert im Knoten (Zoomen hilft) |
 | Beenden | „Erklärung beenden“; jede Bearbeitung des Rätsels beendet die Erklärung ebenfalls |
 
 Farben auf der Zeichenfläche: **schwarz** Givens, **blau** hergeleitete Werte, **orange** geratene Werte;
@@ -125,7 +128,7 @@ Farben auf der Zeichenfläche: **schwarz** Givens, **blau** hergeleitete Werte, 
 Regel; **rot umrandet** (außen) ein Knoten ohne Kandidaten (Widerspruch). Wie die Lösung ist die Erklärung nur Anzeige: Sie ändert das Rätsel nicht und wird nicht gespeichert.
 
 Rendering-Rauchtest: `dotnet test tests/GraphDoku.App.Tests --filter Rendering` rendert das Hauptfenster headless
-(Skia, auch mit gelöstem und mehrdeutigem Sudoku und im Erklär-Modus) und legt PNGs in `$GRAPHDOKU_RENDER_DIR` bzw. im Temp-Verzeichnis unter `GraphDoku-Render` ab.
+(Skia, auch mit gelöstem und mehrdeutigem Sudoku, im Erklär-Modus und in der Zelldarstellung) und legt PNGs in `$GRAPHDOKU_RENDER_DIR` bzw. im Temp-Verzeichnis unter `GraphDoku-Render` ab.
 
 ## Beispielrätsel
 

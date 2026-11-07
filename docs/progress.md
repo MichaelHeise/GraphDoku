@@ -476,3 +476,57 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 - Tastenhinweis im Panel nennt nicht mehr „nach Klick in die Zeichenfläche“ (ein Klick mit „Knoten setzen“ beendet die
   Erklärung), Hinweis der Lösen-Leiste mit Tooltip (Nr. 115).
 - Gesamt danach: 533 Tests (Core 175, Solver 89, Explainer 59, App 210), alle grün in Release.
+
+## Paket 7 – Zellformen (optional)
+
+**Erledigt**
+
+- **Darstellung umschaltbar:** Knoten als Kreise (Standard) oder als Zellen in der Form des Gitters – Quadrate,
+  Dreiecke nach oben/unten, Sechsecke (Umrisse aus `GridGeometry.GetCellVertices`). Nichts darüber hinaus.
+  Umschalten über Ansicht → „Knoten als Kreise“ / „Knoten als Zellen (…)“ (der Text nennt die Form des Gitters) und
+  „Knoten als ○ Kreise ○ Zellen“ rechts im Statusbereich (Nr. 153); `EditorViewModel.NodeShape`,
+  `IsCircleShape`/`IsCellShape`, `ToggleNodeShapeCommand`, `CellShapeText`.
+- **Speicherformat unverändert:** Die Darstellung ist eine Ansichtseinstellung der Sitzung (kein Undo-Schritt, kein
+  „ungespeichert“, bleibt beim Öffnen anderer Rätsel), steht nicht in der Rätseldatei und wird nicht als
+  App-Einstellung gespeichert (Nr. 152).
+- **Alles funktioniert auch mit Zellen:** Auswahl, Shift-Klick, Rahmenauswahl, Verschieben (Mittelpunkt der gepackten
+  Zelle rastet ein, Nr. 155), Kante ziehen, Knoten setzen; Treffer überall im Zellumriss, Kanten an ihren Stegen und
+  Marken am Zellrand (Nr. 154). Kantenmarken (Kropki-Punkte, Pfeile) auf der Mitte der gemeinsamen Seite, Kanten als
+  kurze Stege über den gekreuzten Zellrändern (Nr. 157); Gruppenflächen und -umrisse, Blockgrenzen, Zielsummen,
+  Thermometer, Auswahlnummern; Givens, Lösung (blau, abweichend orange), Erklär-Modus (gelb/orange/grün, „Raten“,
+  roter Rahmen bei Widerspruch, grüne Regelkante), Kandidatenraster 3 × 3 / 4 × 4 mit 0–F (Nr. 156).
+- **Rendering angesehen** (`zellen-*.png`): klassisch 9 × 9 (Auswahl, Gruppe, gelöst, Erklärung mit Kandidaten, Zoom),
+  Dreiecks-Sudoku (Auswahl Auf-/Ab-Dreieck, Kante, gelöst, Erklärung mit Zoom), Hexadoku 16 × 16 (mit 0–F-Kandidaten
+  und Zoom), Sechseckgitter mit Kanten, Summe und Thermometer, jedes Beispielrätsel, Widerspruch, Verzweigung,
+  Regelkante, Umschalter bei Mindestgröße. Dabei behoben: Werkzeugleiste brach mit einem Umschalter bei 1280 px um
+  (daher Statusbereich), Gelb des aktuellen Schritts vom Grün der Regelgruppe überlagert (Zellen werden erneut gefüllt),
+  Linien quer durch fremde Dreiecke und Sterne an jeder Gitterecke im Dreiecks-Sudoku (jetzt Stege an den Rändern),
+  Auswahlrahmen am Zellrand halb unter der Nachbarzelle (jetzt eingerückt).
+- Tests (App 310, davon neu 50): `NodeShapeTests` (34: Umschalten ohne Undo/„ungespeichert“/Inhaltsänderung,
+  Optionsgruppen-Eigenschaften, bleibt beim Öffnen, Zellumriss-Treffer für Ecken und Nachbarn auf allen drei Gittern,
+  Übereinstimmung mit dem nächsten Gitterpunkt für 2000 Zufallspunkte je Gitter, Klick/Shift-Klick in Zellecken, Kante
+  am Rand vs. Zelle im Innern, Verschieben am Rand gepackter Zellen auf allen Gittern, Kante zwischen Zellecken ziehen,
+  „Knoten setzen“ in vorhandener Zelle, **byteweise gleiche Datei vor/nach dem Umschalten und Round-Trip für jede
+  Beispieldatei**, Radien passen in die Zellen, Polygon-Test und Einrücken, Randkreuzungen und Stege),
+  `NodeShapeWindowTests` (Menü Ansicht im echten Fenster), Rendering (+15: klassisch, Dreieck, Hexadoku, Sechseckgitter,
+  Widerspruch/Verzweigung/Regelkante, jede Beispieldatei, Umschalter im Statusbereich und einzeilige Werkzeugleiste).
+- Gesamt: 727 Tests (Core 232, Solver 104, Explainer 81, App 310), alle grün in Release.
+
+**Offen**
+
+- Die Darstellung wird nicht über einen Neustart hinweg gemerkt (keine App-Einstellungen, Nr. 152).
+- Kein Tastenkürzel für das Umschalten.
+- Marken langer Kanten (über andere Knoten hinweg) liegen auf Dreiecks- und Sechseckgittern im ersten freien Stück, nicht
+  zwingend genau auf einem Zellrand (auf dem Quadratgitter schon).
+
+**Bekannte Probleme**
+
+- Der Umschalter nimmt dem Werkzeughinweis im Statusbereich etwa 210 px Breite; bei 1280 px bleibt der Hinweis
+  einzeilig, bei Mindestbreite (900 px) war er schon vorher zweizeilig.
+- Pfeile („Kleiner als“) sind in Zellen eher klein (sie passen in den Spalt zwischen den Inhaltskreisen zweier
+  Nachbarzellen, etwa 0,14 Zellbreiten).
+- Kanten zwischen Dreiecken, die sich nur in einer Ecke berühren, aber nicht gegenüberliegen (zwei Zellen weiter in
+  derselben Zeile), erscheinen als zwei Stege an den Rändern der Zelle dazwischen – korrekt, aber auf den ersten Blick
+  nicht von zwei Kanten zu dieser Zelle zu unterscheiden (wählen zeigt die Endzellen).
+- Die Bedienung am echten Desktop wurde nicht geprüft (kein Bildschirmzugriff); Verhalten über ViewModel- und
+  headless-Fenstertests, Aussehen über die gerenderten Bilder.

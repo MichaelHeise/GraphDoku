@@ -72,8 +72,13 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     private static readonly IPen ExplanationCurrentPen = new ImmutablePen(new ImmutableSolidColorBrush(ExplanationCurrentColor), 3);
     private static readonly IPen ExplanationBranchPen = new ImmutablePen(new ImmutableSolidColorBrush(ExplanationBranchColor), 3);
     private static readonly IPen ExplanationRulePen = new ImmutablePen(new ImmutableSolidColorBrush(ExplanationRuleColor), 2.5);
-    private static readonly IPen EmptyNodePen = new ImmutablePen(new ImmutableSolidColorBrush(ExplanationRemovedColor), 2.5);
+    private static readonly ImmutablePen EmptyNodePen = new(new ImmutableSolidColorBrush(ExplanationRemovedColor), 2.5);
     private static readonly IPen NormalNodePen = new ImmutablePen(new ImmutableSolidColorBrush(Color.Parse("#3a3a3a")), 1.5);
+    private static readonly IPen SelectedNodePen = new ImmutablePen(new ImmutableSolidColorBrush(Color.Parse("#1d64d8")), 3);
+    private static readonly IPen DifferenceNodePen = new ImmutablePen(new ImmutableSolidColorBrush(SolutionDifferenceColor), 2.5);
+
+    /// <summary>Zelldarstellung: dünner, heller Rand jeder Zelle (Gruppenumrisse und Hervorhebungen liegen darüber).</summary>
+    private static readonly IPen CellBorderPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.Parse("#b4b4ae")), 1);
 
     private static readonly Dictionary<StandardCursorType, Cursor> Cursors = [];
 
@@ -264,17 +269,28 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             nodes.TryAdd(node.Id, node);
         }
 
-        var radius = EditorGeometry.NodeRadius(puzzle.Grid) * viewport.Scale;
+        // Kreise: Inhalt im Kreis. Zellen (Paket 7): Inhalt im Innenkreis der Zelle; die Zelle selbst füllt das Gitterfeld.
+        var cells = _editor.NodeShape == NodeShape.Cell;
+        var radius = EditorGeometry.ContentRadius(puzzle.Grid, _editor.NodeShape) * viewport.Scale;
         DrawRaster(context, puzzle.Grid, viewport);
+        if (cells)
+        {
+            // Zellen sind undurchsichtige Flächen: zuerst zeichnen, damit Gruppenflächen, Umrisse, Thermometer und
+            // Kantenstücke darauf zu sehen sind (bei Kreisen liegen diese in den Spalten zwischen den Kreisen).
+            DrawNodes(context, puzzle, viewport, radius, NodePass.CellFill);
+        }
+
         DrawGroups(context, puzzle, viewport, nodes, radius);
         DrawEdges(context, puzzle, viewport, nodes, radius, marks: false);
         DrawEdgePreview(context, puzzle, viewport, nodes);
-        DrawNodes(context, puzzle, viewport, radius);
+        DrawNodes(context, puzzle, viewport, radius, cells ? NodePass.CellContent : NodePass.Circle);
 
-        // Marken (Kropki-Punkte, Pfeile) über den Knoten: Sie liegen auf dem Spalt zwischen zwei Kreisen und würden sonst
-        // halb verdeckt.
+        // Marken (Kropki-Punkte, Pfeile) über den Knoten: Sie liegen auf dem Spalt zwischen zwei Kreisen (bei Zellen auf
+        // dem gemeinsamen Rand) und würden sonst halb verdeckt.
         DrawEdges(context, puzzle, viewport, nodes, radius, marks: true);
-        DrawSumTargets(context, puzzle, viewport, nodes, radius);
+
+        // Zielsummen meiden den Wert: bei Kreisen den ganzen Kreis, bei Zellen nur die Schrift in der Mitte.
+        DrawSumTargets(context, puzzle, viewport, nodes, radius, cells ? radius * 0.55 : radius);
         DrawOrderBadges(context, puzzle, viewport, nodes, radius);
         DrawBranchBadge(context, puzzle, viewport, nodes, radius);
         if (_editor.RubberBand is { } band)
@@ -364,7 +380,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         {
             if (!selected && editor.Registry.TryGet(group.Rule, out var rule) && rule.Kind.IsOrdered())
             {
-                DrawThermometer(context, puzzle.Grid, viewport, members, radius, color);
+                DrawThermometer(context, puzzle.Grid, viewport, members, radius, color, editor.NodeShape);
             }
         }
 
@@ -393,7 +409,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             context.DrawGeometry(null, new Pen(new ImmutableSolidColorBrush(color, 0.95), 3.5, lineCap: PenLineCap.Round), OutlineGeometry(puzzle.Grid, viewport, members));
             if (editor.Registry.TryGet(group.Rule, out var rule) && rule.Kind.IsOrdered())
             {
-                DrawThermometer(context, puzzle.Grid, viewport, members, radius, color);
+                DrawThermometer(context, puzzle.Grid, viewport, members, radius, color, editor.NodeShape);
             }
         }
     }
@@ -433,8 +449,10 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         return geometry;
     }
 
-    private static void DrawThermometer(DrawingContext context, GridType grid, Viewport viewport, List<Node> members, double radius, Color color)
+    private static void DrawThermometer(DrawingContext context, GridType grid, Viewport viewport, List<Node> members, double radius, Color color, NodeShape shape)
     {
+        // Zellen: Linie und Kolben liegen durchscheinend auf der Zelle (unter dem Wert) und bleiben innerhalb der Zelle.
+        var cells = shape == NodeShape.Cell;
         var brush = new ImmutableSolidColorBrush(color, 0.55);
         var points = members.Select(n => ToPoint(viewport.ToScreen(EditorGeometry.Center(grid, n)))).ToList();
         if (points.Count > 1)
@@ -451,12 +469,13 @@ public sealed class GraphCanvas : Control, ICustomHitTest
                 g.EndFigure(false);
             }
 
-            context.DrawGeometry(null, new Pen(brush, Math.Max(4, radius * 0.95), lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round), line);
+            context.DrawGeometry(null, new Pen(brush, Math.Max(4, radius * (cells ? 0.7 : 0.95)), lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round), line);
         }
 
-        // Kolben am Anfang: zeigt die Richtung (Werte steigen vom Kolben weg). Deutlich größer als der Knotenkreis, damit
-        // er neben dem weißen Kreis als Fläche zu sehen ist.
-        context.DrawEllipse(brush, null, points[0], radius * 1.3, radius * 1.3);
+        // Kolben am Anfang: zeigt die Richtung (Werte steigen vom Kolben weg). Bei Kreisen deutlich größer als der
+        // Knotenkreis, damit er neben dem weißen Kreis als Fläche zu sehen ist.
+        var bulb = radius * (cells ? 1.0 : 1.3);
+        context.DrawEllipse(brush, null, points[0], bulb, bulb);
     }
 
     /// <summary>Kanten: erst nur die Linien (unter den Knoten), dann mit <paramref name="marks"/> nur die Marken (darüber).</summary>
@@ -479,21 +498,21 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             }
 
             var unit = vector / length;
-            var known = _editor!.Registry.Contains(edge.Rule);
+            var shape = _editor!.NodeShape;
+            var clear = EditorGeometry.ClearRadius(puzzle.Grid, shape);
+            var fromWorld = EditorGeometry.Center(puzzle.Grid, fromNode);
+            var toWorld = EditorGeometry.Center(puzzle.Grid, toNode);
+            var known = _editor.Registry.Contains(edge.Rule);
             var selected = _editor.SelectedEdgeId == edge.Id;
             var ruleOfStep = _editor.Explanation?.Constraint is { Kind: ConstraintKind.Edge, Id: var ruleEdgeId } && ruleEdgeId == edge.Id;
             var brush = ruleOfStep ? ExplanationRuleBrush : selected ? AccentBrush : EdgeBrush;
             if (marks)
             {
-                if (edge.Rule is "Difference" or "Ratio" or "LessThan")
+                if (EditorViewModel.EdgeHasMark(edge.Rule))
                 {
                     // Nicht auf einen Knoten zwischen den Enden (Kante zum übernächsten Knoten): Die Marke liegt über den
-                    // Knoten und verdeckte dort dessen Wert.
-                    var (position, gap) = EditorGeometry.EdgeMarkPosition(
-                        EditorGeometry.Center(puzzle.Grid, fromNode),
-                        EditorGeometry.Center(puzzle.Grid, toNode),
-                        EditorGeometry.NodeRadius(puzzle.Grid),
-                        NodesBetween(puzzle.Grid, nodes, fromNode, toNode));
+                    // Knoten und verdeckte dort dessen Wert. Bei Zellen liegt sie so auf einem Zellrand.
+                    var (position, gap) = EditorGeometry.EdgeMarkPosition(fromWorld, toWorld, clear, _editor.NodesNear(fromWorld, toWorld, clear));
                     DrawEdgeMark(context, edge, ToPoint(viewport.ToScreen(position)), unit, radius, gap * viewport.Scale, brush, selected);
                 }
 
@@ -506,27 +525,17 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             var pen = plain
                 ? NotEqualPen
                 : new Pen(brush, selected || ruleOfStep ? 3.2 : 1.8, known ? null : Dashed, PenLineCap.Round);
-            if (length > 2 * radius)
+            if (shape == NodeShape.Cell)
+            {
+                // Zellen: nur kurze Stege über den Zellrändern, Wert und Kandidaten im Innern bleiben frei.
+                foreach (var (segmentFrom, segmentTo) in EditorGeometry.CellEdgeStubs(puzzle.Grid, fromWorld, toWorld, _editor.NodesNear(fromWorld, toWorld, clear)))
+                {
+                    context.DrawLine(pen, ToPoint(viewport.ToScreen(segmentFrom)), ToPoint(viewport.ToScreen(segmentTo)));
+                }
+            }
+            else if (length > 2 * radius)
             {
                 context.DrawLine(pen, a + (unit * radius), b - (unit * radius));
-            }
-        }
-    }
-
-    /// <summary>Mittelpunkte der Knoten, deren Kreis die Strecke zwischen den beiden Knoten berühren kann (ohne die Enden).</summary>
-    private static IEnumerable<WorldPoint> NodesBetween(GridType grid, Dictionary<int, Node> nodes, Node from, Node to)
-    {
-        var a = EditorGeometry.Center(grid, from);
-        var b = EditorGeometry.Center(grid, to);
-        var r = EditorGeometry.NodeRadius(grid);
-        var (left, right) = (Math.Min(a.X, b.X) - r, Math.Max(a.X, b.X) + r);
-        var (top, bottom) = (Math.Min(a.Y, b.Y) - r, Math.Max(a.Y, b.Y) + r);
-        foreach (var node in nodes.Values)
-        {
-            var c = EditorGeometry.Center(grid, node);
-            if (c.X >= left && c.X <= right && c.Y >= top && c.Y <= bottom && c.DistanceTo(a) > 1e-9 && c.DistanceTo(b) > 1e-9)
-            {
-                yield return c;
             }
         }
     }
@@ -613,13 +622,16 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         }
     }
 
-    private void DrawNodes(DrawingContext context, Puzzle puzzle, Viewport viewport, double radius)
+    /// <summary>
+    /// Knoten zeichnen. Kreise in einem Durchgang; Zellen in zwei: erst die Flächen (unter Gruppen und Kanten), dann
+    /// Rahmen der Hervorhebung und Inhalt (darüber).
+    /// </summary>
+    private void DrawNodes(DrawingContext context, Puzzle puzzle, Viewport viewport, double radius, NodePass pass)
     {
-        var normalPen = new Pen(NodeStrokeBrush, 1.5);
-        var selectedPen = new Pen(AccentBrush, 3);
-        var differencePen = new Pen(SolutionDifferenceBrush, 2.5);
         var visible = viewport.VisibleWorld;
-        var margin = EditorGeometry.NodeRadius(puzzle.Grid);
+
+        // Umkreis der Zellen: Sechseck 1/√3, Dreieck 1/√3, Quadrat √2/2.
+        var margin = pass == NodePass.Circle ? EditorGeometry.NodeRadius(puzzle.Grid) : 0.75;
         var edgeEnds = _editor!.SelectedEdgeId is int edgeId && puzzle.FindEdge(edgeId) is { } edge ? new[] { edge.From, edge.To } : [];
         var halo = radius + Math.Max(4, radius * 0.22);
         foreach (var node in puzzle.Nodes)
@@ -633,93 +645,140 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             var center = ToPoint(viewport.ToScreen(world));
             var selected = _editor.IsNodeSelected(node.Id);
             var endOfSelectedEdge = edgeEnds.Contains(node.Id);
-            if (endOfSelectedEdge)
+            var style = GetNodeStyle(node, selected, endOfSelectedEdge);
+            switch (pass)
             {
-                // Endknoten der gewählten Kante hervorheben (Knoten-Ids stehen nicht auf der Zeichenfläche).
-                context.DrawEllipse(HaloBrush, null, center, halo, halo);
-            }
+                case NodePass.Circle:
+                    if (endOfSelectedEdge)
+                    {
+                        // Endknoten der gewählten Kante hervorheben (Knoten-Ids stehen nicht auf der Zeichenfläche).
+                        context.DrawEllipse(HaloBrush, null, center, halo, halo);
+                    }
 
-            if (_editor.Explanation is { } explanation)
-            {
-                DrawExplainedNode(context, puzzle, node, center, radius, explanation, selected || endOfSelectedEdge ? selectedPen : null);
-                continue;
-            }
+                    context.DrawEllipse(style.Fill, style.Pen, center, radius, radius);
+                    if (style.Empty)
+                    {
+                        // Widerspruch: eigener roter Ring außen. Der Knoten, dem der letzte Schritt den letzten Kandidaten
+                        // nimmt, ist immer zugleich Knoten des aktuellen Schritts (gelb) – der rote Ring darf die
+                        // Hervorhebung nicht ersetzen.
+                        var outer = radius + Math.Max(3, radius * 0.14);
+                        context.DrawEllipse(null, EmptyNodePen, center, outer, outer);
+                    }
 
-            var differs = node.Given is null && _editor.IsSolutionDifference(node.Id);
-            var fill = selected ? NodeSelectedFill : differs ? SolutionDifferenceFill : NodeFill;
-            var pen = selected || endOfSelectedEdge ? selectedPen : differs ? differencePen : normalPen;
-            context.DrawEllipse(fill, pen, center, radius, radius);
-            if (radius < 5)
-            {
-                continue;
-            }
+                    DrawNodeContent(context, puzzle, node, center, radius, style.Differs);
+                    break;
+                case NodePass.CellFill:
+                    context.DrawGeometry(style.Fill, CellBorderPen, PolygonGeometry(viewport, EditorGeometry.CellVertices(puzzle.Grid, node)));
+                    break;
+                case NodePass.CellContent:
+                    var vertices = EditorGeometry.CellVertices(puzzle.Grid, node);
+                    var framed = !ReferenceEquals(style.Pen, NormalNodePen);
+                    var filled = !ReferenceEquals(style.Fill, NodeFill);
+                    if (framed || filled)
+                    {
+                        // Hervorgehobene Zellen (Auswahl, Erklär-Modus, abweichende Lösung) noch einmal über den
+                        // Gruppenflächen füllen, damit ihre Farbe der Legende entspricht (sonst z. B. gelb + grün der
+                        // Regelgruppe), etwas eingerückt, damit Gruppenumrisse sichtbar bleiben. Der Rahmen liegt
+                        // innerhalb der Zelle, damit er nicht unter der Nachbarzelle verschwindet und benachbarte Rahmen
+                        // getrennt bleiben.
+                        var inset = (framed ? (style.Pen.Thickness / 2) + 0.5 : 1.5) / viewport.Scale;
+                        context.DrawGeometry(filled ? style.Fill : null, framed ? style.Pen : null, PolygonGeometry(viewport, EditorGeometry.Inset(vertices, world, inset)));
+                    }
 
-            if (node.Given is int given)
-            {
-                var text = CreateText(ValueText.Format(given, puzzle, node), radius * 1.1, TextBrush, FontWeight.SemiBold);
-                context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
-            }
-            else if (_editor.SolutionValue(node.Id) is int solved)
-            {
-                // Lösungswert (nur Anzeige, nicht im Rätsel): andere Farbe und Strichstärke als ein Given.
-                var text = CreateText(ValueText.Format(solved, puzzle, node), radius * 1.05, differs ? SolutionDifferenceBrush : SolutionBrush, FontWeight.Normal);
-                context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
+                    if (style.Empty)
+                    {
+                        // Widerspruch: roter Rahmen innerhalb des Rahmens der Hervorhebung.
+                        var inset = (style.Pen.Thickness + 1 + (EmptyNodePen.Thickness / 2) + 1.5) / viewport.Scale;
+                        context.DrawGeometry(null, EmptyNodePen, PolygonGeometry(viewport, EditorGeometry.Inset(vertices, world, inset)));
+                    }
+
+                    DrawNodeContent(context, puzzle, node, center, radius, style.Differs);
+                    break;
             }
         }
     }
 
     /// <summary>
-    /// Knoten im Erklär-Modus: Hervorhebung nach Schritt (gelb = geändert, orange = Verzweigung, grün = Regel), Givens
-    /// schwarz, hergeleitete Werte blau, geratene orange; offene Knoten zeigen ihre Kandidaten als kleines Raster.
+    /// Füllung und Rahmen eines Knotens. Editor: gewählt hellblau mit blauem Rahmen, Endknoten der gewählten Kante blau
+    /// umrandet, abweichende Lösungswerte orange. Erklär-Modus: gelb = geändert, orange = Verzweigung, grün = Regel;
+    /// <see cref="NodeStyle.Empty"/> = ohne Kandidaten (roter Ring).
     /// </summary>
-    private void DrawExplainedNode(DrawingContext context, Puzzle puzzle, Node node, Point center, double radius, ExplanationView explanation, IPen? selectionPen)
+    private NodeStyle GetNodeStyle(Node node, bool selected, bool endOfSelectedEdge)
     {
-        var highlight = explanation.GetHighlight(node.Id);
-        var empty = explanation.EmptyNodeIds.Contains(node.Id);
-        var fill = highlight switch
+        var editor = _editor!;
+        var selectionPen = selected || endOfSelectedEdge ? SelectedNodePen : null;
+        if (editor.Explanation is { } explanation)
         {
-            ExplanationHighlight.Current => ExplanationCurrentFill,
-            ExplanationHighlight.CurrentBranch => ExplanationBranchFill,
-            ExplanationHighlight.Rule => ExplanationRuleFill,
-            _ => selectionPen is not null ? NodeSelectedFill : NodeFill,
-        };
-        var pen = selectionPen ?? (highlight switch
-        {
-            ExplanationHighlight.Current => ExplanationCurrentPen,
-            ExplanationHighlight.CurrentBranch => ExplanationBranchPen,
-            ExplanationHighlight.Rule => ExplanationRulePen,
-            _ => NormalNodePen,
-        });
-        context.DrawEllipse(fill, pen, center, radius, radius);
-        if (empty)
-        {
-            // Widerspruch: eigener roter Ring außen. Der Knoten, dem der letzte Schritt den letzten Kandidaten nimmt, ist
-            // immer zugleich Knoten des aktuellen Schritts (gelb) – der rote Ring darf die Hervorhebung nicht ersetzen.
-            var outer = radius + Math.Max(3, radius * 0.14);
-            context.DrawEllipse(null, EmptyNodePen, center, outer, outer);
+            var highlight = explanation.GetHighlight(node.Id);
+            var fill = highlight switch
+            {
+                ExplanationHighlight.Current => ExplanationCurrentFill,
+                ExplanationHighlight.CurrentBranch => ExplanationBranchFill,
+                ExplanationHighlight.Rule => ExplanationRuleFill,
+                _ => selectionPen is not null ? NodeSelectedFill : NodeFill,
+            };
+            var pen = selectionPen ?? (highlight switch
+            {
+                ExplanationHighlight.Current => ExplanationCurrentPen,
+                ExplanationHighlight.CurrentBranch => ExplanationBranchPen,
+                ExplanationHighlight.Rule => ExplanationRulePen,
+                _ => NormalNodePen,
+            });
+            return new NodeStyle(fill, pen, explanation.EmptyNodeIds.Contains(node.Id), Differs: false);
         }
 
+        var differs = node.Given is null && editor.IsSolutionDifference(node.Id);
+        return new NodeStyle(
+            selected ? NodeSelectedFill : differs ? SolutionDifferenceFill : NodeFill,
+            selectionPen ?? (differs ? DifferenceNodePen : NormalNodePen),
+            Empty: false,
+            differs);
+    }
+
+    /// <summary>
+    /// Inhalt eines Knotens: Given, Lösungswert bzw. im Erklär-Modus Givens schwarz, hergeleitete Werte blau, geratene
+    /// orange; offene Knoten zeigen ihre Kandidaten als kleines Raster.
+    /// </summary>
+    private void DrawNodeContent(DrawingContext context, Puzzle puzzle, Node node, Point center, double radius, bool differs)
+    {
         if (radius < 5)
         {
             return;
         }
 
-        var domain = puzzle.GetEffectiveDomain(node);
-        var hex = ValueText.IsHex(puzzle, node);
+        if (_editor!.Explanation is { } explanation)
+        {
+            var domain = puzzle.GetEffectiveDomain(node);
+            var hex = ValueText.IsHex(puzzle, node);
+            if (node.Given is int explainedGiven)
+            {
+                var text = CreateText(ValueText.Format(explainedGiven, hex), radius * 1.1, TextBrush, FontWeight.SemiBold);
+                context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
+            }
+            else if (explanation.GetSetValue(node.Id) is int value)
+            {
+                var brush = explanation.IsGuessed(node.Id) ? GuessedValueBrush : SolutionBrush;
+                var text = CreateText(ValueText.Format(value, hex), radius * 1.05, brush, FontWeight.Normal);
+                context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
+            }
+            else if (explanation.ShowCandidates)
+            {
+                DrawCandidates(context, center, radius, domain, hex, explanation.GetCandidates(node.Id), explanation.GetRemovedCandidates(node.Id));
+            }
+
+            return;
+        }
+
         if (node.Given is int given)
         {
-            var text = CreateText(ValueText.Format(given, hex), radius * 1.1, TextBrush, FontWeight.SemiBold);
+            var text = CreateText(ValueText.Format(given, puzzle, node), radius * 1.1, TextBrush, FontWeight.SemiBold);
             context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
         }
-        else if (explanation.GetSetValue(node.Id) is int value)
+        else if (_editor.SolutionValue(node.Id) is int solved)
         {
-            var brush = explanation.IsGuessed(node.Id) ? GuessedValueBrush : SolutionBrush;
-            var text = CreateText(ValueText.Format(value, hex), radius * 1.05, brush, FontWeight.Normal);
+            // Lösungswert (nur Anzeige, nicht im Rätsel): andere Farbe und Strichstärke als ein Given.
+            var text = CreateText(ValueText.Format(solved, puzzle, node), radius * 1.05, differs ? SolutionDifferenceBrush : SolutionBrush, FontWeight.Normal);
             context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
-        }
-        else if (explanation.ShowCandidates)
-        {
-            DrawCandidates(context, center, radius, domain, hex, explanation.GetCandidates(node.Id), explanation.GetRemovedCandidates(node.Id));
         }
     }
 
@@ -838,7 +897,8 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     /// (oberste Zeile, darin ganz links): auf dem Quadratgitter in der linken oberen Ecke, sonst zur oberen linken Ecke
     /// der Zelle hin. „?“, wenn die Zielsumme fehlt oder ungültig ist.
     /// </summary>
-    private void DrawSumTargets(DrawingContext context, Puzzle puzzle, Viewport viewport, Dictionary<int, Node> nodes, double radius)
+    /// <param name="clearance">Abstand von der Mitte, den das Etikett auf dem Sechseckgitter mindestens hält (Kreis bzw. Wert).</param>
+    private void DrawSumTargets(DrawingContext context, Puzzle puzzle, Viewport viewport, Dictionary<int, Node> nodes, double radius, double clearance)
     {
         if (radius < 6)
         {
@@ -884,7 +944,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
                 var cornerDistance = Math.Sqrt((toCorner.X * toCorner.X) + (toCorner.Y * toCorner.Y));
                 var unit = toCorner / cornerDistance;
                 var support = ((text.Width / 2) + 1.5) * Math.Abs(unit.X) + (text.Height / 2 * Math.Abs(unit.Y));
-                var distance = Math.Min(cornerDistance, radius + 1.5 + support);
+                var distance = Math.Min(cornerDistance, clearance + 1.5 + support);
                 var at = screenCenter + (unit * distance);
                 topLeft = new Point(at.X - (text.Width / 2), at.Y - (text.Height / 2));
             }
@@ -964,6 +1024,17 @@ public sealed class GraphCanvas : Control, ICustomHitTest
 
                 break;
         }
+    }
+
+    private static StreamGeometry PolygonGeometry(Viewport viewport, IReadOnlyList<WorldPoint> vertices)
+    {
+        var geometry = new StreamGeometry();
+        using (var g = geometry.Open())
+        {
+            AddPolygon(g, viewport, vertices);
+        }
+
+        return geometry;
     }
 
     private static void AddPolygon(StreamGeometryContext g, Viewport viewport, IReadOnlyList<WorldPoint> vertices)
@@ -1048,4 +1119,15 @@ public sealed class GraphCanvas : Control, ICustomHitTest
 
         Cursor = cursor;
     }
+
+    /// <summary>Durchgang beim Zeichnen der Knoten (siehe <see cref="DrawNodes"/>).</summary>
+    private enum NodePass
+    {
+        Circle,
+        CellFill,
+        CellContent,
+    }
+
+    /// <summary>Füllung, Rahmen, Widerspruch (roter Ring) und abweichender Lösungswert eines Knotens.</summary>
+    private readonly record struct NodeStyle(IBrush Fill, IPen Pen, bool Empty, bool Differs);
 }

@@ -433,6 +433,7 @@ public sealed partial class EditorViewModel : ViewModelBase
         EndValueEntry();
         OnPropertyChanged(nameof(Puzzle));
         OnPropertyChanged(nameof(History));
+        OnPropertyChanged(nameof(CellShapeText));
         Groups.Clear();
         OnModelChanged();
         OnSelectionChanged();

@@ -911,3 +911,61 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
     Summe/`allowRepeats` „dürfen sich Werte wiederholen? Standard: nein“ (vorher „Standard: false“ neben dem Häkchen).
     Zuordnung über Name und Core-Beschreibung, damit gleichnamige Parameter eigener Regeln ihre Beschreibung behalten.
     Die Beschreibungen im Core bleiben unverändert (sie nennen bewusst die Dateiwerte).
+
+## Zellformen (Paket 7)
+
+152. **Darstellung der Knoten als reine Ansichtseinstellung, nicht in der Rätseldatei und nicht dauerhaft gespeichert.**
+     `EditorViewModel.NodeShape` (`NodeShape.Circle` = Standard laut Spezifikation, `NodeShape.Cell` = Zellen in der Form
+     des Gitters: Quadrat, Dreieck nach oben/unten je nach `GridGeometry.IsUpTriangle`, Sechseck – die Umrisse kommen aus
+     `GridGeometry.GetCellVertices`). Wie das Ein-/Ausblenden von Gruppen: kein Undo-Schritt, kein „ungespeichert“, kein
+     `ContentChanged`; Lösung und Erklärung bleiben stehen. Die Einstellung gilt für die Sitzung und bleibt beim Öffnen,
+     bei Neu und Vorlage erhalten. **Nicht in der Datei**, weil `PuzzleSerializer` unbekannte Felder ablehnt: Ein neues
+     Feld machte mit Paket 7 gespeicherte Dateien für ältere Programmstände unlesbar (Akzeptanz „Speicherformat bleibt
+     kompatibel“); außerdem ist die Darstellung keine Eigenschaft des Rätsels. **Nicht als App-Einstellung gespeichert**
+     (die Aufgabe nennt das als optional): Dafür bräuchte die App erst einen Einstellungsdienst mit Dateiort pro
+     Betriebssystem, Fehlerbehandlung und Testisolation – mehr Fläche als das Paket selbst; nach einem Neustart zeigt die
+     App wieder Kreise. Belegt durch einen Test pro Beispieldatei: speichern, umschalten, speichern → byteweise gleiche
+     Dateien; nur die Felder des Formats; Öffnen in der Zelldarstellung ergibt dasselbe Modell wie das Original.
+153. **Umschalter im Menü Ansicht und rechts im Statusbereich, nicht in der Werkzeugleiste.** Menü: zwei Einträge als
+     Optionsgruppe („Knoten als Kreise“, „Knoten als Zellen (Quadrate|Dreiecke|Sechsecke)“, der Text nennt die Form des
+     geladenen Gitters), `IsChecked` mit `Mode=TwoWay` (Nr. 114). Statusbereich: „Knoten als ○ Kreise ○ Zellen“ unten
+     rechts, wie die Ansichtsumschalter gängiger Programme. Ein Umschalter „Zellen“ in der Werkzeugleiste ließ sie bei
+     1280 px umbrechen (im Rendering gesehen; zweite Zeile mit nur dieser Schaltfläche, Zeichenfläche etwa 35 px niedriger, vgl.
+     Nr. 145) – das sollte Paket 5 gerade vermeiden. Dazu der Befehl `ToggleNodeShapeCommand` (ohne Tastenkürzel) und eine
+     Statusmeldung beim Umschalten („… Das Rätsel und die Datei ändern sich dadurch nicht.“).
+154. **Treffertests in der Zelldarstellung:** Ein Knoten wird überall in seinem Zellumriss getroffen
+     (`EditorGeometry.PolygonContains`, konvex, Rand eingeschlossen; das ist auf allen drei Gittern dieselbe Zelle wie
+     `GridGeometry.ToNearestGridPoint`, Test mit 2000 Zufallspunkten pro Gitter). Weil Zellen die Fläche lückenlos füllen,
+     gäbe es sonst keine Stelle mehr, an der man eine Kante anklicken kann: Im Werkzeug „Auswahl“ haben Kanten an ihren
+     sichtbaren Stegen über den Zellrändern und an ihrer Marke **Vorrang** vor der Zelle (Toleranz 6 px wie bisher),
+     Shift-Klick ausgenommen (hängt wie bei Kreisen eine Zelle an). Im Innern (Wert, Kandidaten) und in den Ecken trifft
+     man immer die Zelle. Kante ziehen, Knoten setzen (Klick in eine vorhandene Zelle wählt sie), Rahmenauswahl
+     (Mittelpunkte) und Verschieben arbeiten unverändert über diese Treffertests. Bei Kreisen bleibt alles wie bisher.
+155. **Verschieben rastet den Mittelpunkt der gepackten Zelle ein, nicht den Zeiger** (beide Darstellungen): Beim Start
+     des Verschiebens wird der Versatz Zeiger − Mittelpunkt gemerkt und vor `EditorGeometry.SnapForMove` abgezogen. In der
+     Zelldarstellung kann man eine Zelle direkt am Rand packen; ohne Versatz sprang sie nach den 4 px der Ziehschwelle in
+     die Nachbarzelle. Bei Kreisen (Radius 0,38) war der Effekt kleiner, aber derselbe; Bedienung aus der Kreismitte (alle
+     bisherigen Tests) ist unverändert.
+156. **Zeichnen der Zellen:** Reihenfolge Raster → Zellflächen (weiß bzw. Farbe des Zustands, dünner heller Rand #b4b4ae) →
+     Gruppenflächen, -umrisse und Thermometer → Kantenstege → Rahmen und Inhalt der Zellen → Kantenmarken, Summen,
+     Nummern, „Raten“. Zellen mit eigener Farbe (Auswahl hellblau, Erklär-Modus gelb/orange/grün, abweichende Lösung
+     orange) werden über den Gruppenflächen ein zweites Mal leicht eingerückt gefüllt, sonst mischte sich z. B. das Gelb
+     des aktuellen Schritts mit dem Grün der Regelgruppe (im Rendering gesehen); Rahmen der Auswahl bzw. Hervorhebung
+     liegen innerhalb der Zelle (zentrische Verkleinerung, `EditorGeometry.Inset`), der rote Rahmen eines Knotens ohne
+     Kandidaten innen neben dem gelben statt als Ring außen. Wert, Kandidatenraster, Nummern und „Raten“ beziehen sich auf
+     einen **Inhaltsradius** (`EditorGeometry.ContentRadius`): Quadrat 0,42, Sechseck 0,4 (das 4 × 4-Raster muss zwischen
+     die Ecken passen), Dreieck 0,24 (Innenkreis 0,29) – Werte und Kandidaten werden in Zellen etwas größer als in Kreisen.
+     Thermometer: Linie 0,7 statt 0,95 Inhaltsradien, Kolben 1,0 statt 1,3 (bleibt in der Zelle, liegt durchscheinend auf
+     ihr). Zielsummen auf dem Sechseckgitter halten nur Abstand zur Schrift in der Mitte (0,55 Inhaltsradien) statt zum
+     ganzen Kreis und bleiben so in der Zelle.
+157. **Kanten in der Zelldarstellung als Stege über den Zellrändern** statt als Linie von Mitte zu Mitte: an jeder Stelle,
+     an der die Strecke einen Zellrand kreuzt (`EditorGeometry.BorderCrossings`, Zelle für Zelle über den Austritt aus
+     dem konvexen Umriss), ein Steg von einem halben Inhaltsradius Länge, ohne die Freihaltekreise (0,8 Inhaltsradien,
+     `ClearRadius`) um Enden und andere Knoten (`CellEdgeStubs`). Bei Nachbarzellen ist das ein kurzer Steg mittig über
+     der gemeinsamen Seite, bei Zellen, die sich nur in einer Ecke berühren, einer über der Ecke, bei längeren Kanten einer
+     pro gekreuztem Rand. Marken (Kropki-Punkte, Pfeile) setzt weiterhin `EdgeMarkPosition`, jetzt mit dem
+     Freihalteradius – bei Nachbarzellen genau auf der Mitte der gemeinsamen Seite, bei Kanten über einen Knoten hinweg
+     auf dem ersten freien Rand. Grund (im Rendering gesehen): Mit den vollen freien Stücken liefen im Dreiecks-Sudoku
+     (168 „Ungleich“-Kanten, viele zwischen Dreiecken, die sich nur in einer Ecke berühren) Linien durch die Ecken fremder
+     Zellen und durch deren Kandidaten, an jeder Gitterecke entstand ein Stern. Der Treffertest für Kanten (Nr. 154)
+     benutzt genau diese Stege.
