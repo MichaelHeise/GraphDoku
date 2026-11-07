@@ -209,6 +209,102 @@ public class RulePropagationTests
     }
 
     [Fact]
+    public void Sum_of_a_very_large_group_does_not_overflow_the_stack()
+    {
+        // Regression (Review PR #1): Die Suche war rekursiv mit Tiefe = Gruppengröße. 10.000 Knoten führten zu einem
+        // nicht abfangbaren StackOverflow, der die ganze App beendete. Auf einem Thread mit 512 KB Stack ginge das
+        // schon bei 20.000 Knoten schief; die iterative Suche braucht keinen Stack pro Knoten.
+        const int count = 20_000;
+        var p = TestPuzzles.WithNodes(count);
+        var group = new Group(1, Enumerable.Range(1, count), "Sum", TestPuzzles.Params(("target", 100_000), ("allowRepeats", true)));
+        var state = CandidateState.FromPuzzle(p);
+        IReadOnlyList<CandidateChange>? changes = null;
+        Exception? error = null;
+
+        var thread = new Thread(
+            () =>
+            {
+                try
+                {
+                    changes = RuleRegistry.Default.Get("Sum").Propagate(state, group);
+                }
+                catch (Exception ex)
+                {
+                    error = ex;
+                }
+            },
+            maxStackSize: 512 * 1024);
+        thread.Start();
+        thread.Join();
+
+        error.Should().BeNull();
+        changes.Should().BeEmpty("jeder Wert 1..9 ist mit passenden übrigen Werten möglich");
+    }
+
+    [Fact]
+    public void Sum_search_matches_brute_force_on_random_small_groups()
+    {
+        // Die Suche muss genau die Kandidaten behalten, die in einer vollständigen Belegung vorkommen.
+        var random = new Random(4711);
+        for (var round = 0; round < 1_500; round++)
+        {
+            var count = random.Next(2, 5);
+            var allowRepeats = random.Next(2) == 0;
+            var target = random.Next(count, (9 * count) + 1);
+            var setup = Enumerable.Range(1, count)
+                .Select(n =>
+                {
+                    var values = Enumerable.Range(1, 9).Where(_ => random.Next(3) > 0).ToArray();
+                    return (n, values.Length == 0 ? [random.Next(1, 10)] : values);
+                })
+                .ToArray();
+            var group = new Group(1, Enumerable.Range(1, count), "Sum", TestPuzzles.Params(("target", target), ("allowRepeats", allowRepeats)));
+
+            var (state, _) = Run(group, TestPuzzles.WithNodes(count), setup);
+
+            var expected = BruteForceSumSupport(setup.Select(s => s.Item2).ToArray(), target, allowRepeats);
+            for (var i = 0; i < count; i++)
+            {
+                state.GetCandidates(i + 1).Should().Equal(
+                    expected[i],
+                    $"Runde {round}: Ziel {target}, Wiederholung {allowRepeats}, Kandidaten {string.Join(" | ", setup.Select(s => string.Join(",", s.Item2)))}");
+            }
+        }
+    }
+
+    /// <summary>Alle Werte pro Knoten, die in einer vollständigen Belegung mit der Zielsumme vorkommen.</summary>
+    private static List<int>[] BruteForceSumSupport(int[][] candidates, int target, bool allowRepeats)
+    {
+        var supported = candidates.Select(_ => new SortedSet<int>()).ToArray();
+        var assignment = new int[candidates.Length];
+
+        void Visit(int depth, int sum)
+        {
+            if (depth == candidates.Length)
+            {
+                if (sum == target && (allowRepeats || assignment.Distinct().Count() == assignment.Length))
+                {
+                    for (var i = 0; i < assignment.Length; i++)
+                    {
+                        supported[i].Add(assignment[i]);
+                    }
+                }
+
+                return;
+            }
+
+            foreach (var value in candidates[depth])
+            {
+                assignment[depth] = value;
+                Visit(depth + 1, sum + value);
+            }
+        }
+
+        Visit(0, 0);
+        return [.. supported.Select(s => s.ToList())];
+    }
+
+    [Fact]
     public void CoverRange_does_not_eliminate_the_same_value_twice()
     {
         // Knoten 1 ist auf 1 festgelegt (außerhalb von 2..4, also ein Widerspruch für ihn selbst); Knoten 2 verliert

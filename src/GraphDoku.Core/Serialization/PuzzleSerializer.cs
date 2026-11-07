@@ -45,6 +45,13 @@ public static class PuzzleSerializer
                 $"Die Datei enthält kein gültiges JSON (Zeile {(ex.LineNumber ?? 0) + 1}, Position {(ex.BytePositionInLine ?? 0) + 1}).",
                 ex);
         }
+        catch (ArgumentException ex)
+        {
+            // Ein echtes einzelnes UTF-16-Surrogat im Text lässt sich nicht nach UTF-8 umwandeln.
+            throw new PuzzleFormatException(
+                "Die Datei enthält eine ungültige Zeichenfolge (einzelnes UTF-16-Surrogat) und ist kein gültiges JSON.",
+                ex);
+        }
 
         using (document)
         {
@@ -95,9 +102,93 @@ public static class PuzzleSerializer
         return Encoding.UTF8.GetString(stream.ToArray()) + "\n";
     }
 
-    /// <summary>Speichert ein Rätsel als UTF-8-Datei (ohne BOM).</summary>
-    public static void Save(Puzzle puzzle, string path) =>
-        File.WriteAllText(path, Serialize(puzzle), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    /// <summary>
+    /// Speichert ein Rätsel als UTF-8-Datei (ohne BOM). Geschrieben wird zuerst in eine temporäre Datei im selben
+    /// Verzeichnis, die dann das Ziel ersetzt: Scheitert das Schreiben (z. B. volle Platte), bleibt die bisherige
+    /// Datei unverändert. Ein symbolischer Link wird aufgelöst (ersetzt wird die Datei, auf die er zeigt), und unter
+    /// Unix übernimmt die neue Datei die Zugriffsrechte der bisherigen. Lässt sich im Verzeichnis keine Datei anlegen,
+    /// die bestehende Datei aber beschreiben, wird sie wie früher direkt (nicht atomar) überschrieben.
+    /// </summary>
+    public static void Save(Puzzle puzzle, string path) => Save(puzzle, path, OpenTemporaryFile);
+
+    /// <summary>Wie <see cref="Save(Puzzle, string)"/>; <paramref name="openTemporary"/> öffnet die temporäre Datei (Testnaht).</summary>
+    internal static void Save(Puzzle puzzle, string path, Func<string, Stream> openTemporary)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(Serialize(puzzle));
+        var fullPath = ResolveLinks(Path.GetFullPath(path));
+        var exists = File.Exists(fullPath);
+        if (exists && File.GetAttributes(fullPath).HasFlag(FileAttributes.ReadOnly))
+        {
+            // Das Ersetzen per Umbenennen würde den Schreibschutz unter Unix übergehen.
+            throw new UnauthorizedAccessException($"Die Datei „{fullPath}“ ist schreibgeschützt.");
+        }
+
+        UnixFileMode? mode = exists && !OperatingSystem.IsWindows() ? File.GetUnixFileMode(fullPath) : null;
+        var tempPath = Path.Combine(Path.GetDirectoryName(fullPath)!, $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
+        Stream stream;
+        try
+        {
+            stream = openTemporary(tempPath);
+        }
+        catch (UnauthorizedAccessException) when (exists)
+        {
+            // Verzeichnis nicht beschreibbar, die Datei selbst aber schon: wie bisher direkt überschreiben.
+            File.WriteAllBytes(fullPath, bytes);
+            return;
+        }
+
+        try
+        {
+            using (stream)
+            {
+                if (mode is { } unixMode && !OperatingSystem.IsWindows())
+                {
+                    File.SetUnixFileMode(tempPath, unixMode);
+                }
+
+                stream.Write(bytes);
+                if (stream is FileStream fileStream)
+                {
+                    fileStream.Flush(flushToDisk: true);
+                }
+                else
+                {
+                    stream.Flush();
+                }
+            }
+
+            File.Move(tempPath, fullPath, overwrite: true);
+        }
+        catch
+        {
+            TryDelete(tempPath);
+            throw;
+        }
+    }
+
+    private static FileStream OpenTemporaryFile(string path) =>
+        new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+
+    /// <summary>Löst symbolische Links auf, damit das Ersetzen die Zieldatei trifft und nicht den Link.</summary>
+    private static string ResolveLinks(string fullPath)
+    {
+        var info = new FileInfo(fullPath);
+        return info.LinkTarget is null ? fullPath : info.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? fullPath;
+    }
+
+    /// <summary>Löscht eine temporäre Datei, ohne den eigentlichen Fehler zu überdecken.</summary>
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Die temporäre Datei bleibt dann liegen; der ursprüngliche Fehler ist wichtiger.
+        }
+    }
 
     /// <summary>Sammelt alle Feldnamen und Zeichenketten, die sich nicht als gültiger UTF-16-Text lesen lassen.</summary>
     private static void FindInvalidText(JsonElement element, string path, List<string> errors)
