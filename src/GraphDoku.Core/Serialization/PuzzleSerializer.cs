@@ -45,6 +45,13 @@ public static class PuzzleSerializer
                 $"Die Datei enthält kein gültiges JSON (Zeile {(ex.LineNumber ?? 0) + 1}, Position {(ex.BytePositionInLine ?? 0) + 1}).",
                 ex);
         }
+        catch (ArgumentException ex)
+        {
+            // Ein echtes einzelnes UTF-16-Surrogat im Text lässt sich nicht nach UTF-8 umwandeln.
+            throw new PuzzleFormatException(
+                "Die Datei enthält eine ungültige Zeichenfolge (einzelnes UTF-16-Surrogat) und ist kein gültiges JSON.",
+                ex);
+        }
 
         using (document)
         {
@@ -95,9 +102,52 @@ public static class PuzzleSerializer
         return Encoding.UTF8.GetString(stream.ToArray()) + "\n";
     }
 
-    /// <summary>Speichert ein Rätsel als UTF-8-Datei (ohne BOM).</summary>
-    public static void Save(Puzzle puzzle, string path) =>
-        File.WriteAllText(path, Serialize(puzzle), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    /// <summary>
+    /// Speichert ein Rätsel als UTF-8-Datei (ohne BOM). Geschrieben wird zuerst in eine temporäre Datei im selben
+    /// Verzeichnis, die dann das Ziel ersetzt: Scheitert das Schreiben (z. B. volle Platte), bleibt die bisherige
+    /// Datei unverändert.
+    /// </summary>
+    public static void Save(Puzzle puzzle, string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(Serialize(puzzle));
+        var fullPath = Path.GetFullPath(path);
+        if (File.Exists(fullPath) && File.GetAttributes(fullPath).HasFlag(FileAttributes.ReadOnly))
+        {
+            // Das Ersetzen per Umbenennen würde den Schreibschutz unter Unix übergehen.
+            throw new UnauthorizedAccessException($"Die Datei „{fullPath}“ ist schreibgeschützt.");
+        }
+
+        var tempPath = Path.Combine(Path.GetDirectoryName(fullPath)!, $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: true);
+            }
+
+            File.Move(tempPath, fullPath, overwrite: true);
+        }
+        catch
+        {
+            TryDelete(tempPath);
+            throw;
+        }
+    }
+
+    /// <summary>Löscht eine temporäre Datei, ohne den eigentlichen Fehler zu überdecken.</summary>
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Die temporäre Datei bleibt dann liegen; der ursprüngliche Fehler ist wichtiger.
+        }
+    }
 
     /// <summary>Sammelt alle Feldnamen und Zeichenketten, die sich nicht als gültiger UTF-16-Text lesen lassen.</summary>
     private static void FindInvalidText(JsonElement element, string path, List<string> errors)

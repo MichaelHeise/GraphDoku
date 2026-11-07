@@ -291,6 +291,137 @@ public class PuzzleSerializerTests
     }
 
     [Fact]
+    public void Raw_lone_utf16_surrogate_in_the_text_is_a_format_error_not_a_crash()
+    {
+        // Regression (Review PR #1): Ein echtes einzelnes Surrogat im String (nicht die JSON-Maskierung "\uD800")
+        // ließ JsonDocument.Parse eine ArgumentException werfen, obwohl nur PuzzleFormatException dokumentiert ist.
+        var json = "{ \"formatVersion\": 1, \"name\": \"a\uD800b\", \"grid\": \"square\", \"domain\": { \"min\": 1, \"max\": 3 } }";
+
+        ShouldFail(json, "ungültige Zeichenfolge");
+        var unvalidated = () => PuzzleSerializer.Deserialize(json, validate: false);
+        unvalidated.Should().Throw<PuzzleFormatException>();
+    }
+
+    [Fact]
+    public void Save_over_an_existing_file_replaces_it_and_leaves_no_temporary_files()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "raetsel.json");
+            File.WriteAllText(path, "alter Inhalt, deutlich länger als nötig, damit Reste auffallen würden " + new string('x', 20_000));
+            var puzzle = CreateFullPuzzle();
+
+            PuzzleSerializer.Save(puzzle, path);
+            PuzzleSerializer.Save(puzzle, path);
+
+            File.ReadAllText(path).Should().Be(PuzzleSerializer.Serialize(puzzle));
+            PuzzleComparer.Differences(puzzle, PuzzleSerializer.Load(path)).Should().BeEmpty();
+            Directory.GetFileSystemEntries(directory).Should().Equal(path);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_that_fails_leaves_the_target_untouched_and_no_temporary_files()
+    {
+        // Das Ziel ist ein Verzeichnis: Die temporäre Datei lässt sich schreiben, das Ersetzen schlägt fehl.
+        var directory = CreateTempDirectory();
+        try
+        {
+            var target = Directory.CreateDirectory(Path.Combine(directory, "raetsel.json")).FullName;
+            var inner = Path.Combine(target, "inhalt.txt");
+            File.WriteAllText(inner, "bleibt");
+
+            var act = () => PuzzleSerializer.Save(CreateFullPuzzle(), target);
+
+            act.Should().Throw<Exception>().Which.Should().Match<Exception>(e => e is IOException || e is UnauthorizedAccessException);
+            File.ReadAllText(inner).Should().Be("bleibt");
+            Directory.GetFileSystemEntries(directory).Should().Equal(target);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_into_a_read_only_directory_fails_without_touching_the_existing_file()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return; // Schreibschutz für Verzeichnisse gibt es so nur unter Unix.
+        }
+
+        var directory = CreateTempDirectory();
+        var path = Path.Combine(directory, "raetsel.json");
+        File.WriteAllText(path, "bisher gespeichert");
+        var original = File.GetUnixFileMode(directory);
+        try
+        {
+            File.SetUnixFileMode(directory, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+            if (CanCreateFileIn(directory))
+            {
+                return; // z. B. als root: Der Schreibschutz greift nicht, der Fehlerfall lässt sich nicht erzeugen.
+            }
+
+            var act = () => PuzzleSerializer.Save(CreateFullPuzzle(), path);
+
+            act.Should().Throw<UnauthorizedAccessException>();
+            File.ReadAllText(path).Should().Be("bisher gespeichert");
+            Directory.GetFileSystemEntries(directory).Should().Equal(path);
+        }
+        finally
+        {
+            File.SetUnixFileMode(directory, original);
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_over_a_read_only_file_fails_without_touching_it()
+    {
+        var directory = CreateTempDirectory();
+        var path = Path.Combine(directory, "raetsel.json");
+        File.WriteAllText(path, "schreibgeschützt");
+        File.SetAttributes(path, FileAttributes.ReadOnly);
+        try
+        {
+            var act = () => PuzzleSerializer.Save(CreateFullPuzzle(), path);
+
+            act.Should().Throw<UnauthorizedAccessException>();
+            File.ReadAllText(path).Should().Be("schreibgeschützt");
+            Directory.GetFileSystemEntries(directory).Should().Equal(path);
+        }
+        finally
+        {
+            File.SetAttributes(path, FileAttributes.Normal);
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static string CreateTempDirectory() =>
+        Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"graphdoku-{Guid.NewGuid():N}")).FullName;
+
+    private static bool CanCreateFileIn(string directory)
+    {
+        var probe = Path.Combine(directory, "probe");
+        try
+        {
+            File.WriteAllText(probe, string.Empty);
+            File.Delete(probe);
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    [Fact]
     public void Paired_surrogate_escape_is_read_normally()
     {
         var puzzle = PuzzleSerializer.Deserialize("{ \"formatVersion\": 1, \"name\": \"\\uD83D\\uDE00\", \"grid\": \"square\", \"domain\": { \"min\": 1, \"max\": 3 } }");

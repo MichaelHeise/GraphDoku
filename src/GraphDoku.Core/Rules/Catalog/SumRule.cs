@@ -94,6 +94,8 @@ public sealed class SumRule : RuleBase
         private readonly HashSet<(int Index, int Value)> _supported = [];
         private readonly HashSet<int> _used = [];
         private readonly int[] _assignment = new int[sets.Length];
+        private readonly long[] _remaining = new long[sets.Length + 1];
+        private readonly CandidateSet.Enumerator[] _candidates = new CandidateSet.Enumerator[sets.Length];
         private int _budget = SearchBudget;
         private int[] _order = [];
         private long[] _suffixMin = [];
@@ -149,7 +151,7 @@ public sealed class SumRule : RuleBase
             }
 
             _assignment[index] = value;
-            var result = Search(0, target - value);
+            var result = Search(target - value);
             if (result == true)
             {
                 for (var j = 0; j < sets.Length; j++)
@@ -161,29 +163,77 @@ public sealed class SumRule : RuleBase
             return result;
         }
 
-        private bool? Search(int depth, long remaining)
+        /// <summary>
+        /// Tiefensuche über <see cref="_order"/> ab Tiefe 0. Iterativ mit eigenem Stapel (Rest und Kandidaten-Aufzählung
+        /// pro Tiefe), damit auch sehr große Gruppen keinen StackOverflow auslösen. Jedes Betreten einer Tiefe kostet
+        /// einen Schritt des Budgets.
+        /// </summary>
+        private bool? Search(long initialRemaining)
         {
-            if (--_budget < 0)
+            var depth = 0;
+            _remaining[0] = initialRemaining;
+            var enter = true;
+            while (true)
             {
-                return null;
-            }
+                var remaining = _remaining[depth];
+                var descended = false;
+                if (enter)
+                {
+                    if (--_budget < 0)
+                    {
+                        return null;
+                    }
 
-            if (depth == _order.Length)
-            {
-                return remaining == 0;
-            }
+                    if (depth == _order.Length)
+                    {
+                        if (remaining == 0)
+                        {
+                            return true;
+                        }
+                    }
+                    else if (remaining >= _suffixMin[depth] && remaining <= _suffixMax[depth])
+                    {
+                        _candidates[depth] = sets[_order[depth]].GetEnumerator();
+                        descended = TryDescend(ref depth, remaining);
+                    }
+                }
+                else
+                {
+                    descended = TryDescend(ref depth, remaining);
+                }
 
-            if (remaining < _suffixMin[depth] || remaining > _suffixMax[depth])
-            {
-                return false;
-            }
+                if (descended)
+                {
+                    enter = true;
+                    continue;
+                }
 
+                // Diese Tiefe hat keine Belegung: zurück zur vorigen und dort den nächsten Kandidaten versuchen.
+                if (depth == 0)
+                {
+                    return false;
+                }
+
+                depth--;
+                if (!allowRepeats)
+                {
+                    _used.Remove(_assignment[_order[depth]]);
+                }
+
+                enter = false;
+            }
+        }
+
+        /// <summary>Belegt den Knoten der Tiefe mit dem nächsten passenden Kandidaten und geht eine Tiefe weiter.</summary>
+        private bool TryDescend(ref int depth, long remaining)
+        {
             var node = _order[depth];
-            foreach (var candidate in sets[node])
+            while (_candidates[depth].MoveNext())
             {
+                var candidate = _candidates[depth].Current;
                 if (candidate > remaining - _suffixMin[depth + 1])
                 {
-                    break; // aufsteigend: größere Werte sind erst recht zu groß
+                    return false; // aufsteigend: größere Werte sind erst recht zu groß
                 }
 
                 if (candidate < remaining - _suffixMax[depth + 1] || (!allowRepeats && _used.Contains(candidate)))
@@ -197,16 +247,9 @@ public sealed class SumRule : RuleBase
                     _used.Add(candidate);
                 }
 
-                var result = Search(depth + 1, remaining - candidate);
-                if (!allowRepeats)
-                {
-                    _used.Remove(candidate);
-                }
-
-                if (result != false)
-                {
-                    return result;
-                }
+                _remaining[depth + 1] = remaining - candidate;
+                depth++;
+                return true;
             }
 
             return false;
