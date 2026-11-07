@@ -170,7 +170,7 @@ einige bewusste kleine Erweiterungen. Jeder Punkt ist in `decisions.md` begründ
 
 | | Plan | Umgesetzt | Grund |
 | --- | --- | --- | --- |
-| ★ | „nach jedem Arbeitspaket … committen“ (kein Branch genannt) | Alle Commits liegen im **Branch `feature/initial-implementation`**. `main` steht unverändert auf `d81daa4` („Docs and instructions“). **Nichts ist gepusht** | Vorgabe des Auftrags (Feature-Branch, nicht pushen). So bleibt `main` bis zur Prüfung unverändert |
+| ★ | „nach jedem Arbeitspaket … committen“ (kein Branch genannt) | Alle Commits liegen im **Branch `feature/initial-implementation`**. `main` steht unverändert auf `d81daa4` („Docs and instructions“). **Nichts ist gepusht** | Entscheidung des Leads (nicht vom Projektinhaber vorgegeben): Arbeit auf einem Feature-Branch, Push erst nach Freigabe. So bleibt `main` bis zur Prüfung unverändert |
 | ★ | „Arbeite die Arbeitspakete der Reihe nach ab“ | **Nicht streng der Reihe nach.** Paket 6 (Bibliothek) entstand parallel zu Paket 3/4. Paket 5 wurde geteilt: Der Core-Teil entstand parallel zur Oberfläche von Paket 6, der Editor-Teil folgte erst nach Paket 6 | Die Bibliothek des Erklär-Modus und der Generator hängen nur von Core ab und ließen sich unabhängig bauen. Die Tracks blieben in getrennten Worktrees, die Merges verliefen ohne Konflikte |
 | | `docs/decisions.md` und `docs/progress.md` | Die parallelen Tracks schrieben eigene Notizdateien. Beim Merge gingen sie in `decisions.md` ein, die Nummern G1–G17 wurden zu Nr. 116–132 | Damit sich die parallelen Teams nicht gegenseitig in die Dokumente schreiben |
 | | – | Zu jedem Paket gab es eine Review- und eine Fixer-Runde und am Ende ein Abschluss-Review | Qualitätssicherung über die Vorgaben der Spezifikation hinaus |
@@ -361,8 +361,8 @@ Vor Nr. 164 waren dort zwei Rendering-Tests rot (App 316/318).
    beobachten (fontconfig/`sudo`, `upload-artifact@v3`, OR-Tools nativ auf linux-x64).
 2. **Von Hand testen:** Die App auf macOS und, wenn möglich, Windows und Linux bedienen, vor allem Maus, Fokus,
    Tastenkürzel, Dialoge und die Zelldarstellung im Dreiecks-Sudoku.
-3. **Nach `main` übernehmen** (Pull Request), sobald CI und Handtest grün sind. Den liegengebliebenen Worktree
-   `../GraphDocu-try` (losgelöster HEAD `812029f`) aufräumen.
+3. **Nach `main` übernehmen** (Pull Request), sobald CI und Handtest grün sind. Den Ausprobier-Worktree
+   `../GraphDocu-try` (losgelöster HEAD auf dem Endstand) danach mit `git worktree remove ../GraphDocu-try` aufräumen.
 4. **Später, laut Spezifikation:** einen eigenen Lern-Solver als zweite `ISolver`-Implementierung (die Schnittstelle
    ist dafür ausgelegt, Nr. 35/163). Optional: Prüfmeldungen auf der Zeichenfläche markieren und einen
    Einstellungsspeicher für Zeitlimit und Darstellung anlegen.
