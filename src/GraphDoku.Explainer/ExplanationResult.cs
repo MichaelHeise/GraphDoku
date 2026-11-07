@@ -24,7 +24,12 @@ public enum ExplanationStatus
     /// <summary>Ohne Raten kein Fortschritt und keine Solver-Lösung für eine Verzweigung (Zeitlimit); unvollständig.</summary>
     Stuck,
 
-    /// <summary>Das Rätsel ist ungültig (<see cref="ExplanationResult.Errors"/>); es gibt keine Schritte.</summary>
+    /// <summary>
+    /// Das Rätsel ist ungültig (<see cref="ExplanationResult.Errors"/>). Scheitert schon die Prüfung vor der Erklärung,
+    /// gibt es keine Schritte und keine Zustände. Lehnt erst der Solver das Rätsel ab, als die Logik nicht weiterkam
+    /// (z. B. eigene Regel ohne Solver-Adapter), enthält <see cref="ExplanationResult.Steps"/> die Schritte bis dahin,
+    /// und <see cref="ExplanationResult.GetSnapshot"/> liefert die Zustände dazu.
+    /// </summary>
     Invalid,
 
     /// <summary>Abgebrochen; <see cref="ExplanationResult.Steps"/> enthält die Schritte bis dahin.</summary>
@@ -99,12 +104,12 @@ public sealed class ExplanationResult
 
     public bool UsedBranching => BranchCount > 0;
 
-    /// <summary>Es gibt Zustände zum Navigieren (bei ungültigen Rätseln nicht).</summary>
+    /// <summary>Es gibt Zustände zum Navigieren (nicht, wenn schon die Prüfung vor der Erklärung gescheitert ist).</summary>
     public bool HasSnapshots => _checkpoints.Count > 0;
 
     /// <summary>Zustand nach den ersten <paramref name="appliedSteps"/> Schritten (0 = Start, <c>Steps.Count</c> = Ende).</summary>
     /// <exception cref="ArgumentOutOfRangeException">Außerhalb von 0 bis <c>Steps.Count</c>.</exception>
-    /// <exception cref="InvalidOperationException">Ungültiges Rätsel, es gibt keine Zustände.</exception>
+    /// <exception cref="InvalidOperationException">Ungültiges Rätsel ohne Zustände (<see cref="HasSnapshots"/> ist <c>false</c>).</exception>
     public ExplanationSnapshot GetSnapshot(int appliedSteps)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(appliedSteps);

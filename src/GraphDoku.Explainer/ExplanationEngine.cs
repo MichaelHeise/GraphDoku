@@ -178,7 +178,13 @@ public sealed class ExplanationEngine
             ];
             _fixedValueRules = [.. _ruleOrder.Where(c => GetRuleRank(c.Rule.TypeName) == 0 && IsCatalogRule(c.Rule))];
             _hasCustomRules = _ruleOrder.Any(c => !IsCatalogRule(c.Rule));
-            _singleGroups = [.. puzzle.Groups.Where(g => g.Rule is AllDifferentRule.Name or CoverRangeRule.Name)];
+            // Singles und Zählwidersprüche setzen die Semantik des Katalogs voraus; eine eigene Regel unter demselben
+            // Namen zählt nicht.
+            _singleGroups =
+            [
+                .. puzzle.Groups.Where(g => g.Rule is AllDifferentRule.Name or CoverRangeRule.Name
+                    && IsCatalogRule(engine.Registry.Get(g.Rule))),
+            ];
             foreach (var group in _singleGroups)
             {
                 var domainValues = new HashSet<int>();

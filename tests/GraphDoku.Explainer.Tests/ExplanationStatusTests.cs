@@ -330,6 +330,81 @@ public class ExplanationStatusTests
         solver.CountCalls.Should().Be(0, "nach dem Abbruch wird keine Verzweigung mehr vorbereitet");
     }
 
+    [Fact]
+    public void Solver_rejecting_a_custom_rule_after_logic_gets_stuck_is_invalid_with_the_steps_so_far()
+    {
+        // Regression (Review PR #1): Der Status „ungültig“ trägt hier die Schritte bis zur Ablehnung durch den Solver.
+        // Die Regel „alle gerade“ ist in der Registry des Erklärers bekannt, der Solver hat aber keinen Adapter dafür.
+        var registry = RuleRegistry.Default.With(new AllEvenRule());
+        var puzzle = ExplainerPuzzles.WithNodes(3, 1, 3).Given(1, 1).Edge(1, 2, NotEqualRule.Name).Group(AllEvenRule.Name, [2, 3]);
+        var solver = new CountingSolver(new OrToolsSolver(registry));
+
+        var result = new ExplanationEngine(solver, registry).Explain(puzzle);
+
+        result.Status.Should().Be(ExplanationStatus.Invalid, result.Message);
+        result.Message.Should().StartWith("Der Solver lehnt das Rätsel ab:").And.Contain("kein OR-Tools-Adapter");
+        result.Errors.Should().ContainSingle().Which.Should().Contain("„AllEven“");
+        result.Steps.Should().ContainSingle().Which.Technique.Should().Be(ExplanationTechnique.FixedValueElimination);
+        result.HasSnapshots.Should().BeTrue();
+        result.GetFinalSnapshot().Candidates.GetCandidates(2).Should().BeEquivalentTo([2, 3]);
+        result.GetInitialSnapshot().AppliedSteps.Should().Be(0);
+        result.Solution.Should().BeNull();
+        solver.CountCalls.Should().Be(1);
+    }
+
+    [Fact]
+    public void Custom_rule_named_all_different_does_not_yield_a_false_pigeonhole_contradiction()
+    {
+        // Regression (Review PR #1): Gruppen für Singles und Zählwidersprüche wurden nur am Namen erkannt. Eine eigene
+        // Regel unter dem Namen „AllDifferent“, die Wiederholungen erlaubt, galt so als unlösbar (3 Knoten, 2 Werte).
+        var registry = WithPermissiveAllDifferent();
+        var puzzle = ExplainerPuzzles.WithNodes(3, 1, 2).Group(AllDifferentRule.Name, [1, 2, 3]);
+        IReadOnlyDictionary<int, int> solution = new Dictionary<int, int> { [1] = 1, [2] = 1, [3] = 1 };
+        IReadOnlyDictionary<int, int> other = new Dictionary<int, int> { [1] = 1, [2] = 1, [3] = 2 };
+        var solver = new FixedCountSolver(_ => SolutionCountResult.Completed(2, 2, [solution, other], TimeSpan.Zero));
+
+        var result = new ExplanationEngine(solver, registry).Explain(puzzle);
+
+        result.Status.Should().Be(ExplanationStatus.SolvedAmbiguous, result.Message);
+        result.Contradiction.Should().BeNull();
+        result.Solution.Should().BeEquivalentTo(solution);
+    }
+
+    [Fact]
+    public void Custom_rule_named_all_different_does_not_yield_a_false_hidden_single()
+    {
+        // Regression (Review PR #1): Mit Katalog-Semantik wäre Knoten 2 = 2 ein einziger Platz; die eigene Regel erlaubt
+        // aber auch Knoten 2 = 1.
+        var registry = WithPermissiveAllDifferent();
+        var puzzle = ExplainerPuzzles.WithNodes(2, 1, 2).Group(AllDifferentRule.Name, [1, 2]);
+        puzzle.Nodes[0].Domain = new ValueDomain(1, 1);
+        IReadOnlyDictionary<int, int> solution = new Dictionary<int, int> { [1] = 1, [2] = 1 };
+        IReadOnlyDictionary<int, int> other = new Dictionary<int, int> { [1] = 1, [2] = 2 };
+        var solver = new FixedCountSolver(_ => SolutionCountResult.Completed(2, 2, [solution, other], TimeSpan.Zero));
+
+        var result = new ExplanationEngine(solver, registry).Explain(puzzle);
+
+        result.Steps.Should().NotContain(s => s.Technique == ExplanationTechnique.HiddenSingle);
+        result.Status.Should().Be(ExplanationStatus.SolvedAmbiguous, result.Message);
+        result.Solution.Should().BeEquivalentTo(solution);
+    }
+
+    /// <summary>Katalog, in dem „AllDifferent“ durch eine eigene Regel ersetzt ist, die Wiederholungen erlaubt.</summary>
+    private static RuleRegistry WithPermissiveAllDifferent() =>
+        new(RuleRegistry.Default.Rules.Where(r => r.TypeName != AllDifferentRule.Name).Append(new PermissiveAllDifferentRule()));
+
+    /// <summary>Eigene Testregel unter dem Katalognamen „AllDifferent“, die nichts verbietet und nichts ableitet.</summary>
+    private sealed class PermissiveAllDifferentRule : RuleBase
+    {
+        public override string TypeName => AllDifferentRule.Name;
+
+        public override string DisplayName => "Beliebig (eigene Regel)";
+
+        public override RuleKind Kind => RuleKind.Group;
+
+        protected override IReadOnlyList<CandidateChange> PropagateCore(CandidateState state, IConstraint constraint) => [];
+    }
+
     /// <summary>Testregel „alle gleich“: setzt die übrigen Knoten, sobald einer feststeht.</summary>
     private sealed class EqualRule : RuleBase
     {
