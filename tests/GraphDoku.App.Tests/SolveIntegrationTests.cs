@@ -73,7 +73,7 @@ public sealed class SolveIntegrationTests
             }
         }
 
-        // Unabhängige Prüfung der AllDifferent-Gruppen (alle Beispielrätsel bestehen bisher nur daraus) …
+        // Unabhängige Prüfung der AllDifferent-Gruppen (die übrigen Regeln der Beispielrätsel prüfen die Solver-Tests mit SolutionVerifier) …
         foreach (var group in puzzle.Groups.Where(g => g.Rule == "AllDifferent"))
         {
             group.Nodes.Select(id => values[id]).Should().OnlyHaveUniqueItems($"Gruppe {group.Id}");

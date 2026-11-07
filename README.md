@@ -15,7 +15,7 @@ Die verbindliche Spezifikation liegt in `docs/spec/`.
 | 2 – OR-Tools-Solver | `ISolver`, Lösen, Eindeutigkeit prüfen, Zeitlimit, Abbruch | erledigt |
 | 3 – Editor | Zeichenfläche, Knoten/Kanten/Gruppen bearbeiten, Undo/Redo, Öffnen/Speichern | erledigt |
 | 4 – Lösen in der App | „Lösen“, „Eindeutigkeit prüfen“, asynchron mit Abbruch | erledigt |
-| 5 – Generator und alle Regeln im Editor | Kanten-Generator, Beispielrätsel (Killer, Kropki, Hexadoku, Dreiecksgitter) | offen |
+| 5 – Generator und alle Regeln im Editor | Kanten-Generator, Beispielrätsel (Killer, Kropki, Hexadoku, Dreiecksgitter) | Generator (Core) und Beispielrätsel erledigt, Editor-Oberfläche offen |
 | 6 – Erklär-Modus | Kandidaten, Propagation mit Begründung, Schrittleiste | erledigt |
 | 7 – optional: Zellformen | Dreieck, Quadrat, Sechseck als Darstellung | offen |
 
@@ -121,6 +121,26 @@ Regel; **rot umrandet** (außen) ein Knoten ohne Kandidaten (Widerspruch). Wie d
 Rendering-Rauchtest: `dotnet test tests/GraphDoku.App.Tests --filter Rendering` rendert das Hauptfenster headless
 (Skia, auch mit gelöstem und mehrdeutigem Sudoku und im Erklär-Modus) und legt PNGs in `$GRAPHDOKU_RENDER_DIR` bzw. im Temp-Verzeichnis unter `GraphDoku-Render` ab.
 
+## Beispielrätsel
+
+Die Dateien in `puzzles/` lassen sich über Datei → Öffnen laden; alle Tests prüfen sie automatisch (gültig, lösbar,
+außer `klassisch-leer.json` eindeutig).
+
+| Datei | Beschreibung |
+| --- | --- |
+| `klassisch-leer.json` | Klassisches 9×9 ohne Givens (Vorlage zum Selbstausfüllen; nicht eindeutig) |
+| `klassisch-leicht.json` | Klassisches 9×9, 30 Givens; der Erklär-Modus löst es ohne Verzweigung |
+| `klassisch-mittel.json` | Klassisches 9×9, 24 Givens; der Erklär-Modus braucht einige Verzweigungen |
+| `klassisch-schwer.json` | Klassisches 9×9, 21 Givens; der Erklär-Modus braucht mehrere Verzweigungen |
+| `killer-sudoku.json` | Killer-Sudoku 9×9: 28 farbige Käfige mit Summe (`Sum`), 3 Givens (Summen derzeit nur im Eigenschaften-Panel sichtbar) |
+| `kropki-sudoku.json` | Kropki-Sudoku 9×9: schwarze Punkte (`Ratio`, Faktor 2) und weiße Punkte (`Difference`, k = 1), 2 Givens |
+| `hexadoku-16x16.json` | Hexadoku 16×16 mit Werten 0–15 (Anzeige 0–F), Zeilen, Spalten und 4×4-Blöcke als `CoverRange`, 90 Givens |
+| `dreiecks-sudoku.json` | Dreiecks-Sudoku (Tridoku-ähnlich) auf dem Dreiecksgitter: 9 Regionen, 3 Außenseiten, sich berührende Dreiecke verschiedener Regionen ungleich (`NotEqual`), 33 Givens |
+| `thermo-sudoku-6x6.json` | Thermo-Sudoku 6×6 mit 3 Thermometern und 4 „Kleiner als“-Kanten, 5 Givens |
+
+Die fünf Varianten-Rätsel sind eindeutig und ohne Verzweigung erklärbar; erzeugt wurden sie einmalig mit Testcode
+(`ExamplePuzzleGenerator`, siehe `docs/decisions.md`, Nr. 125).
+
 ## Projektstruktur
 
 ```text
@@ -135,7 +155,7 @@ tests/
   GraphDoku.Solver.Tests/
   GraphDoku.Explainer.Tests/
   GraphDoku.App.Tests/   ViewModel-Tests, Akzeptanztests Editor, Lösen und Erklären, Rendering-Rauchtests (headless)
-puzzles/                 Beispielrätsel als JSON (auch Testdaten): klassisch-leer, -leicht, -mittel, -schwer
+puzzles/                 Beispielrätsel als JSON (auch Testdaten), siehe „Beispielrätsel“
 docs/
   spec/                  Spezifikation (Projektkonzept, Agenten-Anleitung)
   decisions.md           Entscheidungen und Abweichungen
@@ -154,6 +174,7 @@ Wichtige Typen in `GraphDoku.Core`:
 - `Serialization`: `PuzzleSerializer`, `PuzzleFormatException`
 - `Validation`: `PuzzleValidator`
 - `Templates`: `ClassicSudoku`
+- `Generation`: `EdgeGenerator` (Kanten nach Abstandsregel erzeugen, `EdgeGenerationRequest` → `EdgeGenerationResult`), `DistanceRule`, `EdgeDirectionPolicy`
 
 Wichtige Typen in `GraphDoku.Solver`:
 

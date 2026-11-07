@@ -191,6 +191,76 @@
 - Der Abbruch einer laufenden Suche wirkt über `StopSearch` von CP-SAT; bei sehr großen Modellen kann der Modellaufbau
   vor dem Start der Suche selbst nicht unterbrochen werden (bei den Beispielrätseln wenige Millisekunden).
 
+## Paket 5 – Generator (Core) und Beispielrätsel
+
+Entstand parallel zu Paket 6 (Oberfläche) im Branch `feature/wp5-generator` (nur Core, Tests und `puzzles/`) und wurde
+danach zusammengeführt. **Die Editor-Oberfläche für den Generator folgt als eigener Schritt** (siehe „Offen“).
+Entscheidungen: Nr. 116–132.
+
+**Erledigt**
+
+- Kanten-Generator in Core (`GraphDoku.Core.Generation`): `DistanceRule`, `EdgeGenerator`, `EdgeGenerationRequest`,
+  `EdgeGenerationResult`, `EdgeDirectionPolicy`. 55 Unit-Tests (`tests/GraphDoku.Core.Tests/EdgeGeneratorTests.cs`) auf
+  allen drei Gittertypen.
+- Fünf neue Beispielrätsel in `puzzles/` (alle eindeutig und ohne Verzweigung erklärbar):
+
+  | Datei | Gitter | Werte | Knoten | Givens | Kanten | Gruppen |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | `killer-sudoku.json` | Quadrat | 1–9 | 81 | 3 | 0 | 27 Zeilen/Spalten/Blöcke + 28 Käfige (`Sum`) |
+  | `kropki-sudoku.json` | Quadrat | 1–9 | 81 | 2 | 14 `Ratio` (schwarz) + 24 `Difference` (weiß) | 27 |
+  | `hexadoku-16x16.json` | Quadrat | 0–15 | 256 | 90 | 0 | 48 `CoverRange` |
+  | `dreiecks-sudoku.json` | Dreieck | 1–9 | 81 | 33 | 168 `NotEqual` | 9 Regionen (`CoverRange`) + 3 Seiten (`AllDifferent`) |
+  | `thermo-sudoku-6x6.json` (zusätzlich) | Quadrat | 1–6 | 36 | 5 | 4 `LessThan` | 18 + 3 `Thermometer` |
+
+- Tests: `tests/GraphDoku.Solver.Tests/ExamplePuzzleTests.cs` (jede Datei in `puzzles/` lädt, ist gültig, lösbar und
+  eindeutig per `OrToolsSolver.CountSolutions(limit: 2)`, Lösung unabhängig mit `SolutionVerifier` geprüft; dazu
+  Strukturprüfungen je neuem Beispiel) und `tests/GraphDoku.Explainer.Tests/ExamplePuzzleExplanationTests.cs` (Erklär-Modus
+  für jede Datei konsistent mit der Lösung, Laufzeit gemessen; die neuen Beispiele ohne Verzweigung; die typische Regel
+  jedes Beispiels begründet mindestens einen Schritt).
+- Erzeugungscode als Testcode: `tests/GraphDoku.Explainer.Tests/Generation/ExamplePuzzleGenerator.cs` (nicht in der App,
+  Nr. 125).
+- Nach dem Zusammenführen: Die App-Tests, die jede Datei in `puzzles/` öffnen, lösen und auf Eindeutigkeit prüfen
+  (`SolveIntegrationTests`, je 9 Fälle; `MainWindowViewModelTests`), laufen mit den neuen Dateien ohne Änderung durch.
+  Der veraltete Kommentar in `SolveIntegrationTests` („alle Beispielrätsel bestehen bisher nur aus AllDifferent“) wurde
+  korrigiert; die dortige allgemeine Prüfung (Lösung als Givens bleibt lösbar) deckt die neuen Regeln ab.
+- Gesamt nach dem Zusammenführen: 635 Tests (Core 230, Solver 104, Explainer 81, App 220), alle grün in Release.
+  (Im Branch allein: App 192, weil dort Paket 6 (Oberfläche) noch fehlte.)
+
+**Offen**
+
+- **Editor-Oberfläche für den Generator** (Abstandsregel, Regeltyp, Parameter, Richtung, „Auswahl oder alle Knoten“) –
+  nächster Schritt. Vorgesehene Nutzung siehe Nr. 116 (Vorschau und Meldung, Einfügen als **ein** Undo-Befehl).
+- **Käfigsummen werden auf der Zeichenfläche nicht angezeigt.** `GraphCanvas` zeichnet keine Gruppenbeschriftung und keinen
+  `target`-Wert; das Killer-Sudoku ist im Editor deshalb nur über das Eigenschaften-Panel (Zielsumme je Käfig) lesbar und
+  auf der Zeichenfläche nicht spielbar (im Review bestätigt: Daten korrekt, nur die Anzeige fehlt). Empfehlung: Summe
+  klein in die linke obere Zelle eines `Sum`-Käfigs schreiben. **Muss** im UI-Schritt von Paket 5 erledigt werden (die
+  App war im Branch des Generators nicht zu ändern).
+- `Puzzle.NextEdgeId()` (wie `NextNodeId`/`NextGroupId`) kann bei einer ungeprüft geöffneten Datei mit Ids ≤ 0 selbst
+  eine Id ≤ 0 liefern; der Generator umgeht das (Nr. 124), der Editor für einzeln gezogene Kanten, Knoten und Gruppen
+  noch nicht.
+
+**Bekannte Probleme / Hinweise**
+
+- Die fünf Generator-„Tests“ (`ExamplePuzzleGenerator.*`) erscheinen im normalen Testlauf als bestanden, tun dort aber
+  nichts (Nr. 125).
+- Das Dreiecks-Sudoku hat 168 `NotEqual`-Kanten; der Editor zeichnet sie als Linien, das Bild ist dicht, aber lesbar
+  (Rendering mit einem nicht eingecheckten Headless-Hilfsprogramm angesehen).
+
+**Laufzeiten** (Entwicklungsrechner, macOS arm64, Release), Erklär-Modus (`ExplanationEngine.Explain`, ohne
+Testprüfungen):
+
+| Datei | Schritte | Verzweigungen | Zeit |
+| --- | --- | --- | --- |
+| `hexadoku-16x16.json` | 669 | 0 | ≈ 190 ms |
+| `killer-sudoku.json` | 328 | 0 | ≈ 70 ms |
+| `kropki-sudoku.json` | 321 | 0 | ≈ 50 ms |
+| `dreiecks-sudoku.json` | 242 | 0 | ≈ 20 ms |
+| `thermo-sudoku-6x6.json` | 106 | 0 | ≈ 7 ms |
+
+Der Test erlaubt großzügig 30 s pro Erklärung (nur als Schutz gegen grobe Regressionen). `CountSolutions` für alle
+Beispiele zusammen dauert etwa eine Sekunde. Erzeugung (einmalig): Killer ≈ 25 s (40 Versuche), Hexadoku ≈ 60 s
+(6 Durchläufe mit je 256 Erklärungen), die übrigen wenige Sekunden.
+
 ## Paket 6 – Erklär-Modus (Bibliotheksteil)
 
 Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danach zusammengeführt.
