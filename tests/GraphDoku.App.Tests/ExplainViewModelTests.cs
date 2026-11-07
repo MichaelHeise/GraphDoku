@@ -411,6 +411,40 @@ public sealed class ExplainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Exception_of_a_calculation_for_a_replaced_puzzle_is_reported_as_outdated()
+    {
+        using var explainer = new FakeExplainer();
+        var window = CreateWindow(explainer: explainer);
+        var explain = window.Explain;
+
+        var running = explain.ExplainCommand.ExecuteAsync(null);
+        window.Editor.LoadPuzzle(ClassicSudoku.Create());
+        explainer.Fail(new InvalidOperationException("Interner Fehler: altes Rätsel"));
+        await running;
+
+        explain.Outcome.Should().Be(ExplainOutcome.Outdated, "der Fehler gehört zum alten Rätsel, nicht zum neu geladenen");
+        explain.StatusMessage.Should().Contain("anderes Rätsel");
+        explain.IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Exception_of_a_calculation_after_an_edit_is_reported_as_outdated()
+    {
+        using var explainer = new FakeExplainer();
+        var window = CreateWindow(explainer: explainer);
+        var explain = window.Explain;
+
+        var running = explain.ExplainCommand.ExecuteAsync(null);
+        window.Editor.SelectNodes([ClassicSudoku.NodeId(0, 2)]);
+        window.Editor.Type("4");
+        explainer.Fail(new InvalidOperationException("Interner Fehler: alter Stand"));
+        await running;
+
+        explain.Outcome.Should().Be(ExplainOutcome.Outdated);
+        explain.StatusMessage.Should().Contain("während der Berechnung geändert");
+    }
+
+    [Fact]
     public async Task Internal_error_of_the_engine_is_shown_as_message()
     {
         // Ein falscher (Ersatz-)Solver liefert für das leere Sudoku überall die 1: Bei der zweiten Verzweigung ist die 1
@@ -658,6 +692,15 @@ internal sealed class FakeExplainer : IPuzzleExplainer, IDisposable
         foreach (var pending in _pending)
         {
             pending.TrySetResult();
+        }
+    }
+
+    /// <summary>Lässt die angehaltenen Berechnungen mit <paramref name="exception"/> scheitern.</summary>
+    public void Fail(Exception exception)
+    {
+        foreach (var pending in _pending)
+        {
+            pending.TrySetException(exception);
         }
     }
 

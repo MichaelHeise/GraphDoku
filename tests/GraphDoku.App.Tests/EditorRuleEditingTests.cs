@@ -121,6 +121,42 @@ public class EditorRuleEditingTests
     }
 
     [Fact]
+    public void Invalid_parameter_text_is_reset_when_undo_reloads_the_panel()
+    {
+        var editor = EditorDriver.CreateEditor(Grid(3, 1));
+        editor.NewGroupRule = editor.GroupRules.Single(r => r.TypeName == "CoverRange");
+        editor.SelectNodes([1, 2, 3]);
+        editor.CreateGroupFromSelection();
+        var panel = editor.Properties.Should().BeOfType<GroupPropertiesViewModel>().Subject;
+        var min = panel.Parameters.Single(p => p.Name == "min");
+        var max = panel.Parameters.Single(p => p.Name == "max");
+        min.Text.Should().BeEmpty("„min“ ist optional und fehlt");
+
+        max.Text = "3";
+        min.Text = "x";
+        min.Error.Should().NotBeNull();
+
+        editor.UndoCommand.Execute(null); // nimmt „max = 3“ zurück und lädt das Panel neu
+
+        editor.Properties.Should().BeSameAs(panel);
+        editor.Puzzle.Groups.Single().Params.Contains("min").Should().BeFalse();
+        min.Text.Should().BeEmpty("das Feld zeigt den Stand des Modells statt der ungültigen Eingabe ohne Fehlermeldung");
+        min.Error.Should().BeNull();
+    }
+
+    [Fact]
+    public void Blank_parameter_text_is_kept_when_the_parameter_is_absent()
+    {
+        var definition = new RuleParameter("factor", RuleParameterType.Integer, "Faktor");
+        var parameter = new RuleParameterViewModel(definition, new RuleParams(), _ => { }) { Text = "  " };
+
+        parameter.Load(new RuleParams());
+
+        parameter.Text.Should().Be("  ", "Leerzeichen und ein fehlender Parameter sind gleichwertig (Cursor bleibt stehen)");
+        parameter.Error.Should().BeNull();
+    }
+
+    [Fact]
     public void Own_value_domain_of_selected_nodes_is_set_and_removed_with_undo()
     {
         var editor = EditorDriver.CreateEditor(Grid(3, 1));

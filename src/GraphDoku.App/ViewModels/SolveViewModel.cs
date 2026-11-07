@@ -219,9 +219,7 @@ public sealed partial class SolveViewModel : ViewModelBase
             var result = await start(_editor.Puzzle, new SolverOptions { TimeLimit = timeLimit }, cancellation.Token).ConfigureAwait(true);
             if (version != _editor.ContentVersion)
             {
-                SetResult(SolveOutcome.Outdated, _documentReplacedDuringRun
-                    ? "Die Suche wurde abgebrochen, weil ein anderes Rätsel geladen wurde."
-                    : "Das Rätsel wurde während der Suche geändert. Das Ergebnis passt nicht mehr zum aktuellen Stand und wird verworfen – bitte erneut starten.");
+                ReportOutdated();
                 return;
             }
 
@@ -231,7 +229,15 @@ public sealed partial class SolveViewModel : ViewModelBase
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            SetResult(SolveOutcome.Failed, $"Der Solver ist mit einem Fehler abgebrochen: {ex.Message}");
+            // Auch ein Fehler gehört zum alten Stand: nach einer Änderung oder einem anderen Rätsel nicht als Fehler melden.
+            if (version != _editor.ContentVersion)
+            {
+                ReportOutdated();
+            }
+            else
+            {
+                SetResult(SolveOutcome.Failed, $"Der Solver ist mit einem Fehler abgebrochen: {ex.Message}");
+            }
         }
         finally
         {
@@ -239,6 +245,10 @@ public sealed partial class SolveViewModel : ViewModelBase
             IsBusy = false;
         }
     }
+
+    private void ReportOutdated() => SetResult(SolveOutcome.Outdated, _documentReplacedDuringRun
+        ? "Die Suche wurde abgebrochen, weil ein anderes Rätsel geladen wurde."
+        : "Das Rätsel wurde während der Suche geändert. Das Ergebnis passt nicht mehr zum aktuellen Stand und wird verworfen – bitte erneut starten.");
 
     private void HandleSolveResult(SolveResult result)
     {

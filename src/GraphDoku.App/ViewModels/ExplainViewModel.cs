@@ -225,9 +225,7 @@ public sealed partial class ExplainViewModel : ViewModelBase
             var result = await Explainer.ExplainAsync(_editor.Puzzle, new SolverOptions { TimeLimit = timeLimit }, cancellation.Token).ConfigureAwait(true);
             if (version != _editor.ContentVersion)
             {
-                SetStatus(ExplainOutcome.Outdated, _documentReplacedDuringRun
-                    ? "Die Erklärung wurde abgebrochen, weil ein anderes Rätsel geladen wurde."
-                    : "Das Rätsel wurde während der Berechnung geändert. Die Erklärung passt nicht mehr zum aktuellen Stand und wird verworfen – bitte erneut „Erklären“.");
+                ReportOutdated();
                 return;
             }
 
@@ -237,9 +235,17 @@ public sealed partial class ExplainViewModel : ViewModelBase
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            SetStatus(ExplainOutcome.Failed, ex is InvalidOperationException
-                ? $"Die Erklärung ist fehlgeschlagen. {ex.Message}"
-                : $"Die Erklärung ist mit einem Fehler abgebrochen: {ex.Message}");
+            // Auch ein Fehler gehört zum alten Stand: nach einer Änderung oder einem anderen Rätsel nicht als Fehler melden.
+            if (version != _editor.ContentVersion)
+            {
+                ReportOutdated();
+            }
+            else
+            {
+                SetStatus(ExplainOutcome.Failed, ex is InvalidOperationException
+                    ? $"Die Erklärung ist fehlgeschlagen. {ex.Message}"
+                    : $"Die Erklärung ist mit einem Fehler abgebrochen: {ex.Message}");
+            }
         }
         finally
         {
@@ -280,6 +286,10 @@ public sealed partial class ExplainViewModel : ViewModelBase
     }
 
     partial void OnShowCandidatesChanged(bool value) => PushView();
+
+    private void ReportOutdated() => SetStatus(ExplainOutcome.Outdated, _documentReplacedDuringRun
+        ? "Die Erklärung wurde abgebrochen, weil ein anderes Rätsel geladen wurde."
+        : "Das Rätsel wurde während der Berechnung geändert. Die Erklärung passt nicht mehr zum aktuellen Stand und wird verworfen – bitte erneut „Erklären“.");
 
     private void HandleResult(ExplanationResult result)
     {

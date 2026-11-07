@@ -86,8 +86,13 @@ public sealed partial class RuleParameterViewModel : ViewModelBase
                         : value.ValueKind == JsonValueKind.String ? value.GetString() ?? string.Empty
                         : value.GetRawText();
 
-                    // Gleichwertigen Text nicht überschreiben (Cursor bleibt beim Tippen stehen, z. B. bei „007“).
-                    if (TryParse(Text, out var currentNumber) != TryParse(text, out var newNumber) || currentNumber != newNumber)
+                    // Gleichwertigen Text nicht überschreiben (Cursor bleibt beim Tippen stehen, z. B. bei „007“ oder „ “).
+                    // Ungültiger Text ist nie gleichwertig: Er wird wie eine abweichende Zahl auf den Stand des Modells
+                    // zurückgesetzt, statt ohne Fehlermeldung stehen zu bleiben.
+                    var equivalent = TryParse(Text, out var currentNumber)
+                        ? TryParse(text, out var newNumber) && currentNumber == newNumber
+                        : string.IsNullOrWhiteSpace(Text) && string.IsNullOrWhiteSpace(text);
+                    if (!equivalent)
                     {
                         Text = text;
                     }
