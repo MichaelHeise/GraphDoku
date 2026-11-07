@@ -1192,9 +1192,10 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      ad hoc; auf einem Mac nimmt `tools/package.sh` stattdessen `codesign` (mit `MACOS_SIGN_IDENTITY` auch ein echtes
      Zertifikat). Ohne Apple-Entwicklerkonto und Notarisierung muss der Nutzer die App beim ersten Start einmal
      freigeben. `rcodesign` ist nur Werkzeug im Build und wird nicht mitgeliefert. Auf dem Runner prüft
-     `tools/package.sh` nur, dass das Bundle versiegelt ist (`_CodeSignature/CodeResources`) und `rcodesign verify`
-     das Hauptprogramm annimmt; Apples `codesign` gibt es auf Linux nicht. Die volle Prüfung (`codesign --verify
-     --deep --strict`) geht nur auf einem Mac, am Artefakt eines Probelaufs (README).
+     `tools/package.sh` nur, dass das Bundle versiegelt ist (`_CodeSignature/CodeResources`); Apples `codesign` gibt
+     es auf Linux nicht, und `rcodesign verify` scheitert an Ad-hoc-Signaturen („CMS error“, vom Werkzeug selbst als
+     fehlerhaft gekennzeichnet) und ließ den ersten Probelauf scheitern. Die volle Prüfung (`codesign --verify --deep
+     --strict`) geht nur auf einem Mac, am Artefakt eines Probelaufs (README).
 186. **Selbsttest ohne Oberfläche und App-Symbol** (Release): `GraphDoku.App --selbsttest [Rätseldatei]` löst ein
      Rätsel (Standard: „Klassisch leicht“), prüft die Eindeutigkeit und erklärt es, ohne Avalonia zu starten;
      Exit-Code 0 bei Erfolg. So prüft der Workflow das fertige Linux-Paket (native Bibliotheken, Einzeldatei). Unter
