@@ -50,6 +50,12 @@ public sealed partial class EditorViewModel
         DrawingEdge,
     }
 
+    /// <summary>
+    /// Misst die Beschriftung eines Kropki-Punkts (Text, Schriftgröße → Breite, Höhe in Pixeln) für den Treffertest der
+    /// Marken (<see cref="EdgeMarks.Radius"/>). Setzt die Zeichenfläche; ohne Messung zählt der unbeschriftete Punkt.
+    /// </summary>
+    public Func<string, double, (double Width, double Height)>? MeasureMarkLabel { get; set; }
+
     /// <summary>Aktueller Auswahlrahmen in Bildschirmkoordinaten (null = keiner).</summary>
     public Bounds? RubberBand { get; private set; }
 
@@ -460,6 +466,14 @@ public sealed partial class EditorViewModel
             return;
         }
 
+        // Kreise: Marken (Kropki-Punkte, Pfeil) liegen über den Knoten und können in die Kreise hineinreichen – dort hat
+        // ein Klick auf die Marke Vorrang vor dem Knoten. Die Linie liegt unter den Knoten und kommt erst danach.
+        if (NodeShape == NodeShape.Circle && !shift && HitEdge(world, marksOnly: true) is { } markedEdge)
+        {
+            SelectEdge(markedEdge.Id);
+            return;
+        }
+
         if (node is not null)
         {
             if (shift)
@@ -655,18 +669,20 @@ public sealed partial class EditorViewModel
 
     /// <summary>
     /// Kante in der Nähe des Weltpunkts (Toleranz in Pixeln). Bei Kreisen zählt die ganze Strecke zwischen den
-    /// Mittelpunkten. Bei Zellen nur die Marke und die sichtbaren Stege über den Zellrändern
+    /// Mittelpunkten und die gezeichnete Marke (<see cref="EdgeMarks.Radius"/>, mindestens die Toleranz), mit
+    /// <paramref name="marksOnly"/> nur die Marke. Bei Zellen nur die Marke und die sichtbaren Stege über den Zellrändern
     /// (<see cref="EditorGeometry.CellEdgeStubTargets"/>), und zwar nur rund um die Stelle, an der die Kante den Rand
     /// kreuzt – höchstens eine halbe Steglänge weit, auch wenn die Toleranz in Pixeln größer wäre –, und nie im
     /// Freihaltekreis um die Mitte der getroffenen Zelle. So trifft ein Klick ins Innere einer Zelle und in ihre Ecken
     /// die Zelle, außer genau auf einem dort gezeichneten Steg (Nr. 158).
     /// </summary>
-    public Edge? HitEdge(WorldPoint world)
+    public Edge? HitEdge(WorldPoint world, bool marksOnly = false)
     {
         var tolerance = EdgeHitTolerance / Viewport.Scale;
         var cells = NodeShape == NodeShape.Cell;
         var clear = EditorGeometry.ClearRadius(Puzzle.Grid, NodeShape);
         var markRadius = Math.Max(tolerance, EditorGeometry.ContentRadius(Puzzle.Grid, NodeShape) * 0.32);
+        var nodeRadius = EditorGeometry.ContentRadius(Puzzle.Grid, NodeShape) * Viewport.Scale;
         var stubReach = Math.Min(tolerance, EditorGeometry.CellEdgeStubLength(Puzzle.Grid) / 2);
         var inClearZone = cells && HitNode(world) is { } cell && EditorGeometry.Center(Puzzle.Grid, cell).DistanceTo(world) <= clear;
         Edge? best = null;
@@ -683,7 +699,13 @@ public sealed partial class EditorViewModel
             double distance;
             if (!cells)
             {
-                distance = EditorGeometry.DistanceToSegment(world, from, to);
+                distance = marksOnly ? double.MaxValue : EditorGeometry.DistanceToSegment(world, from, to);
+                if (EdgeHasMark(edge.Rule))
+                {
+                    var (mark, gap) = EditorGeometry.EdgeMarkPosition(from, to, clear, NodesNear(from, to, clear));
+                    var radius = Math.Max(tolerance, EdgeMarks.Radius(edge, nodeRadius, gap * Viewport.Scale, MeasureMarkLabel) / Viewport.Scale);
+                    distance = Math.Min(distance, Math.Max(0, mark.DistanceTo(world) - radius + tolerance));
+                }
             }
             else
             {

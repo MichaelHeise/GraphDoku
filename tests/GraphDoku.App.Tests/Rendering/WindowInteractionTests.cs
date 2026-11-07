@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using GraphDoku.App.Controls;
+using GraphDoku.App.Editing;
 using GraphDoku.App.Services;
 using GraphDoku.App.Tests.Helpers;
 using GraphDoku.App.ViewModels;
@@ -188,6 +189,72 @@ public sealed class WindowInteractionTests(HeadlessSessionFixture fixture)
         Dispatcher.UIThread.RunJobs();
 
         editor.SelectedNodeIds.Should().Equal(ClassicSudoku.NodeId(0, 0));
+        window.Close();
+    }, CancellationToken.None);
+
+    [Fact]
+    public Task Right_click_during_an_edge_drag_on_the_canvas_does_not_finish_it() => fixture.Session.Dispatch(() =>
+    {
+        // Review-Befund (nicht nachvollziehbar): Ein Rechtsklick während des Kantenziehens schließe die Geste ab, weil
+        // PointerReleased die Taste nicht prüft. Avalonia meldet eine weitere Taste bei schon gedrückter linker Taste aber
+        // nicht als Drücken/Loslassen, sondern als Zeigerbewegung – das Loslassen erreicht den Editor erst mit der letzten
+        // Taste. Der Test sichert dieses Verhalten der Zeichenfläche ab.
+        var puzzle = new Puzzle("Reihe", GridType.Square);
+        puzzle.Nodes.Add(new Node(1, 0, 0));
+        puzzle.Nodes.Add(new Node(2, 2, 0));
+        puzzle.Nodes.Add(new Node(3, 4, 0));
+        var (window, viewModel) = OpenWindow(puzzle);
+        var editor = viewModel.Editor;
+        editor.Tool = EditorTool.DrawEdge;
+        var canvas = window.FindControl<GraphCanvas>("Canvas")!;
+        Point OnWindow(int x)
+        {
+            var screen = editor.Viewport.ToScreen(GridGeometry.ToWorld(GridType.Square, x, 0));
+            return canvas.TranslatePoint(new Point(screen.X, screen.Y), window)!.Value;
+        }
+
+        window.MouseDown(OnWindow(0), MouseButton.Left);
+        window.MouseMove(OnWindow(2), RawInputModifiers.LeftMouseButton);
+        window.MouseDown(OnWindow(2), MouseButton.Right, RawInputModifiers.LeftMouseButton);
+        window.MouseUp(OnWindow(2), MouseButton.Right, RawInputModifiers.LeftMouseButton);
+        Dispatcher.UIThread.RunJobs();
+        editor.Puzzle.Edges.Should().BeEmpty();
+        editor.IsGestureActive.Should().BeTrue();
+        window.MouseMove(OnWindow(4), RawInputModifiers.LeftMouseButton);
+        window.MouseUp(OnWindow(4), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        editor.Puzzle.Edges.Should().ContainSingle().Which.Should().BeEquivalentTo(new { From = 1, To = 3 });
+        editor.IsGestureActive.Should().BeFalse();
+        window.Close();
+    }, CancellationToken.None);
+
+    [Fact]
+    public Task Clicking_the_part_of_a_labelled_dot_over_a_node_selects_the_edge() => fixture.Session.Dispatch(() =>
+    {
+        // Review-Befund: Beim Standardmaßstab 48 ist ein beschrifteter Kropki-Punkt (k = 2, Radius ≈ 8,5 px) breiter als
+        // der Spalt von 11,5 px zwischen den Kreisen. Er liegt über den Knoten, ein Klick dort wählte aber den Knoten.
+        var puzzle = new Puzzle("Paar", GridType.Square);
+        puzzle.Nodes.Add(new Node(1, 0, 0));
+        puzzle.Nodes.Add(new Node(2, 1, 0));
+        puzzle.Edges.Add(new Edge(1, 1, 2, "Difference", new RuleParams().Set("k", 2)));
+        var (window, viewModel) = OpenWindow(puzzle);
+        var editor = viewModel.Editor;
+        var canvas = window.FindControl<GraphCanvas>("Canvas")!;
+        editor.Viewport.ZoomAt(new ScreenPoint(canvas.Bounds.Width / 2, canvas.Bounds.Height / 2), Viewport.DefaultScale / editor.Viewport.Scale);
+        Dispatcher.UIThread.RunJobs();
+        var nodeRadius = EditorGeometry.NodeRadius(GridType.Square) * editor.Viewport.Scale;
+        var a = editor.Viewport.ToScreen(GridGeometry.ToWorld(GridType.Square, 0, 0));
+        var screen = new ScreenPoint(a.X + nodeRadius - 1.5, a.Y);
+        editor.HitNode(editor.Viewport.ToWorld(screen))!.Id.Should().Be(1);
+        var point = canvas.TranslatePoint(new Point(screen.X, screen.Y), window)!.Value;
+
+        window.MouseDown(point, MouseButton.Left);
+        window.MouseUp(point, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        editor.SelectedEdgeId.Should().Be(1);
+        editor.SelectedNodeIds.Should().BeEmpty();
         window.Close();
     }, CancellationToken.None);
 
