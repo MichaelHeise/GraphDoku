@@ -1229,3 +1229,10 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      Widerlegungsschritt prüfte jede Aussage (32 Korrekturen, 12 Einwände widerlegt). Die Texte der
      Betriebssystem-Dialoge (SmartScreen, Gatekeeper) sind nach bestem Wissen formuliert und nicht auf echten Systemen
      geprüft.
+189. **rcodesign aus der eigenen Paketverwaltung** (Release): Zwei Release-Läufe scheiterten, weil GitHub den Download
+     von rcodesign über mehrere Minuten mit HTTP 503 ablehnte (auch fünf Wiederholungen halfen nicht). Das Archiv
+     `apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz` liegt deshalb als generisches Paket `apple-codesign`
+     0.29.0 in der Paketverwaltung dieses Gitea (mit dem Repository verknüpft, nur mit Token lesbar). Der Workflow
+     lädt es von dort und nur ersatzweise von GitHub; die feste Prüfsumme gilt für beide Quellen. Eine neue
+     rcodesign-Version muss vor dem Wechsel von `APPLE_CODESIGN_VERSION` ebenfalls dort hochgeladen werden (`PUT
+     /api/packages/<owner>/generic/apple-codesign/<version>/<datei>`).

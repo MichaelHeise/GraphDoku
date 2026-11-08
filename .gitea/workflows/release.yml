@@ -73,12 +73,23 @@ jobs:
             $SUDO apt-get install -y --no-install-recommends $missing
           fi
 
+      # rcodesign liegt als Kopie in der Paketverwaltung dieses Gitea (generisches Paket „apple-codesign“), damit ein
+      # Release nicht an GitHub hängt (dort scheiterten Läufe an HTTP 503). GitHub bleibt Rückfallquelle; die
+      # Prüfsumme gilt für beide.
       - name: rcodesign installieren (macOS-Signatur)
+        env:
+          TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITEA_TOKEN }}
+          REGISTRY: ${{ github.server_url }}/api/packages/${{ github.repository_owner }}/generic/apple-codesign
         run: |
           file="apple-codesign-${APPLE_CODESIGN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          # GitHub antwortet gelegentlich kurz mit 5xx (ein Lauf scheiterte an HTTP 503): mehrfach versuchen.
-          curl -sSfL --retry 5 --retry-delay 10 --retry-all-errors -o "/tmp/$file" \
-            "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign/${APPLE_CODESIGN_VERSION}/$file"
+          if curl -sSfL --retry 3 --retry-delay 5 --retry-all-errors -H "Authorization: token $TOKEN" \
+              -o "/tmp/$file" "$REGISTRY/${APPLE_CODESIGN_VERSION}/$file"; then
+            echo "rcodesign aus der Gitea-Paketverwaltung geladen."
+          else
+            echo "Gitea-Paketverwaltung nicht erreichbar oder Paket fehlt – lade von GitHub."
+            curl -sSfL --retry 5 --retry-delay 10 --retry-all-errors -o "/tmp/$file" \
+              "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign/${APPLE_CODESIGN_VERSION}/$file"
+          fi
           echo "${APPLE_CODESIGN_SHA256}  /tmp/$file" | sha256sum -c -
           mkdir -p "$HOME/.local/bin"
           tar -xzf "/tmp/$file" -C /tmp
