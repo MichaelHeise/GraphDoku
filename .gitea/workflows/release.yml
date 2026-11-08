@@ -58,11 +58,14 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Systempakete (fontconfig für die Rendering-Tests, zip für die Pakete)
+      - name: Systempakete (fontconfig für die Rendering-Tests, zip für die Pakete, pandoc und WeasyPrint fürs Handbuch)
         run: |
           missing=""
           ldconfig -p | grep -q 'libfontconfig\.so\.1' || missing="$missing libfontconfig1"
           command -v zip >/dev/null 2>&1 || missing="$missing zip"
+          command -v pandoc >/dev/null 2>&1 || missing="$missing pandoc"
+          command -v weasyprint >/dev/null 2>&1 || missing="$missing weasyprint"
+          fc-list 2>/dev/null | grep -q 'DejaVuSans\.ttf' || missing="$missing fonts-dejavu-core"
           if [ -n "$missing" ]; then
             SUDO=""
             if [ "$(id -u)" != "0" ]; then SUDO="sudo"; fi
@@ -98,6 +101,10 @@ jobs:
 
       - name: Test
         run: dotnet test GraphDoku.sln -c Release --no-build
+
+      # Vor den Paketen, damit die Prüfsummendatei von tools/package.sh das PDF mit erfasst.
+      - name: Benutzerhandbuch als PDF
+        run: tools/userguide.sh "${{ steps.version.outputs.version }}" artifacts/release
 
       - name: Pakete bauen
         run: tools/package.sh "${{ steps.version.outputs.version }}" artifacts/release
@@ -141,6 +148,8 @@ jobs:
               "`GraphDoku.app` in „Programme“ ziehen. Beim ersten Start meldet macOS einen nicht verifizierten Entwickler: "
               "Systemeinstellungen → Datenschutz & Sicherheit → „Dennoch öffnen“.",
               f"- **Linux (x64):** `GraphDoku-{v}-linux-x64.tar.gz` entpacken, `GraphDoku.App` starten.",
+              "",
+              f"**Benutzerhandbuch:** `GraphDoku-{v}-Benutzerhandbuch.pdf` – Installation je Plattform, Konzept und Bedienung.",
               "",
               "Ein installiertes .NET ist nicht nötig. Beispielrätsel liegen im Ordner `Beispiele`. "
               f"Prüfsummen: `SHA256SUMS-{v}.txt`.",

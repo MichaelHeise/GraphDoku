@@ -117,7 +117,8 @@ sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else sh
   cd "$out"
   files=()
   # Nur die Plattformnamen dieses Skripts: GraphDoku-1.0.0-* träfe sonst auch GraphDoku-1.0.0-beta.1-* im selben Ordner.
-  for f in GraphDoku-"$version"-{windows,macos}-*.zip GraphDoku-"$version"-linux-*.tar.gz; do [[ -f $f ]] && files+=("$f"); done
+  # Das Benutzerhandbuch (tools/userguide.sh) zählt mit, wenn es vorher in denselben Ordner gebaut wurde.
+  for f in GraphDoku-"$version"-{windows,macos}-*.zip GraphDoku-"$version"-linux-*.tar.gz GraphDoku-"$version"-Benutzerhandbuch.pdf; do [[ -f $f ]] && files+=("$f"); done
   sha256 "${files[@]}" > "SHA256SUMS-$version.txt"
 )
 echo "Pakete in $out:"
