@@ -211,6 +211,11 @@ th {
   padding: 1.6mm 2.2mm;
 }
 
+/* Umbruch auch in langen Wörtern, sonst laufen breite Tabellen über den Rand. */
+th, td {
+  overflow-wrap: break-word;
+}
+
 td {
   border-bottom: 0.25mm solid #d5dce8;
   padding: 1.5mm 2.2mm;
@@ -262,4 +267,5 @@ kbd {
   border-radius: 1mm;
   padding: 0 1mm;
   background: #f6f8fb;
+  white-space: nowrap;
 }

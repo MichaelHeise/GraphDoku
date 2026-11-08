@@ -248,6 +248,7 @@ Linux-Paket mit einem Selbsttest und hängt alles an das Release:
 | `GraphDoku-<Version>-windows-x64.zip` | Ordner mit `GraphDoku.App.exe` |
 | `GraphDoku-<Version>-macos-arm64.zip`, `…-macos-x64.zip` | `GraphDoku.app` (Apple Silicon bzw. Intel), ad hoc signiert |
 | `GraphDoku-<Version>-linux-x64.tar.gz` | Ordner mit `GraphDoku.App`, Symbol und `.desktop`-Vorlage |
+| `GraphDoku-<Version>-Benutzerhandbuch.pdf` | Benutzerhandbuch (aus `docs/benutzerhandbuch/`, gebaut mit `tools/userguide.sh`) |
 | `SHA256SUMS-<Version>.txt` | Prüfsummen |
 
 - Alle Pakete sind eigenständig (kein installiertes .NET nötig) und enthalten Lizenz, Drittanbieter-Hinweise und die
@@ -272,6 +273,11 @@ Pakete lokal bauen (macOS signiert mit `codesign`, Linux braucht `rcodesign` fü
 tools/package.sh 1.0.0                     # alle Ziele nach artifacts/release
 tools/package.sh 1.0.0 artifacts/release win-x64 linux-x64
 ```
+
+Das Benutzerhandbuch lokal bauen (braucht `pandoc` und `weasyprint`, z. B. unter Ubuntu
+`apt-get install pandoc weasyprint fonts-dejavu-core`): `tools/userguide.sh 1.0.0`. Die Screenshots darin erzeugt
+`GRAPHDOKU_GUIDE_IMAGES=docs/benutzerhandbuch/bilder dotnet test tests/GraphDoku.App.Tests -c Release --filter
+FullyQualifiedName~UserGuideScreenshots` neu (headless, ohne Fenster).
 
 Ein fertiges Paket lässt sich ohne Fenster prüfen: `GraphDoku.App --selbsttest [Rätseldatei]` löst, prüft die
 Eindeutigkeit und erklärt (Exit-Code 0 bei Erfolg). Unter Windows ist die App ein Fensterprogramm: Die Ausgabe erscheint

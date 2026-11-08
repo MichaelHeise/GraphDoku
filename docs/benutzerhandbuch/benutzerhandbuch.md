@@ -58,8 +58,16 @@ auf ARM gibt es keine eigenen Pakete.
    *„Der Computer wurde durch Windows geschützt“*. Auf **Weitere Informationen** klicken, dann auf **Trotzdem
    ausführen**. Danach startet die App ohne Nachfrage.
 
-> **Tipp:** Wer eine Verknüpfung möchte: Rechtsklick auf `GraphDoku.App.exe` → *Weitere Optionen anzeigen* → *Verknüpfung
-> erstellen* und die Verknüpfung auf den Desktop oder ins Startmenü ziehen.
+> **Hinweis für Windows 11:** Ist die **intelligente App-Steuerung** (Smart App Control) eingeschaltet, blockiert
+> Windows die unsignierte App mit einer eigenen Meldung ohne *„Trotzdem ausführen“*; eine Ausnahme nur für GraphDoku
+> gibt es nicht. GraphDoku startet dann erst, wenn man die Funktion unter *Windows-Sicherheit → App- &
+> Browsersteuerung → Einstellungen für die intelligente App-Steuerung* ausschaltet. Das schwächt den Schutz des ganzen
+> Rechners und lässt sich auf älteren Windows-Ständen nur durch eine Neuinstallation rückgängig machen – im Zweifel
+> vorher mit der zuständigen IT sprechen.
+
+> **Tipp:** Wer eine Verknüpfung möchte: Rechtsklick auf `GraphDoku.App.exe` → *Verknüpfung erstellen* (unter
+> Windows 11 zuerst *Weitere Optionen anzeigen*) und die Verknüpfung auf den Desktop ziehen. Für das Startmenü genügt
+> ein Rechtsklick auf `GraphDoku.App.exe` → *An Start anheften*.
 
 ## macOS
 
@@ -126,12 +134,15 @@ xattr -dr com.apple.quarantine /Applications/GraphDoku.app
 - **Download prüfen (optional):** Die Prüfsummen stehen in `SHA256SUMS-<Version>.txt`. Linux: `sha256sum -c
   SHA256SUMS-<Version>.txt --ignore-missing`; macOS: `shasum -a 256 <Datei>`; Windows (PowerShell):
   `Get-FileHash <Datei>`.
-- **Selbsttest ohne Fenster:** `GraphDoku.App --selbsttest` löst, prüft und erklärt ein eingebautes Sudoku und meldet
-  „Selbsttest bestanden.“ – nützlich, um eine Installation auf einem Rechner ohne Bildschirm zu prüfen. Optional kann
-  eine Rätseldatei folgen: `GraphDoku.App --selbsttest meinraetsel.json`. Unter macOS liegt die ausführbare Datei in
-  `GraphDoku.app/Contents/MacOS/`. Unter Windows erscheint die Ausgabe nicht in der Konsole; den Erfolg zeigt der
-  Exit-Code (PowerShell: `(Start-Process .\GraphDoku.App.exe -ArgumentList '--selbsttest' -Wait -PassThru).ExitCode`,
-  0 = bestanden).
+- **Selbsttest ohne Fenster:** Im Programmordner `./GraphDoku.App --selbsttest` aufrufen (macOS:
+  `GraphDoku.app/Contents/MacOS/GraphDoku.App --selbsttest`). Der Test löst, prüft und erklärt ein eingebautes Sudoku,
+  meldet „Selbsttest bestanden.“ und endet mit Exit-Code 0, sonst mit „Selbsttest fehlgeschlagen.“ und 1.
+  `--selbsttest` muss das erste Argument sein; optional folgt eine Rätseldatei (`./GraphDoku.App --selbsttest
+  meinraetsel.json`) – sie besteht nur, wenn das Rätsel nachweislich genau eine Lösung hat und sich vollständig
+  erklären lässt. Der Test prüft nur die Rechenbibliothek (OR-Tools, unter Windows damit auch die
+  Visual-C++-Laufzeit), nicht die Bibliotheken der Oberfläche: Ob das Fenster startet, zeigt er nicht. Unter Windows
+  erscheint die Ausgabe nicht in der Konsole; den Erfolg zeigt der Exit-Code (PowerShell:
+  `(Start-Process .\GraphDoku.App.exe -ArgumentList '--selbsttest' -Wait -PassThru).ExitCode`, 0 = bestanden).
 
 # Zweck und Konzept
 
@@ -176,9 +187,11 @@ Knoten werden fortlaufend nummeriert (Knoten-Id). Die Id erscheint in Meldungen 
 ### Kanten
 
 Eine Kante verbindet zwei verschiedene Knoten und trägt eine **Kantenregel** mit ihren Parametern. Bei den meisten
-Kantenregeln spielt die Richtung keine Rolle; nur „Kleiner als“ ist gerichtet. Kanten mit Regeln wie „Differenz“
-oder „Verhältnis“ werden mit einer **Marke** gezeichnet (weißer bzw. schwarzer Punkt, Pfeil), „Ungleich“ als einfache
-Linie.
+Kantenregeln spielt die Richtung keine Rolle; nur „Kleiner als“ ist gerichtet. Kanten mit „Differenz“ werden als
+weißer Punkt, mit „Verhältnis“ als schwarzer Punkt und mit „Kleiner als“ als Pfeil vom kleineren zum größeren Wert
+gezeichnet (**Marke**), „Ungleich“ als einfache Linie. Weicht der Parameter vom Kropki-Standard ab, steht er im Punkt:
+Ein weißer Punkt zeigt k, sobald k nicht 1 ist oder „mindestens k“ gilt (z. B. „3“ oder „≥2“), ein schwarzer Punkt
+den Faktor, sobald er nicht 2 ist.
 
 ### Gruppen
 
@@ -214,6 +227,9 @@ GraphDoku kennt acht Regeln. Vier gelten für Gruppen, vier für Kanten.
 
 Einzelheiten, die beim Modellieren wichtig sind:
 
+- **Mindestgröße:** Gruppen mit „Alle verschieden“ oder „Thermometer“ brauchen mindestens 2 Knoten, sonst meldet die
+  Prüfung „Die Regel braucht mindestens 2 Knoten“. „Summe“ und „Bereich abdecken“ sind auch mit einem einzigen Knoten
+  erlaubt.
 - **Bereich abdecken** verlangt, dass die Gruppe **genau so viele Knoten hat, wie der Bereich Werte**. Ohne Angabe
   gelten Minimum und Maximum des globalen Wertebereichs. Für Gruppen mit weniger Knoten (etwa eine Diagonale in einem
   größeren Rätsel) nimmt man **Alle verschieden**.
@@ -242,7 +258,7 @@ Einzelheiten, die beim Modellieren wichtig sind:
 | **Anti-König** | Kanten-Generator: „Nachbarn inkl. diagonal“, Regel **Ungleich** |
 | **Nicht aufeinanderfolgend** | Kanten-Generator: „Direkte Nachbarn“, **Differenz** k = 2, „mindestens k“ |
 | **Hexadoku 16×16** | Wertebereich 0 bis 15 (Anzeige 0–9, A–F), Zeilen, Spalten und 4×4-Blöcke als **Bereich abdecken** |
-| **Dreiecks-Sudoku** | Dreiecksgitter, Regionen als **Bereich abdecken**, Seiten als **Alle verschieden**, sich berührende Dreiecke verschiedener Regionen per Generator mit **Ungleich** |
+| **Dreiecks-Sudoku** | Dreiecksgitter, Regionen als **Bereich abdecken**, Seiten als **Alle verschieden**; dazu Kanten-Generator: „Nachbarn inkl. diagonal (gemeinsame Ecke)“, Regel **Ungleich**, alle Knoten (Kanten innerhalb einer Region sind dabei überflüssig, schaden aber nicht) |
 | **Zelle mit eingeschränkten Werten** | **Eigener Wertebereich** für diesen Knoten |
 
 > **Hinweis:** „Hexadoku“ meint hier das 16×16-Sudoku mit den Ziffern 0–F auf dem **Quadratgitter**. Das
@@ -266,8 +282,9 @@ Kropki-Punkt ist eine Kante zwischen zwei Nachbarzellen.
 
 ### Tipps zum Modellieren
 
-- **Erst die Struktur, dann die Givens.** Zuerst Knoten und Gruppen anlegen, dann mit „Eindeutigkeit prüfen“ testen,
-  wie viele Lösungen das leere Gerüst hat, und dann Givens eintragen.
+- **Erst die Struktur, dann die Givens.** Zuerst Knoten und Gruppen anlegen und mit „Eindeutigkeit prüfen“ testen, ob
+  das leere Gerüst überhaupt lösbar ist (erwartet ist „mehrdeutig“; „unlösbar“ deutet auf einen Fehler in Gruppen oder
+  Kanten hin), dann Givens eintragen.
 - **Viele gleichartige Kanten** nie von Hand ziehen, sondern mit dem **Kanten-Generator** erzeugen (ein einziger
   Rückgängig-Schritt).
 - **Reihenfolge beachten:** Für Thermometer die Zellen in der richtigen Reihenfolge auswählen (Kolben zuerst, dann
@@ -283,8 +300,10 @@ GraphDoku übersetzt jedes Rätsel in ein Modell für den Constraint-Solver **CP
 Ganzzahlvariable je Knoten in ihrem Wertebereich, Givens fest, jede Regel als Bedingung.
 
 - **Lösen** sucht *eine* Lösung und zeigt sie an. Das Rätsel selbst wird dabei nicht verändert.
-- **Eindeutigkeit prüfen** sucht nach bis zu *zwei* Lösungen. Findet der Solver nur eine, ist das Rätsel eindeutig;
-  findet er zwei, ist es mehrdeutig, und beide Lösungen lassen sich anzeigen.
+- **Eindeutigkeit prüfen** sucht nach bis zu *zwei* Lösungen. Ist die Suche vollständig und hat sie nur eine Lösung
+  gefunden, ist das Rätsel eindeutig; findet sie zwei, ist es mehrdeutig, und beide Lösungen lassen sich anzeigen. Wird
+  das Zeitlimit erreicht, nachdem erst eine Lösung gefunden wurde, bleibt die Eindeutigkeit offen („Die Eindeutigkeit
+  ist nicht geklärt“); die gefundene Lösung lässt sich trotzdem anzeigen.
 - Beide Suchen haben ein **Zeitlimit** (Standard 30 Sekunden, einstellbar von 0,1 bis 3600 Sekunden). Wird es
   erreicht, sagt GraphDoku das ausdrücklich – „kein Ergebnis“ heißt dann nicht „unlösbar“.
 
@@ -297,9 +316,9 @@ einfachsten Schluss.
 
 | Stufe | Schlussweise | Was passiert |
 | --- | --- | --- |
-| 0 | **Feststehenden Wert streichen** | Ein Given oder gesetzter Wert wird bei den anderen Knoten seiner „Alle verschieden“- und „Bereich abdecken“-Gruppen und über „Ungleich“-Kanten gestrichen. |
+| 0 | **Feststehenden Wert streichen** | Ein Given oder gesetzter Wert wird bei den anderen Knoten seiner „Alle verschieden“- und „Bereich abdecken“-Gruppen und über „Ungleich“-Kanten gestrichen. Außerdem fallen in „Bereich abdecken“-Gruppen alle Werte außerhalb ihres Bereichs weg. |
 | 1 | **Einziger Kandidat** | Ein Knoten hat nur noch einen Kandidaten – der Wert steht fest. |
-| 2 | **Einziger Platz in der Gruppe** | Ein Wert passt in einer Gruppe nur noch in einen Knoten. |
+| 2 | **Einziger Platz in der Gruppe** | Ein Wert passt in einer Gruppe nur noch in einen Knoten. Das gilt für „Bereich abdecken“-Gruppen und für „Alle verschieden“-Gruppen, in denen genau so viele Werte möglich sind, wie die Gruppe Knoten hat (beim klassischen Sudoku immer) – nicht für „Summe“ oder „Thermometer“. |
 | 3 | **Regel** | Kandidaten werden über die übrigen Regeln gestrichen (Differenz, Verhältnis, Kleiner als, Thermometer, Summe …). |
 | – | **Verzweigung** | Ohne Raten geht es nicht weiter: Der Knoten mit den wenigsten Kandidaten bekommt den Wert aus der Lösung des Solvers. Solche Schritte sind deutlich als *geraten* markiert. |
 
@@ -324,7 +343,7 @@ Von oben nach unten:
    *Einpassen*.
 3. **Lösen-Leiste:** *Lösen*, *Eindeutigkeit prüfen*, *Erklären*, das *Zeitlimit* in Sekunden und rechts die
    Ergebnismeldung. Darunter erscheinen bei Bedarf *Lösung anzeigen* / *Lösung ausblenden*.
-4. **Schrittleiste** – nur im Erklär-Modus.
+4. **Schrittleiste** – während der Berechnung einer Erklärung und im Erklär-Modus.
 5. Links die **Gruppenliste:** alle Gruppen mit Farbe, Beschriftung, Regel und Knotenzahl. Das Häkchen blendet die
    Hervorhebung einer Gruppe ein oder aus (*Alle ein* / *Alle aus*); ein Klick auf den Eintrag wählt die Gruppe zum
    Bearbeiten.
@@ -334,7 +353,8 @@ Von oben nach unten:
 8. Unten der **Statusbereich:** die letzte Aktion, ein Hinweis zum aktiven Werkzeug und das **Prüfergebnis** („Keine
    Probleme gefunden.“ in Grün oder die Liste der Probleme in Rot). Rechts der Umschalter **Knoten als Kreise / Zellen**.
 
-Der Fenstertitel zeigt den Namen des Rätsels; ein Sternchen (`*`) bedeutet ungespeicherte Änderungen.
+Der Fenstertitel zeigt den Dateinamen (bei einem noch nie gespeicherten Rätsel dessen Namen bzw. „Unbenannt“); ein
+Sternchen (`*`) dahinter bedeutet ungespeicherte Änderungen.
 
 ## Erste Schritte: ein Sudoku in fünf Minuten
 
@@ -342,7 +362,7 @@ Der Fenstertitel zeigt den Namen des Rätsels; ein Sternchen (`*`) bedeutet unge
 2. Mit dem Werkzeug **Auswahl** einen Knoten anklicken und eine **Ziffer tippen** – das ist ein Given. So alle Givens
    eintragen. Ein Tippfehler? <kbd>⌫</kbd> löscht das Given.
 3. **Eindeutigkeit prüfen** (<kbd>F6</kbd>): Die Leiste wird grün und meldet „Das Rätsel ist eindeutig lösbar“ – oder
-   gelb mit dem Hinweis, wo sich zwei Lösungen unterscheiden.
+   gelb, wenn es mehrere Lösungen gibt.
 4. **Erklären** (<kbd>F7</kbd>) und mit <kbd>→</kbd> Schritt für Schritt durch den Lösungsweg gehen.
 5. **Datei → Speichern** (<kbd>Strg</kbd>+<kbd>S</kbd>, Mac: <kbd>Cmd</kbd>+<kbd>S</kbd>).
 
@@ -382,7 +402,8 @@ Alternativ: **Datei → Öffnen …** und eines der Beispielrätsel aus dem Ordn
 
 - **Given eintragen:** Knoten auswählen und die Zahl tippen. Bei mehreren ausgewählten Knoten bekommen alle denselben
   Wert. Mehrstellige Zahlen tippt man nacheinander (bei 1–16 ergibt „1“, „6“ die 16); ein Minuszeichen am Anfang
-  erlaubt negative Werte, wenn der Bereich sie enthält. Im Hex-Modus (Bereich 0–15) gelten auch A–F.
+  erlaubt negative Werte, wenn der Bereich sie enthält. Im **Hex-Modus** (globaler Wertebereich genau 0–15) ist dagegen
+  jedes Zeichen ein vollständiger Wert: 0–9 und A–F, die 15 also als F („1“, „5“ setzt erst die 1, dann die 5).
 - **Given löschen:** <kbd>⌫</kbd> oder im Panel *Givens löschen*.
 - Werte außerhalb des Bereichs werden nicht angenommen; die Statuszeile nennt den Grund.
 - **Eigener Wertebereich:** Knoten auswählen, im Panel unter *Eigener Wertebereich* von–bis eingeben und **Bereich
@@ -395,7 +416,8 @@ Alternativ: **Datei → Öffnen …** und eines der Beispielrätsel aus dem Ordn
   und von einem Knoten zum anderen ziehen. Bei *Kleiner als* zieht man vom kleineren zum größeren Wert.
 - **Kante bearbeiten:** Kante (oder ihre Marke) mit dem Werkzeug *Auswahl* anklicken. Im Panel stehen Regel und
   Parameter; *Richtung umkehren* dreht eine gerichtete Kante, *Kante löschen* entfernt sie.
-- Zwischen zwei Knoten gibt es höchstens eine Kante derselben Regel.
+- Beim Ziehen lehnt GraphDoku eine zweite Kante derselben Regel zwischen denselben zwei Knoten ab (bei *Kleiner als*
+  nur in derselben Richtung); der Kanten-Generator überspringt solche Paare.
 
 ## Gruppen
 
@@ -407,6 +429,11 @@ Alternativ: **Datei → Öffnen …** und eines der Beispielrätsel aus dem Ordn
 
 Im Gruppen-Panel stehen außerdem die *Knoten in Reihenfolge*, **Reihenfolge umkehren** (für Thermometer) und *Gruppe
 löschen*. Wechselt man die Regel einer Gruppe, werden ihre Parameter auf die Standardwerte zurückgesetzt.
+
+Welche Knoten zu einer bestehenden Gruppe gehören, lässt sich nachträglich nicht ändern – Knoten lassen sich weder
+hinzufügen noch herausnehmen noch einzeln umsortieren (nur *Reihenfolge umkehren*). Fehlt ein Knoten, die Gruppe
+löschen, die Knoten in der richtigen Reihenfolge neu auswählen und die Gruppe neu erstellen. Ein Klick auf eine Gruppe
+in der Gruppenliste wählt die Gruppe selbst, nicht ihre Knoten.
 
 ## Der Kanten-Generator
 
@@ -433,6 +460,11 @@ Kantenregel, **Bearbeiten → Kanten erzeugen …** oder <kbd>Strg/Cmd</kbd>+<kb
   halten und ziehen.
 - **Einpassen** (<kbd>Strg/Cmd</kbd>+<kbd>0</kbd>) zeigt das ganze Rätsel.
 - **Gruppen hervorheben:** Häkchen in der Gruppenliste oder *Ansicht → Alle Gruppen einblenden / ausblenden*.
+  Sichtbare Gruppen zeichnen ihren Umriss; Grenzen, die sich mehrere Gruppen teilen, erscheinen grau und kräftiger (so
+  treten im Sudoku die Blöcke hervor). Eine farbige Fläche bekommen nur die gewählte Gruppe und Gruppen mit eigener
+  Farbe. Ein Käfig mit der Farbe *Automatisch* ist im Sudoku ohne Auswahl daher nur als kräftigere Linie zu sehen – für
+  eine deutliche Darstellung im Gruppen-Panel eine Farbe wählen. Eine ausgeblendete Summen-Gruppe zeigt auch ihre
+  Zielsumme nicht. Beschriftungen wie „Zeile 1“ stehen nur in der Gruppenliste.
 - **Knoten als Zellen:** *Ansicht → Knoten als Zellen* oder unten rechts *Knoten als ○ Kreise ○ Zellen*. Die Knoten
   erscheinen dann als Quadrate, Dreiecke bzw. Sechsecke des Gitters. Alles bleibt bedienbar: Ein Klick irgendwo in die
   Zelle trifft die Zelle; Kanten trifft man auf ihrem Steg am Zellrand oder auf ihrer Marke; die Rahmenauswahl
@@ -450,6 +482,10 @@ Jede Änderung am Rätsel lässt sich mit **Rückgängig** (<kbd>Strg/Cmd</kbd>+
 anwenden. Tooltip und Menü nennen jeweils den Schritt, der zurückgenommen wird („Rückgängig: …“). Ein ganzes Ziehen, eine mehrstellige
 Eingabe, fortlaufendes Tippen in ein Feld und ein Lauf des Kanten-Generators zählen jeweils als **ein** Schritt.
 
+Hat ein Textfeld den Fokus (z. B. *Name*, *Zielsumme* oder *Beschriftung*), wirken <kbd>Strg/Cmd</kbd>+<kbd>Z</kbd>,
+<kbd>Strg/Cmd</kbd>+<kbd>Y</kbd> und <kbd>Strg/Cmd</kbd>+<kbd>A</kbd> nur im Textfeld. Um einen Schritt am Rätsel
+zurückzunehmen, vorher in die Zeichenfläche klicken oder die Knöpfe bzw. das Menü *Bearbeiten* verwenden.
+
 Ansichtssachen – Zoom, Auswahl, Zelldarstellung, angezeigte Lösung, Erklär-Modus – sind keine Änderungen und machen das
 Dokument nicht „ungespeichert“.
 
@@ -460,6 +496,8 @@ Dokument nicht „ungespeichert“.
 - Gefundene Lösungswerte erscheinen **blau**, Givens **schwarz**. Das Rätsel selbst ändert sich nicht.
 - **Lösung ausblenden** blendet sie wieder aus; jede Bearbeitung blendet sie ebenfalls aus.
 - **Zeitlimit:** Feld in der Lösen-Leiste, in Sekunden (0,1 bis 3600; Komma oder Punkt). Es gilt auch für das Erklären.
+  Ist die Eingabe ungültig, steht rechts in der Leiste eine rote Meldung, und *Lösen*, *Eindeutigkeit prüfen* und
+  *Erklären* (auch <kbd>F5</kbd>–<kbd>F7</kbd>) sind gesperrt, bis das Zeitlimit korrigiert ist.
 
 ![„Klassisch leicht“ gelöst: Lösungswerte blau, Givens schwarz.](bilder/geloest.png)
 
@@ -468,21 +506,34 @@ Dokument nicht „ungespeichert“.
 **Eindeutigkeit prüfen** (<kbd>F6</kbd>) sucht nach bis zu zwei Lösungen:
 
 - **Eindeutig** (grün): *Lösung anzeigen* trägt die Lösung ein.
-- **Mehrdeutig** (gelb): *Lösung 1 anzeigen* und *Lösung 2 anzeigen*. Die Knoten, in denen sich die beiden Lösungen
-  unterscheiden, sind **orange** markiert – dort fehlt dem Rätsel noch Information.
+- **Mehrdeutig** (gelb): Die Meldung nennt, in wie vielen Knoten sich zwei gefundene Lösungen unterscheiden. *Lösung 1
+  anzeigen* bzw. *Lösung 2 anzeigen* trägt eine davon ein; die abweichenden Knoten sind dann **orange** markiert – dort
+  fehlt dem Rätsel noch Information.
 - **Unlösbar** (rot): Keine Belegung erfüllt alle Regeln.
 - **Zeitlimit erreicht** (gelb): Die Frage bleibt offen; ein höheres Zeitlimit kann helfen.
 
 ## Schritt für Schritt erklären
 
-**Erklären** (<kbd>F7</kbd>) berechnet den Lösungsweg und schaltet in den Erklär-Modus. Es beginnt bei der
-*Ausgangslage* (Schritt 0): Givens und Wertebereiche, noch kein Schritt angewendet.
+**Erklären** (<kbd>F7</kbd>) berechnet den Lösungsweg im Hintergrund. Währenddessen zeigt die Schrittleiste einen
+Fortschrittsbalken mit **Abbrechen** (auch *Lösen → Erklärung abbrechen*); wurden bis zum Abbruch schon Schritte
+gefunden, lassen sie sich trotzdem ansehen. Danach schaltet GraphDoku in den Erklär-Modus. Ist das Rätsel ungültig oder
+schlägt die Erklärung fehl, gibt es keinen Erklär-Modus: Die Meldung (bei einem ungültigen Rätsel mit der Liste der
+Probleme) erscheint in der Schrittleiste und wird mit *Schließen* ausgeblendet. Wird das Rätsel während der Berechnung
+geändert, wird das Ergebnis verworfen.
+
+Der Erklär-Modus beginnt bei der *Ausgangslage* (Schritt 0): Givens und Wertebereiche, noch kein Schritt angewendet.
 
 ![Erklär-Modus: Kandidaten in den Knoten, gelb die vom Schritt geänderten Knoten, grün die verantwortliche Zeile, rechts die Begründung.](bilder/erklaermodus.png)
 
 **Navigieren:** *« Anfang*, *‹ Zurück*, *Vor ›*, *Ende »*, der Schieberegler oder die Tasten <kbd>←</kbd>
-<kbd>→</kbd> (ein Schritt) und <kbd>Pos1</kbd> <kbd>Ende</kbd> (Anfang/Ende). Das Häkchen **Kandidaten** blendet die
-Kandidaten ein oder aus; **Erklärung beenden** verlässt den Modus.
+<kbd>→</kbd> (ein Schritt) und <kbd>Pos1</kbd> <kbd>Ende</kbd> (Anfang/Ende). Die Tasten wirken, wenn die
+Zeichenfläche, eine Schaltfläche oder ein Häkchen den Fokus hat (z. B. nach einem Klick auf *Vor ›*); solange ein
+Textfeld (etwa das Zeitlimit) oder die Gruppenliste den Fokus hat, behalten sie dort ihre eigene Bedeutung.
+
+Das Häkchen **Kandidaten** blendet die Kandidaten ein oder aus. Sie stehen als kleine Ziffern im Knoten (3 × 3 bei
+1–9, 4 × 4 bei 0–F). Ist ein Knoten dafür zu klein – beim Hexadoku schon in der normalen Fenstergröße –, steht dort nur
+ihre Anzahl, z. B. „(16)“, oder der gerade gestrichene Wert; Vergrößern zeigt die Ziffern. **Erklärung beenden**
+verlässt den Modus.
 
 Das Panel rechts zeigt:
 
@@ -514,8 +565,10 @@ Das Panel rechts zeigt:
   geprüft; inhaltliche Probleme erscheinen im Statusbereich, damit auch unfertige Rätsel weiter bearbeitet werden
   können.
 - **Speichern** (<kbd>Strg/Cmd</kbd>+<kbd>S</kbd>) und **Speichern unter …** (<kbd>Shift</kbd>+<kbd>Strg/Cmd</kbd>+<kbd>S</kbd>).
-  Auch ein Rätsel mit Problemen lässt sich speichern; die Statuszeile weist darauf hin. GraphDoku schreibt sicher: Geht
-  beim Speichern etwas schief, bleibt die vorherige Datei erhalten.
+  Auch ein Rätsel mit Problemen lässt sich speichern; die Statuszeile weist darauf hin. GraphDoku schreibt zuerst in
+  eine temporäre Datei im selben Ordner, die dann die alte ersetzt – geht dabei etwas schief, bleibt die vorherige Datei
+  erhalten. Ausnahmen: Ist die Datei ein symbolischer Link oder darf GraphDoku im Ordner keine neue Datei anlegen, wird
+  direkt überschrieben. Schreibgeschützte Dateien überschreibt GraphDoku nicht, sondern meldet einen Fehler.
 - **Ungespeicherte Änderungen:** Vor *Neu*, *Vorlage*, *Öffnen* und beim Schließen fragt GraphDoku nach: *Speichern*,
   *Verwerfen* oder *Abbrechen*.
 - Gespeichert werden nur das Rätsel selbst – keine Lösung, keine Erklärung, keine Ansichtseinstellungen.
@@ -537,10 +590,10 @@ Auf dem Mac funktionieren alle Kürzel mit <kbd>Cmd</kbd> und mit <kbd>Ctrl</kbd
 | <kbd>Strg/Cmd</kbd>+<kbd>E</kbd> | Kanten erzeugen |
 | <kbd>Strg/Cmd</kbd>+<kbd>0</kbd> | Einpassen |
 | <kbd>F5</kbd> / <kbd>F6</kbd> / <kbd>F7</kbd> | Lösen / Eindeutigkeit prüfen / Erklären |
-| Ziffern, im Hex-Modus auch A–F, <kbd>-</kbd> | Given in die ausgewählten Knoten eintragen |
+| Ziffern und <kbd>-</kbd>; im Hex-Modus 0–9 und A–F | Given in die ausgewählten Knoten eintragen |
 | <kbd>⌫</kbd> (Rücktaste) | Givens der Auswahl löschen |
 | <kbd>Entf</kbd> (Mac: <kbd>fn</kbd>+<kbd>⌫</kbd>) | Auswahl löschen (Knoten, Kante oder Gruppe) |
-| <kbd>Esc</kbd> | laufende Geste abbrechen, sonst Auswahl aufheben |
+| <kbd>Esc</kbd> | laufende Rahmenauswahl oder laufendes Kantenziehen abbrechen, sonst Auswahl aufheben |
 | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>Pos1</kbd> / <kbd>Ende</kbd> | Erklär-Modus: Schritt zurück/vor, Anfang/Ende |
 
 | Maus | Wirkung |
@@ -553,7 +606,9 @@ Auf dem Mac funktionieren alle Kürzel mit <kbd>Cmd</kbd> und mit <kbd>Ctrl</kbd
 | Mittlere/rechte Taste ziehen, <kbd>Leertaste</kbd> + Ziehen | Ansicht verschieben |
 
 <kbd>Esc</kbd> und die <kbd>Leertaste</kbd> wirken, wenn die Zeichenfläche den Fokus hat (einmal hineinklicken).
-Ziffern, <kbd>⌫</kbd> und <kbd>Entf</kbd> wirken nicht, während ein Textfeld bearbeitet wird.
+Ziffern, <kbd>⌫</kbd> und <kbd>Entf</kbd> wirken nicht, solange ein Textfeld, ein Menü oder eine Auswahlliste den Fokus
+hat – etwa direkt nach der Wahl der *Kantenregel* oder einer Farbe. Abhilfe: mit der rechten Maustaste einmal in die
+Zeichenfläche klicken; das gibt ihr den Fokus, ohne die Auswahl zu ändern.
 
 # Meldungen und Fehlerbehebung
 
@@ -610,7 +665,8 @@ Gittertyp oder Regelname.
 ## Das Dateiformat
 
 Rätsel werden als JSON gespeichert (UTF-8). Die Dateien sind lesbar und lassen sich auch von Hand bearbeiten;
-Kommentare und abschließende Kommas werden beim Laden toleriert, unbekannte Felder abgelehnt. Ein kleines Beispiel:
+Kommentare (`//`, `/* */`) und abschließende Kommas werden beim Laden toleriert, unbekannte Felder abgelehnt. Beim
+Speichern schreibt GraphDoku die Datei neu; von Hand eingefügte Kommentare gehen dabei verloren. Ein kleines Beispiel:
 
 ```
 {

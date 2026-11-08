@@ -1217,3 +1217,15 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      Plattformnamen des Skripts (sonst gerieten Vorabversionen derselben Version hinein), Hilfetext des Skripts,
      Platzhalter in Kommentaren der Vorlagen. Widerlegt wurden drei Befunde, u. a. dass die CI bei Tags doppelt läuft
      (gewollt: `ci.yml` prüft jeden Push).
+188. **Benutzerhandbuch als PDF im Release** (Benutzerhandbuch): Das Handbuch steht als Markdown in
+     `docs/benutzerhandbuch/benutzerhandbuch.md` (Deutsch: Überblick, Installation je Plattform, Zweck und Konzept,
+     Bedienung, Meldungen und Fehlerbehebung, Anhang). `tools/userguide.sh` baut daraus mit pandoc und WeasyPrint
+     (Ubuntu-Pakete, keine LaTeX-Installation) `GraphDoku-<Version>-Benutzerhandbuch.pdf` mit Titelseite,
+     Inhaltsverzeichnis mit Seitenzahlen und Druckvorlage `handbuch.css`. Der Release-Workflow installiert die Pakete
+     bei Bedarf, baut das PDF vor den Paketen (damit die Prüfsummendatei es erfasst) und hängt es als eigene Datei an;
+     im Probelauf liegt es im Artefakt. Die Screenshots erzeugt `UserGuideScreenshots` headless aus dem echten
+     Hauptfenster (nur mit `GRAPHDOKU_GUIDE_IMAGES`, sonst tut der Test nichts, wie Nr. 125); sie sind eingecheckt und
+     werden nach Änderungen an der Oberfläche neu erzeugt. Die Fakten stammen aus dem Code; ein Review mit
+     Widerlegungsschritt prüfte jede Aussage (32 Korrekturen, 12 Einwände widerlegt). Die Texte der
+     Betriebssystem-Dialoge (SmartScreen, Gatekeeper) sind nach bestem Wissen formuliert und nicht auf echten Systemen
+     geprüft.

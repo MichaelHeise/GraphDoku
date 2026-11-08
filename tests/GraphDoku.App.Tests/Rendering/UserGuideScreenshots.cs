@@ -22,7 +22,7 @@ namespace GraphDoku.App.Tests.Rendering;
 /// <remarks>
 /// Läuft nur, wenn die Umgebungsvariable <c>GRAPHDOKU_GUIDE_IMAGES</c> auf ein Ausgabeverzeichnis zeigt; sonst kehren alle
 /// Facts sofort zurück (im normalen Lauf „bestanden“) – dasselbe Muster wie der Beispielrätsel-Generator
-/// (docs/decisions.md Nr. 125). Aufruf:
+/// (docs/decisions.md Nr. 125). Aufruf aus dem Repo-Wurzelverzeichnis (ein relativer Pfad gilt ab der Repo-Wurzel):
 /// <c>GRAPHDOKU_GUIDE_IMAGES=docs/benutzerhandbuch/bilder dotnet test tests/GraphDoku.App.Tests -c Release
 /// --filter FullyQualifiedName~UserGuideScreenshots</c>. Die Bilder werden danach angesehen und eingecheckt; der normale
 /// Testlauf erzeugt nichts. Hauptfenster in 1280 × 800, Text in Graustufen geglättet (siehe <see cref="HeadlessTestApp"/>).
@@ -35,8 +35,11 @@ public sealed class UserGuideScreenshots(HeadlessSessionFixture fixture, ITestOu
 
     private const int ExplainHeight = 1000;
 
+    // Relative Pfade gelten ab der Repo-Wurzel: dotnet test läuft im Ausgabeordner des Testprojekts.
     private static string? OutputDirectory =>
-        Environment.GetEnvironmentVariable("GRAPHDOKU_GUIDE_IMAGES") is { Length: > 0 } directory ? directory : null;
+        Environment.GetEnvironmentVariable("GRAPHDOKU_GUIDE_IMAGES") is { Length: > 0 } directory
+            ? Path.GetFullPath(directory, MainWindowViewModelTests.FindRepositoryRoot())
+            : null;
 
     [Fact]
     public Task Main_window_with_classic_sudoku() => Run(async () =>

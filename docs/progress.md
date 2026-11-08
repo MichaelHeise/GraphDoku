@@ -635,3 +635,12 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 - Tests: 826, alle grün (App 377: 4 Selbsttest-, 5 Hinweis-Tests).
 - Nicht geprüft: Signatur mit `rcodesign` (nur auf einem Mac am Artefakt eines Probelaufs prüfbar), Windows-Paket auf
   Windows, Anlegen des Releases mit dem Token der Action.
+
+## Benutzerhandbuch (Branch `feature/benutzerhandbuch`)
+
+- Handbuch in `docs/benutzerhandbuch/` (Markdown, Druckvorlage, 10 headless erzeugte Screenshots), PDF-Export mit
+  `tools/userguide.sh` (pandoc + WeasyPrint), Release hängt das PDF als eigene Datei an (Nr. 188).
+- Fakten aus dem Code gesammelt; Review mit Widerlegungsschritt: 32 Korrekturen übernommen, 12 Einwände widerlegt.
+- PDF im Ubuntu-24.04-Container gebaut und Seite für Seite angesehen (32 Seiten A4).
+- Tests: 836, alle grün (App 387 inkl. 10 Screenshot-Facts, die ohne Umgebungsvariable nichts tun).
+- Nicht geprüft: Texte der Windows- und macOS-Sicherheitsdialoge auf echten Systemen.

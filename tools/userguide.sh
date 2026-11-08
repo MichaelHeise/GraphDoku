@@ -39,7 +39,7 @@ pandoc benutzerhandbuch.md \
   --toc --toc-depth=2 \
   --number-sections \
   --css handbuch.css \
-  --variable document-css=false \
+  --metadata document-css=false \
   --metadata lang=de \
   --metadata title="GraphDoku" \
   --metadata subtitle="Benutzerhandbuch" \
