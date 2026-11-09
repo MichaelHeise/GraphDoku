@@ -267,6 +267,12 @@ Linux-Paket mit einem Selbsttest und hängt alles an das Release:
 - Legt der Token der Action kein Release an (HTTP 401/403), ein Repository-Secret `RELEASE_TOKEN` mit der Berechtigung
   `write:repository` anlegen.
 
+**GitHub:** `.github/workflows/release.yml` macht dasselbe mit GitHub Actions, wenn das Repository auf GitHub liegt
+(Gitea ignoriert diesen Ordner). Dort entstehen die macOS-Pakete auf einem macOS-Runner und werden mit Apples
+`codesign` signiert und geprüft, und das Windows-Paket wird auf einem Windows-Runner mit dem Selbsttest geprüft. Tag
+pushen genügt; ein Probelauf geht über Actions → Release → „Run workflow“. Nötig ist nur das automatische
+`GITHUB_TOKEN` (der Release-Job bekommt `contents: write`).
+
 Pakete lokal bauen (macOS signiert mit `codesign`, Linux braucht `rcodesign` für die macOS-Ziele):
 
 ```bash

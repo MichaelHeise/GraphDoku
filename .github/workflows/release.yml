@@ -126,7 +126,8 @@ jobs:
   macos:
     name: macOS-Pakete (signiert mit codesign)
     needs: version
-    runs-on: macos-14
+    # macos-14 wurde am 2. November 2026 abgeschaltet; macos-15 ist ebenfalls Apple Silicon (arm64).
+    runs-on: macos-15
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
@@ -239,4 +240,5 @@ jobs:
           gh release create "$TAG" "${flags[@]}" artifacts/release/*
           id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
             --jq ".[] | select(.tag_name == \"$TAG\" and .draft) | .id" | head -n 1)
+          if [ -z "$id" ]; then echo "::error::Der angelegte Entwurf zu $TAG wurde nicht gefunden."; exit 1; fi
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" -F draft=false --jq .html_url

@@ -1236,3 +1236,14 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      lädt es von dort und nur ersatzweise von GitHub; die feste Prüfsumme gilt für beide Quellen. Eine neue
      rcodesign-Version muss vor dem Wechsel von `APPLE_CODESIGN_VERSION` ebenfalls dort hochgeladen werden (`PUT
      /api/packages/<owner>/generic/apple-codesign/<version>/<datei>`).
+190. **Release-Workflow für GitHub** (Release): Für eine Veröffentlichung auf GitHub baut
+     `.github/workflows/release.yml` dasselbe Release wie die Gitea-Fassung (Nr. 183) aus denselben Skripten, nutzt
+     aber die Runner von GitHub: Tests, Handbuch-PDF sowie Windows- und Linux-Paket auf `ubuntu-24.04`; die
+     macOS-Pakete auf `macos-15` mit Apples `codesign` (Signatur nach dem Entpacken geprüft, Selbsttest des
+     arm64-Bundles) – rcodesign ist dort nicht nötig; das Windows-Paket wird auf `windows-2022` mit dem Selbsttest
+     geprüft (die Gitea-Fassung kann das nicht). Das Release wird als Entwurf angelegt und erst nach allen Uploads
+     veröffentlicht; Entwürfe sucht der Workflow über die Release-Liste, weil GitHub sie nicht über den Tag findet.
+     Der Release-Text kommt aus `tools/release-notes.sh`. Gitea ignoriert `.github/workflows`, solange
+     `.gitea/workflows` existiert. Geprüft mit actionlint und einem Review mit Widerlegungsschritt (dabei gefunden:
+     `macos-14` ist seit 2. November 2026 abgeschaltet); ein echter Lauf auf GitHub steht aus, weil es noch kein
+     GitHub-Repository gibt.
