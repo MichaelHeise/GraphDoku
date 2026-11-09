@@ -1,0 +1,242 @@
+name: Release
+
+# GitHub-Fassung des Release-Workflows (die Gitea-Fassung liegt in .gitea/workflows; Gitea ignoriert .github/workflows,
+# solange .gitea/workflows existiert).
+#
+# Ein Tag vX.Y.Z (z. B. `git tag v1.2.0 && git push origin v1.2.0`) baut, testet und paketiert GraphDoku und legt ein
+# GitHub-Release mit allen Downloads und dem Benutzerhandbuch an. Tags mit Zusatz (v1.2.0-beta.1) werden als
+# Vorabversion markiert. Von Hand gestartet (Actions → Release → Run workflow) ist es ein Probelauf: Pakete als
+# Artefakte, kein Release.
+#
+# Unterschiede zur Gitea-Fassung: Die macOS-Pakete entstehen auf einem macOS-Runner und werden mit Apples codesign
+# signiert und geprüft (kein rcodesign nötig); das Windows-Paket wird auf einem Windows-Runner mit dem Selbsttest
+# geprüft.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version für den Probelauf (ohne v)"
+        required: false
+        default: "0.0.0-probe"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+  AVALONIA_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  version:
+    name: Version bestimmen
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Version aus Tag oder Eingabe
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          TAG: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$EVENT" = "push" ]; then
+            version="${TAG#v}"
+            publish="true"
+          else
+            version="$INPUT_VERSION"
+            publish="false"
+          fi
+          if ! echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Ungültige Version '$version' (Tag muss vX.Y.Z oder vX.Y.Z-zusatz sein)."
+            exit 1
+          fi
+          case "$version" in *-*) prerelease="true" ;; *) prerelease="false" ;; esac
+          {
+            echo "version=$version"
+            echo "publish=$publish"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+          echo "Version $version (Release anlegen: $publish, Vorabversion: $prerelease)"
+
+  linux:
+    name: Tests, Handbuch, Windows- und Linux-Paket
+    needs: version
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Systempakete (fontconfig, zip, pandoc und WeasyPrint)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libfontconfig1 zip pandoc weasyprint fonts-dejavu-core
+
+      - name: Build
+        run: dotnet build GraphDoku.sln -c Release -p:Version="$VERSION"
+
+      - name: Test
+        run: dotnet test GraphDoku.sln -c Release --no-build --logger "trx;LogFilePrefix=testergebnisse" --results-directory TestResults
+
+      - name: Testergebnisse hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testergebnisse
+          path: TestResults/*.trx
+          if-no-files-found: ignore
+
+      - name: Benutzerhandbuch als PDF
+        run: tools/userguide.sh "$VERSION" artifacts/release
+
+      - name: Windows- und Linux-Paket
+        run: tools/package.sh "$VERSION" artifacts/release win-x64 linux-x64
+
+      - name: Linux-Paket prüfen (Selbsttest ohne Oberfläche)
+        run: |
+          mkdir -p "$RUNNER_TEMP/selbsttest"
+          tar -xzf "artifacts/release/GraphDoku-$VERSION-linux-x64.tar.gz" -C "$RUNNER_TEMP/selbsttest"
+          "$RUNNER_TEMP/selbsttest/GraphDoku-$VERSION-linux-x64/GraphDoku.App" --selbsttest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pakete-linux
+          path: |
+            artifacts/release/*.zip
+            artifacts/release/*.tar.gz
+            artifacts/release/*.pdf
+          if-no-files-found: error
+
+  macos:
+    name: macOS-Pakete (signiert mit codesign)
+    needs: version
+    runs-on: macos-14
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # Ad-hoc-Signatur mit Apples codesign; tools/package.sh prüft sie mit codesign --verify --deep --strict.
+      # Für eine echte Signatur MACOS_SIGN_IDENTITY setzen (Zertifikat vorher in einen Schlüsselbund importieren).
+      - name: macOS-Pakete (Apple Silicon und Intel)
+        run: tools/package.sh "$VERSION" artifacts/release osx-arm64 osx-x64
+
+      - name: macOS-Paket prüfen (Signatur nach Entpacken, Selbsttest)
+        run: |
+          dir="$RUNNER_TEMP/pruefung"
+          mkdir -p "$dir"
+          ditto -x -k "artifacts/release/GraphDoku-$VERSION-macos-arm64.zip" "$dir"
+          app="$dir/GraphDoku-$VERSION-macos-arm64/GraphDoku.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          "$app/Contents/MacOS/GraphDoku.App" --selbsttest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pakete-macos
+          path: artifacts/release/*.zip
+          if-no-files-found: error
+
+  windows:
+    name: Windows-Paket prüfen (Selbsttest auf Windows)
+    needs: [version, linux]
+    runs-on: windows-2022
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pakete-linux
+          path: pakete
+
+      - name: Entpacken und Selbsttest
+        shell: pwsh
+        run: |
+          $zip = "pakete/GraphDoku-$env:VERSION-windows-x64.zip"
+          Expand-Archive -Path $zip -DestinationPath "$env:RUNNER_TEMP\selbsttest"
+          $exe = "$env:RUNNER_TEMP\selbsttest\GraphDoku-$env:VERSION-windows-x64\GraphDoku.App.exe"
+          # Fensterprogramm (WinExe): ohne -Wait käme der Exit-Code nicht an.
+          $p = Start-Process -FilePath $exe -ArgumentList '--selbsttest' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Selbsttest fehlgeschlagen (Exit-Code $($p.ExitCode))." }
+          Write-Host "Selbsttest des Windows-Pakets bestanden."
+
+  release:
+    name: Release anlegen
+    needs: [version, linux, macos, windows]
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pakete-*
+          path: artifacts/release
+          merge-multiple: true
+
+      - name: Prüfsummen
+        working-directory: artifacts/release
+        run: |
+          ls -l
+          sha256sum GraphDoku-"$VERSION"-* > "SHA256SUMS-$VERSION.txt"
+          cat "SHA256SUMS-$VERSION.txt"
+
+      - name: Probelauf – Pakete als Artefakt
+        if: needs.version.outputs.publish != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: graphdoku-${{ env.VERSION }}
+          path: artifacts/release/
+
+      # Erst als Entwurf anlegen und Dateien anhängen, dann veröffentlichen: Scheitert ein Upload, bleibt kein halbes
+      # Release sichtbar. Ein Entwurf eines abgebrochenen Laufs wird ersetzt, ein veröffentlichtes Release nie.
+      - name: GitHub-Release anlegen und veröffentlichen
+        if: needs.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          # Entwürfe findet GitHub nicht über den Tag-Namen, daher über die Liste aller Releases.
+          existing=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"$TAG\") | \"\(.id) \(.draft)\"")
+          while read -r id draft; do
+            [ -z "${id:-}" ] && continue
+            if [ "$draft" = "true" ]; then
+              echo "Lösche den Entwurf eines früheren Laufs (Release $id)."
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
+            else
+              echo "::error::Zum Tag $TAG gibt es schon ein veröffentlichtes Release. Erst löschen oder einen neuen Tag nehmen."
+              exit 1
+            fi
+          done <<< "$existing"
+          tools/release-notes.sh "$VERSION" > "$RUNNER_TEMP/notes.md"
+          flags=(--draft --verify-tag --title "GraphDoku $VERSION" --notes-file "$RUNNER_TEMP/notes.md")
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+          gh release create "$TAG" "${flags[@]}" artifacts/release/*
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"$TAG\" and .draft) | .id" | head -n 1)
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" -F draft=false --jq .html_url
