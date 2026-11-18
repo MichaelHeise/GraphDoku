@@ -10,7 +10,7 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <Company>Michael Heise</Company>
     <Product>GraphDoku</Product>
-    <Copyright>Copyright (c) 2026 Michael Heise. Alle Rechte vorbehalten.</Copyright>
+    <Copyright>Copyright (c) 2026 Michael Heise. Lizenz: PolyForm Strict 1.0.0.</Copyright>
     <NeutralLanguage>de</NeutralLanguage>
     <!-- Lokale Builds tragen 0.0.0-dev; der Release-Workflow setzt die Version aus dem Git-Tag (vX.Y.Z → X.Y.Z). -->
     <Version>0.0.0-dev</Version>

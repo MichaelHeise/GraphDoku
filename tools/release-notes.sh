@@ -22,4 +22,6 @@ GraphDoku $v
 **Benutzerhandbuch:** \`GraphDoku-$v-Benutzerhandbuch.pdf\` – Installation je Plattform, Konzept und Bedienung.
 
 Ein installiertes .NET ist nicht nötig. Beispielrätsel liegen im Ordner \`Beispiele\`. Prüfsummen: \`SHA256SUMS-$v.txt\`.
+
+Lizenz: PolyForm Strict 1.0.0 – Nutzung für nicht-kommerzielle Zwecke frei; Weitergabe, Änderungen und kommerzielle Nutzung nur mit Erlaubnis (Anfrage per Issue im Issue-Tracker).
 EOF

@@ -737,6 +737,12 @@ Alle Beispiele außer dem leeren Sudoku sind eindeutig lösbar; die Varianten-R�
 
 ## Lizenz und Komponenten Dritter
 
-GraphDoku ist proprietäre Software; alle Rechte vorbehalten (siehe `LICENSE` im Paket). GraphDoku verwendet unter
+GraphDoku steht unter der **PolyForm Strict License 1.0.0** (siehe `LICENSE` im Paket; verbindlich ist der
+englische Wortlaut). Die Nutzung für nicht-kommerzielle Zwecke ist frei – privat, in Schule, Hochschule und
+Forschung, in gemeinnützigen Organisationen und Behörden. Kopien weitergeben, GraphDoku verändern oder kommerziell
+nutzen (auch intern in einem Unternehmen) ist nur mit Erlaubnis möglich; Anfragen bitte als Issue im Issue-Tracker
+des GraphDoku-Repositorys. Wer GraphDoku weiterempfehlen möchte, verlinkt am besten die Release-Seite.
+
+GraphDoku verwendet unter
 anderem Google OR-Tools (Apache-2.0), Avalonia (MIT), CommunityToolkit.Mvvm (MIT) und die Schrift Inter (SIL Open Font
 License 1.1). Die vollständigen Hinweise stehen in `THIRD-PARTY-NOTICES.md` im Paket.

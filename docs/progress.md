@@ -644,3 +644,8 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 - PDF im Ubuntu-24.04-Container gebaut und Seite für Seite angesehen (32 Seiten A4).
 - Tests: 836, alle grün (App 387 inkl. 10 Screenshot-Facts, die ohne Umgebungsvariable nichts tun).
 - Nicht geprüft: Texte der Windows- und macOS-Sicherheitsdialoge auf echten Systemen.
+
+## Lizenz PolyForm Strict 1.0.0 (Branch `feature/polyform-strict`)
+
+- `LICENSE` auf PolyForm Strict 1.0.0 umgestellt, Kontakt für Erlaubnisse: Issue-Tracker; alle Lizenzangaben im Repo,
+  im Handbuch und im Release-Text angepasst (Nr. 191). Erste Version mit dieser Lizenz: v1.1.0.

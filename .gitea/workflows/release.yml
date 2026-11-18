@@ -165,6 +165,8 @@ jobs:
               "",
               "Ein installiertes .NET ist nicht nötig. Beispielrätsel liegen im Ordner `Beispiele`. "
               f"Prüfsummen: `SHA256SUMS-{v}.txt`.",
+              "",
+              "Lizenz: PolyForm Strict 1.0.0 – Nutzung für nicht-kommerzielle Zwecke frei; Weitergabe, Änderungen und kommerzielle Nutzung nur mit Erlaubnis (Anfrage per Issue im Issue-Tracker).",
           ])
           print(json.dumps({
               "tag_name": os.environ["TAG"],

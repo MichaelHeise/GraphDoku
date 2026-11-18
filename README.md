@@ -292,4 +292,15 @@ nicht in der Konsole, und den Exit-Code liefert nur ein wartender Aufruf, z. B.
 
 ## Lizenz
 
-Proprietär, alle Rechte vorbehalten – siehe `LICENSE`. Komponenten Dritter: `THIRD-PARTY-NOTICES.md`.
+GraphDoku steht unter der **PolyForm Strict License 1.0.0** (`LICENSE`; verbindlich ist der englische Wortlaut).
+Kurz zusammengefasst:
+
+- **Erlaubt:** herunterladen, installieren und für **nicht-kommerzielle Zwecke** nutzen – privat, in Schule,
+  Hochschule und Forschung, in gemeinnützigen Organisationen und Behörden. Den Quellcode lesen.
+- **Nur nach Erlaubnis:** Kopien weitergeben (z. B. auf anderen Seiten hochladen – bitte stattdessen auf die
+  Release-Seite verlinken), Änderungen oder darauf aufbauende Werke, **kommerzielle Nutzung** (auch die interne Nutzung
+  in einem Unternehmen).
+- **Anfragen:** bitte ein Issue im Issue-Tracker dieses Repositorys eröffnen.
+- Ohne Gewährleistung und Haftung, soweit gesetzlich zulässig.
+
+Komponenten Dritter stehen unter ihren eigenen Lizenzen: `THIRD-PARTY-NOTICES.md`.

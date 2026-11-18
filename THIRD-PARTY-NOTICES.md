@@ -1,6 +1,6 @@
 # Hinweise zu Komponenten Dritter
 
-GraphDoku selbst ist proprietär (siehe `LICENSE`). Die folgenden NuGet-Pakete werden verwendet und stehen unter ihren
+GraphDoku selbst steht unter der PolyForm Strict License 1.0.0 (siehe `LICENSE`). Die folgenden NuGet-Pakete werden verwendet und stehen unter ihren
 eigenen Lizenzen. Die Lizenztexte liegen den jeweiligen Paketen bei bzw. sind über die angegebenen Projektseiten
 abrufbar.
 
@@ -47,7 +47,7 @@ Solver werden lediglich mitgeliefert. Die Zuordnung der Lizenzen beruht auf den 
 | Avalonia.Headless, Avalonia.Skia (Rendering-Rauchtest) | 12.1.5 | MIT | https://github.com/AvaloniaUI/Avalonia |
 
 FluentAssertions wird bewusst in Version 7 verwendet: Ab Version 8 steht das Paket unter einer kommerziellen Lizenz
-(Xceed), die für dieses proprietäre Projekt nicht vorgesehen ist.
+(Xceed), die für dieses Projekt nicht vorgesehen ist.
 
 ## Wesentliche transitive Abhängigkeiten
 

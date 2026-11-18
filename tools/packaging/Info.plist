@@ -24,7 +24,7 @@
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSHumanReadableCopyright</key>
-  <string>Copyright (c) 2026 Michael Heise. Alle Rechte vorbehalten.</string>
+  <string>Copyright (c) 2026 Michael Heise. Lizenz: PolyForm Strict 1.0.0.</string>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.puzzle-games</string>
 </dict>

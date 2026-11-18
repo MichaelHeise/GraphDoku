@@ -1247,3 +1247,15 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      `.gitea/workflows` existiert. Geprüft mit actionlint und einem Review mit Widerlegungsschritt (dabei gefunden:
      `macos-14` ist seit 2. November 2026 abgeschaltet); ein echter Lauf auf GitHub steht aus, weil es noch kein
      GitHub-Repository gibt.
+191. **Lizenz: PolyForm Strict 1.0.0 statt „Alle Rechte vorbehalten“** (Lizenz, Entscheidung des Projektinhabers):
+     Jeder darf GraphDoku für nicht-kommerzielle Zwecke nutzen (privat, Bildung, Forschung, gemeinnützige
+     Organisationen, Behörden); Weitergabe von Kopien, Änderungen und darauf aufbauende Werke sowie kommerzielle
+     Nutzung bleiben dem Lizenzgeber vorbehalten und werden auf Anfrage einzeln erlaubt (Kontakt: Issue-Tracker des
+     Repositorys). Erwogen und verworfen: GPLv3 (erlaubt kommerzielle Nutzung und Weitergabe; zudem wären die
+     mitgelieferten COIN-OR-Bibliotheken unter EPL-2.0 ohne Zusatzerlaubnis nach Abschnitt 7 nicht verträglich),
+     PolyForm Noncommercial (erlaubt Änderungen und Weitergabe), CC BY-NC-SA (nicht für Software gedacht). `LICENSE`
+     enthält den unveränderten englischen Lizenztext (maßgeblich) mit einem „Required Notice“ und einer kurzen
+     deutschen Zusammenfassung; README, Benutzerhandbuch, Release-Text, `THIRD-PARTY-NOTICES.md` und die
+     Copyright-Angaben (`Directory.Build.props`, `Info.plist`) sind angepasst. Die Lizenzen der Komponenten Dritter
+     bleiben unberührt. Frühere Einträge, die „proprietär“ nennen (Nr. 6 und 8), beschreiben den damaligen Stand.
+     Hinweis: Solange das Gitea-Repository privat ist, ist der Issue-Tracker für Außenstehende nicht erreichbar.
