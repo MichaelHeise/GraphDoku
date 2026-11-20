@@ -62,6 +62,31 @@ public sealed class UserGuideScreenshots(HeadlessSessionFixture fixture, ITestOu
     });
 
     [Fact]
+    public Task Group_comparison_selected() => Run(async () =>
+    {
+        var (window, viewModel) = await OpenAsync("vergleichs-sudoku-6x6.json");
+        var editor = viewModel.Editor;
+        var comparison = editor.Puzzle.GroupComparisons.First(c => c.Operator == ComparisonOperator.LessOrEqual);
+        editor.SelectGroupComparison(comparison.Id);
+        editor.Properties.Should().BeOfType<GroupComparisonPropertiesViewModel>();
+        Save(window, "editor-gruppenvergleich.png");
+        window.Close();
+    });
+
+    [Fact]
+    public Task Group_panel_compare_section() => Run(async () =>
+    {
+        // Etwas höher, damit der Abschnitt „Summe vergleichen“ samt Knopf ganz im Panel steht.
+        var (window, viewModel) = await OpenAsync("vergleichs-sudoku-6x6.json", 1280, 880);
+        var editor = viewModel.Editor;
+        var cage = editor.Puzzle.Groups.First(g => g.Label == "Käfig B");
+        editor.SelectGroup(cage.Id);
+        editor.Properties.Should().BeOfType<GroupPropertiesViewModel>();
+        Save(window, "gruppe-summe-vergleichen.png");
+        window.Close();
+    });
+
+    [Fact]
     public Task Kropki_dots() => Run(async () =>
     {
         var (window, _) = await OpenAsync("kropki-sudoku.json");

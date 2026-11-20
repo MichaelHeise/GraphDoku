@@ -2,8 +2,9 @@
 
 GraphDoku ist ein Werkzeug zum **Bauen, Lösen und Erklären von Sudoku-Varianten**. Statt fester Sudoku-Typen kennt es
 nur drei Bausteine: **Knoten** (die Zellen), **Kanten** (Regeln zwischen zwei Zellen) und **Gruppen** (Regeln für eine
-Menge von Zellen). Daraus lässt sich ein klassisches Sudoku genauso zusammensetzen wie ein Killer-, Kropki-, Thermo- oder
-Dreiecks-Sudoku – oder ein ganz eigenes Rätsel.
+Menge von Zellen). Dazu kommen **Gruppenvergleiche**, die die Summen zweier Gruppen vergleichen. Daraus lässt sich ein
+klassisches Sudoku genauso zusammensetzen wie ein Killer-, Kropki-, Thermo- oder Dreiecks-Sudoku – oder ein ganz eigenes
+Rätsel.
 
 Was GraphDoku kann:
 
@@ -13,7 +14,7 @@ Was GraphDoku kann:
 - **Den Lösungsweg erklären**: Schritt für Schritt, mit Kandidaten, Begründung und markierten Rateschritten.
 
 GraphDoku läuft unter Windows, macOS und Linux. Ein installiertes .NET ist nicht nötig. Rätsel werden als lesbare
-JSON-Dateien gespeichert; neun Beispielrätsel liegen bei.
+JSON-Dateien gespeichert; zehn Beispielrätsel liegen bei.
 
 Dieses Handbuch beschreibt zuerst die **Installation** je Plattform, dann das **Konzept** (wie man Rätsel als Graph
 modelliert) und die **Bedienung**. Am Ende stehen **Meldungen**, **Fehlerbehebung** und ein kurzer **Anhang**.
@@ -158,10 +159,12 @@ gelten**. GraphDoku nimmt das wörtlich:
   linke ist kleiner als die rechte“.
 - Eine Regel für eine Menge von Zellen ist eine **Gruppe** – etwa „diese neun Zellen enthalten jede Zahl einmal“ oder
   „diese drei Zellen ergeben zusammen 15“.
+- Ein **Gruppenvergleich** setzt die Summen zweier Gruppen in Beziehung – etwa „die Zellen von Käfig A ergeben zusammen
+  mehr als die von Käfig C“.
 
-Der Solver kennt keine Sudoku-Typen, sondern nur diese Knoten und Regeln. Dadurch lassen sich auch Rätsel lösen,
-für die es kein eigenes Programm gibt – die Anregung kam von Rätseln wie Tridoku und Hexadoku aus der *Langen Nacht
-der Mathematik*.
+Der Solver kennt keine Sudoku-Typen, sondern nur diese Knoten, Regeln und Vergleiche. Dadurch lassen sich auch
+Rätsel lösen, für die es kein eigenes Programm gibt – die Anregung kam von Rätseln wie Tridoku und Hexadoku aus der
+*Langen Nacht der Mathematik*.
 
 Das **Gitter** (Quadrat, Dreieck oder Sechseck) bestimmt nur, wo Knoten liegen können und wer wessen Nachbar ist. Es
 erzeugt selbst keine Regeln: Ein Quadratgitter mit 81 Knoten ist noch kein Sudoku, erst die 27 Gruppen für Zeilen,
@@ -199,6 +202,23 @@ Eine Gruppe ist eine **geordnete** Liste von Knoten mit einer **Gruppenregel**. 
 Thermometer. Gruppen können eine **Beschriftung** („Zeile 1“, „Käfig 3“) und eine **Farbe** haben; beides dient nur
 der Übersicht. Ein Knoten darf in beliebig vielen Gruppen stecken.
 
+### Gruppenvergleiche
+
+Ein Gruppenvergleich verbindet zwei **verschiedene, schon vorhandene Gruppen** und vergleicht ihre Summen:
+*Summe der linken Gruppe* **OP** *Summe der rechten Gruppe*. Als Operator gibt es = (gleich), ≠ (ungleich), < (kleiner
+als), ≤ (kleiner oder gleich), > (größer als) und ≥ (größer oder gleich). Die Summe einer Gruppe ist immer die Summe der
+Werte ihrer Knoten – auch wenn die Gruppe selbst gar keine Summenregel hat.
+
+- **Jede Gruppe behält ihre eigene Regel.** Der Vergleich kommt nur hinzu: Ein Käfig mit *Alle verschieden* bleibt
+  „alle verschieden“, eine *Summe*-Gruppe muss weiter ihre Zielsumme ergeben.
+- **Gemeinsame Knoten** dürfen in beiden Gruppen liegen. Sie zählen auf beiden Seiten gleich und heben sich deshalb
+  auf. Zwei Gruppen mit genau denselben Knoten lassen sich nicht vergleichen, weil dann nichts übrig bliebe.
+- Eine Gruppe darf in beliebig vielen Vergleichen vorkommen, auch auf beiden Seiten verschiedener Vergleiche.
+- Gruppenvergleiche werden fortlaufend nummeriert (eigene Ids, getrennt von den Gruppen) und erscheinen in Meldungen
+  und im Erklär-Modus als „Gruppenvergleich 2“.
+- Verschwindet eine der beiden Gruppen, verschwindet auch der Vergleich (siehe
+  [Gruppenvergleiche](#gruppenvergleiche-bedienen)).
+
 ### Gitter
 
 | Gitter | Lage der Knoten | Direkte Nachbarn | inkl. diagonal |
@@ -212,7 +232,8 @@ Die Nachbarschaften braucht man vor allem beim **Kanten-Generator**, der Kanten 
 
 ## Der Regelkatalog
 
-GraphDoku kennt acht Regeln. Vier gelten für Gruppen, vier für Kanten.
+GraphDoku kennt acht Regeln. Vier gelten für Gruppen, vier für Kanten. Dazu kommt der **Gruppenvergleich**: keine
+Regel einer Gruppe oder Kante, sondern ein eigener Baustein zwischen zwei Gruppen (letzte Zeile).
 
 | Regel | gilt für | Bedeutung | Parameter |
 | --- | --- | --- | --- |
@@ -224,6 +245,7 @@ GraphDoku kennt acht Regeln. Vier gelten für Gruppen, vier für Kanten.
 | **Differenz** | Kante | Die Werte unterscheiden sich um genau *k* bzw. um mindestens *k*. | Abstand k (Pflicht), Modus „genau k“ / „mindestens k“ |
 | **Verhältnis** | Kante | Ein Wert ist das *Faktor*-fache des anderen. | Faktor (Standard 2) |
 | **Kleiner als** | Kante, gerichtet | Der Wert am Start ist kleiner als der am Ziel. | – |
+| **Gruppenvergleich** | zwei Gruppen | Die Summe der linken Gruppe steht zur Summe der rechten im gewählten Verhältnis. | Operator =, ≠, <, ≤, >, ≥ (Standard =) |
 
 Einzelheiten, die beim Modellieren wichtig sind:
 
@@ -244,6 +266,10 @@ Einzelheiten, die beim Modellieren wichtig sind:
 - **Kleiner als** wird als Pfeil vom kleineren zum größeren Wert gezeichnet.
 - Eine Regel ohne Kante sagt nichts aus: Fehlt zwischen zwei Zellen ein Kropki-Punkt, ist jede Kombination erlaubt
   (es gibt keine „negative Bedingung“).
+- **Gruppenvergleich** vergleicht nur Summen. Haben beide Gruppen schon eine feste Zielsumme, sagt er nichts Neues;
+  interessant ist er für Gruppen ohne bekannte Summe, etwa Käfige mit *Alle verschieden*. Die Prüfung meldet einen
+  Vergleich, dessen Gruppe fehlt, der eine Gruppe mit sich selbst vergleicht oder dessen Gruppen genau dieselben
+  Knoten haben.
 
 ## Varianten modellieren
 
@@ -253,6 +279,7 @@ Einzelheiten, die beim Modellieren wichtig sind:
 | **Killer-Sudoku** | Vorlage plus je Käfig eine Gruppe **Summe** mit der Käfigsumme |
 | **Kropki-Sudoku** | Vorlage plus Kanten **Differenz** (k = 1, weiß) und **Verhältnis** (Faktor 2, schwarz) |
 | **Thermo-Sudoku** | zusätzlich je Thermometer eine Gruppe **Thermometer**, Kolben zuerst |
+| **Vergleichs-Sudoku** (Käfige ohne Summe, nur „größer“, „kleiner“ oder „gleich“ untereinander) | Vorlage plus je Käfig eine Gruppe **Alle verschieden**, dazu zwischen zwei Käfigen je ein **Gruppenvergleich**, z. B. Käfig A > Käfig C |
 | **Größer-/Kleiner-Sudoku** | Kanten **Kleiner als**, vom kleineren zum größeren Wert |
 | **Anti-Springer** | Kanten-Generator: Abstand „Springerzug“, Regel **Ungleich**, alle Knoten (nur Quadratgitter) |
 | **Anti-König** | Kanten-Generator: „Nachbarn inkl. diagonal“, Regel **Ungleich** |
@@ -279,6 +306,14 @@ Kropki-Punkt ist eine Kante zwischen zwei Nachbarzellen.
 ![Killer-Sudoku mit ausgewähltem Käfig: Die Gruppe „Käfig 1“ hat die Regel „Summe“ mit der Zielsumme 18.](bilder/editor-killer.png)
 
 ![Kropki-Sudoku: weiße Punkte (Differenz 1) und schwarze Punkte (Verhältnis 2) zwischen benachbarten Zellen.](bilder/editor-kropki.png)
+
+### Beispiel: Gruppenvergleiche
+
+Das Beispielrätsel „Vergleichs-Sudoku 6x6“ hat sechs Käfige mit *Alle verschieden*, aber ohne Zielsumme. Sechs
+Gruppenvergleiche sagen, wie sich ihre Summen zueinander verhalten. Auf der Zeichenfläche verbindet eine gestrichelte
+Linie die Mitten der beiden Gruppen; das Etikett in der Mitte zeigt den Operator.
+
+![Vergleichs-Sudoku 6×6 mit ausgewähltem Gruppenvergleich „Käfig D ≤ Käfig F“: Verbindung und Etikett blau, beide Käfige hervorgehoben, rechts das Panel des Vergleichs.](bilder/editor-gruppenvergleich.png)
 
 ### Tipps zum Modellieren
 
@@ -319,12 +354,17 @@ einfachsten Schluss.
 | 0 | **Feststehenden Wert streichen** | Ein Given oder gesetzter Wert wird bei den anderen Knoten seiner „Alle verschieden“- und „Bereich abdecken“-Gruppen und über „Ungleich“-Kanten gestrichen. Außerdem fallen in „Bereich abdecken“-Gruppen alle Werte außerhalb ihres Bereichs weg. |
 | 1 | **Einziger Kandidat** | Ein Knoten hat nur noch einen Kandidaten – der Wert steht fest. |
 | 2 | **Einziger Platz in der Gruppe** | Ein Wert passt in einer Gruppe nur noch in einen Knoten. Das gilt für „Bereich abdecken“-Gruppen und für „Alle verschieden“-Gruppen, in denen genau so viele Werte möglich sind, wie die Gruppe Knoten hat (beim klassischen Sudoku immer) – nicht für „Summe“ oder „Thermometer“. |
-| 3 | **Regel** | Kandidaten werden über die übrigen Regeln gestrichen (Differenz, Verhältnis, Kleiner als, Thermometer, Summe …). |
+| 3 | **Regel** | Kandidaten werden über die übrigen Regeln gestrichen (Differenz, Verhältnis, Kleiner als, Thermometer, Summe …), danach über die Gruppenvergleiche in ihrer Reihenfolge. |
 | – | **Verzweigung** | Ohne Raten geht es nicht weiter: Der Knoten mit den wenigsten Kandidaten bekommt den Wert aus der Lösung des Solvers. Solche Schritte sind deutlich als *geraten* markiert. |
 
 Jeder Schritt nennt die verantwortliche Regel und begründet den Schluss im Klartext, z. B.: *„Gruppe 2 „Zeile 2“
 enthält bereits die 6 (Knoten 10). Alle Werte sind verschieden. Also ist die 6 in den übrigen Knoten der Gruppe nicht
 mehr möglich.“*
+
+Ein Gruppenvergleich streicht einen Wert, wenn die Summen damit nicht mehr im verlangten Verhältnis stehen können,
+z. B.: *„Gruppenvergleich 1: Summe von Gruppe 1 „Links“ ≥ Summe von Gruppe 2 „Rechts“: Knoten 1 kann nicht 1, 2
+sein, denn die Summe von Gruppe 2 „Rechts“ ist genau 7 und die übrigen Knoten von Gruppe 1 „Links“ ergeben zusammen 1
+bis 4.“* Jeder solche Schritt gilt für genau einen Knoten.
 
 Ein leichtes Sudoku lässt sich ganz ohne Verzweigung erklären. Fortgeschrittene Techniken (Paare, X-Wing, die
 „45er-Regel“ beim Killer) kennt der Erklär-Modus nicht; wo sie nötig wären, erscheint eine Verzweigung.
@@ -346,10 +386,10 @@ Von oben nach unten:
 4. **Schrittleiste** – während der Berechnung einer Erklärung und im Erklär-Modus.
 5. Links die **Gruppenliste:** alle Gruppen mit Farbe, Beschriftung, Regel und Knotenzahl. Das Häkchen blendet die
    Hervorhebung einer Gruppe ein oder aus (*Alle ein* / *Alle aus*); ein Klick auf den Eintrag wählt die Gruppe zum
-   Bearbeiten.
+   Bearbeiten. Hat das Rätsel Gruppenvergleiche, steht darunter die Liste **Gruppenvergleiche**.
 6. In der Mitte die **Zeichenfläche** mit dem Rätsel.
-7. Rechts das **Eigenschaften-Panel.** Es zeigt, was gerade ausgewählt ist: eine Gruppe, eine Kante, Knoten oder – ohne
-   Auswahl – das Rätsel selbst (Name, Gitter, globaler Wertebereich).
+7. Rechts das **Eigenschaften-Panel.** Es zeigt, was gerade ausgewählt ist: eine Gruppe, eine Kante, einen
+   Gruppenvergleich, Knoten oder – ohne Auswahl – das Rätsel selbst (Name, Gitter, globaler Wertebereich).
 8. Unten der **Statusbereich:** die letzte Aktion, ein Hinweis zum aktiven Werkzeug und das **Prüfergebnis** („Keine
    Probleme gefunden.“ in Grün oder die Liste der Probleme in Rot). Rechts der Umschalter **Knoten als Kreise / Zellen**.
 
@@ -396,7 +436,7 @@ Alternativ: **Datei → Öffnen …** und eines der Beispielrätsel aus dem Ordn
 - **Verschieben:** ausgewählte Knoten ziehen. Sie rasten auf Gitterpunkte ein; belegte Punkte werden übersprungen. Auf
   dem Dreiecksgitter sind nur Verschiebungen möglich, bei denen die Dreiecke ihre Ausrichtung behalten.
 - **Löschen:** <kbd>Entf</kbd> (Mac: <kbd>fn</kbd>+<kbd>⌫</kbd>) löscht die Auswahl – Knoten samt ihren Kanten. Wird
-  eine Gruppe dadurch leer, verschwindet sie mit.
+  eine Gruppe dadurch leer, verschwindet sie mit, ebenso ihre Gruppenvergleiche.
 
 ## Givens und Wertebereiche
 
@@ -427,13 +467,52 @@ Alternativ: **Datei → Öffnen …** und eines der Beispielrätsel aus dem Ordn
 3. **Gruppe erstellen** (<kbd>Strg/Cmd</kbd>+<kbd>G</kbd>). Die neue Gruppe ist ausgewählt.
 4. Im Gruppen-Panel die **Parameter** setzen (z. B. *Zielsumme*), optional **Beschriftung** und **Farbe**.
 
-Im Gruppen-Panel stehen außerdem die *Knoten in Reihenfolge*, **Reihenfolge umkehren** (für Thermometer) und *Gruppe
-löschen*. Wechselt man die Regel einer Gruppe, werden ihre Parameter auf die Standardwerte zurückgesetzt.
+Im Gruppen-Panel stehen außerdem die *Knoten in Reihenfolge*, **Reihenfolge umkehren** (für Thermometer), *Gruppe
+löschen* und der Abschnitt **Summe vergleichen** (siehe [Gruppenvergleiche](#gruppenvergleiche-bedienen)). Wechselt
+man die Regel einer Gruppe, werden ihre Parameter auf die Standardwerte zurückgesetzt. *Gruppe löschen* entfernt auch
+alle Gruppenvergleiche dieser Gruppe; das Panel nennt vorher, in wie vielen Vergleichen sie vorkommt.
 
 Welche Knoten zu einer bestehenden Gruppe gehören, lässt sich nachträglich nicht ändern – Knoten lassen sich weder
 hinzufügen noch herausnehmen noch einzeln umsortieren (nur *Reihenfolge umkehren*). Fehlt ein Knoten, die Gruppe
 löschen, die Knoten in der richtigen Reihenfolge neu auswählen und die Gruppe neu erstellen. Ein Klick auf eine Gruppe
 in der Gruppenliste wählt die Gruppe selbst, nicht ihre Knoten.
+
+## Gruppenvergleiche {#gruppenvergleiche-bedienen}
+
+Ein Gruppenvergleich entsteht im Panel der linken Gruppe; beide Gruppen müssen also schon existieren.
+
+1. Die **linke Gruppe** wählen, z. B. mit einem Klick in der Gruppenliste.
+2. Im Gruppen-Panel unten im Abschnitt **Summe vergleichen** den **Operator** wählen (*Summe dieser Gruppe …*, z. B.
+   *≤ kleiner oder gleich*; Vorgabe *= gleich*).
+3. Darunter die **rechte Gruppe** wählen (*… Summe der Gruppe*). Die Liste nennt alle anderen Gruppen wie die
+   Gruppenliste, z. B. „Käfig B (20)“; die Gruppe selbst fehlt darin.
+4. **Gruppenvergleich erstellen.** Der neue Vergleich ist ausgewählt, und die Statuszeile meldet z. B.
+   „Gruppenvergleich 4 erstellt: Summe von Gruppe 22 „Käfig D“ ≤ Summe von Gruppe 24 „Käfig F“.“
+
+Gibt es nur eine Gruppe, steht dort stattdessen „Für einen Vergleich wird eine zweite Gruppe gebraucht.“
+
+![Das Gruppen-Panel von „Käfig B“ mit dem Abschnitt „Summe vergleichen“.](bilder/gruppe-summe-vergleichen.png)
+
+**Auswählen:** einen Eintrag in der Liste *Gruppenvergleiche* (links unter der Gruppenliste) anklicken oder mit dem
+Werkzeug *Auswahl* auf das Operator-Etikett bzw. die gestrichelte Linie klicken. Das Etikett hat dabei Vorrang vor
+Knoten und Kanten; die Linie trifft man nur dort, wo kein Knoten und keine Kante liegt. Die Liste zeigt je Vergleich
+die beiden Gruppen mit Operator („Käfig D (22) ≤ Käfig F (24)“) und ihre Farben.
+
+Das **Panel des Gruppenvergleichs** zeigt:
+
+- die Bedeutung, z. B. „Summe von Gruppe 22 „Käfig D“ ≤ Summe von Gruppe 24 „Käfig F““,
+- den **Operator** zum Ändern (jede Wahl ist ein Schritt für *Rückgängig*),
+- *Links* und *Rechts*: die beiden Gruppen mit Regel und Knotenzahl, bei gemeinsamen Knoten einen Hinweis darauf,
+- **Linke Gruppe auswählen** und **Rechte Gruppe auswählen** (wechseln in das Panel der Gruppe),
+- **Vergleich löschen** (wie <kbd>Entf</kbd>).
+
+Die beiden Gruppen eines bestehenden Vergleichs lassen sich nicht austauschen. Soll eine andere Gruppe verglichen
+werden, den Vergleich löschen und im Panel der Gruppe neu erstellen; „links“ und „rechts“ vertauscht man einfach über
+den Operator (aus ≤ wird ≥).
+
+**Mit gelöscht** wird ein Gruppenvergleich, sobald eine seiner Gruppen verschwindet – über *Gruppe löschen*,
+<kbd>Entf</kbd> oder weil das Löschen von Knoten die Gruppe leert. Das geschieht im selben Schritt; ein *Rückgängig*
+holt Gruppe und Vergleiche zurück.
 
 ## Der Kanten-Generator
 
@@ -465,6 +544,11 @@ Kantenregel, **Bearbeiten → Kanten erzeugen …** oder <kbd>Strg/Cmd</kbd>+<kb
   Farbe. Ein Käfig mit der Farbe *Automatisch* ist im Sudoku ohne Auswahl daher nur als kräftigere Linie zu sehen – für
   eine deutliche Darstellung im Gruppen-Panel eine Farbe wählen. Eine ausgeblendete Summen-Gruppe zeigt auch ihre
   Zielsumme nicht. Beschriftungen wie „Zeile 1“ stehen nur in der Gruppenliste.
+- **Gruppenvergleiche** erscheinen als gestrichelte graue Linie zwischen den Mitten der beiden Gruppen mit einem
+  Etikett für den Operator. Die Linie liegt unter den Knoten, das Etikett über allem. Zu sehen sind sie, wenn beide
+  Gruppen eingeblendet sind (Häkchen in der Gruppenliste); ein ausgewählter Gruppenvergleich und der des aktuellen
+  Schritts im Erklär-Modus erscheinen immer. Ein ausgewählter Vergleich ist blau und hebt beide Gruppen hervor wie eine
+  gewählte Gruppe.
 - **Knoten als Zellen:** *Ansicht → Knoten als Zellen* oder unten rechts *Knoten als ○ Kreise ○ Zellen*. Die Knoten
   erscheinen dann als Quadrate, Dreiecke bzw. Sechsecke des Gitters. Alles bleibt bedienbar: Ein Klick irgendwo in die
   Zelle trifft die Zelle; Kanten trifft man auf ihrem Steg am Zellrand oder auf ihrer Marke; die Rahmenauswahl
@@ -549,7 +633,7 @@ Das Panel rechts zeigt:
 | Wert orange | geratener Wert (Verzweigung) |
 | Knoten gelb hinterlegt | vom aktuellen Schritt geändert |
 | Knoten orange mit Marke „Raten“ | hier wird geraten |
-| grün | verantwortliche Regel (Knoten, Gruppe, Kante) |
+| grün | verantwortliche Regel (Knoten, Gruppe, Kante; bei einem Gruppenvergleich beide Gruppen, Linie und Etikett) |
 | Kandidat rot durchgestrichen | in diesem Schritt gestrichen |
 | rot umrandet | Knoten ohne Kandidaten (Widerspruch) |
 
@@ -592,7 +676,7 @@ Auf dem Mac funktionieren alle Kürzel mit <kbd>Cmd</kbd> und mit <kbd>Ctrl</kbd
 | <kbd>F5</kbd> / <kbd>F6</kbd> / <kbd>F7</kbd> | Lösen / Eindeutigkeit prüfen / Erklären |
 | Ziffern und <kbd>-</kbd>; im Hex-Modus 0–9 und A–F | Given in die ausgewählten Knoten eintragen |
 | <kbd>⌫</kbd> (Rücktaste) | Givens der Auswahl löschen |
-| <kbd>Entf</kbd> (Mac: <kbd>fn</kbd>+<kbd>⌫</kbd>) | Auswahl löschen (Knoten, Kante oder Gruppe) |
+| <kbd>Entf</kbd> (Mac: <kbd>fn</kbd>+<kbd>⌫</kbd>) | Auswahl löschen (Knoten, Kante, Gruppe oder Gruppenvergleich) |
 | <kbd>Esc</kbd> | laufende Rahmenauswahl oder laufendes Kantenziehen abbrechen, sonst Auswahl aufheben |
 | <kbd>←</kbd> / <kbd>→</kbd>, <kbd>Pos1</kbd> / <kbd>Ende</kbd> | Erklär-Modus: Schritt zurück/vor, Anfang/Ende |
 
@@ -602,6 +686,7 @@ Auf dem Mac funktionieren alle Kürzel mit <kbd>Cmd</kbd> und mit <kbd>Ctrl</kbd
 | Ziehen auf freier Fläche | Rahmenauswahl (mit Shift zusätzlich) |
 | Ausgewählte Knoten ziehen | Verschieben |
 | Klick auf Kante oder Marke | Kante wählen |
+| Klick auf Operator-Etikett oder Linie eines Gruppenvergleichs | Gruppenvergleich wählen |
 | Mausrad | Zoomen |
 | Mittlere/rechte Taste ziehen, <kbd>Leertaste</kbd> + Ziehen | Ansicht verschieben |
 
@@ -656,6 +741,10 @@ unterscheiden sich. Dort ein Given oder eine Regel ergänzen.
 **Ziffern oder <kbd>Entf</kbd> tun nichts.** Wahrscheinlich hat ein Textfeld den Fokus. Einmal in die Zeichenfläche
 klicken. Auf dem Mac löscht <kbd>⌫</kbd> nur Givens; Knoten löscht <kbd>fn</kbd>+<kbd>⌫</kbd>.
 
+**Eine ältere GraphDoku-Version öffnet eine Datei nicht („Unbekanntes Feld „groupComparisons““).** Die Datei enthält
+Gruppenvergleiche, die erst neuere Versionen kennen. Mit der neuen Version öffnen – oder dort die Gruppenvergleiche
+löschen und neu speichern; ohne Vergleiche ist die Datei wieder genau so aufgebaut wie früher.
+
 **„Öffnen fehlgeschlagen: … ist keine gültige Rätseldatei.“** Die Datei ist kein gültiges GraphDoku-JSON. Die
 Meldung nennt die Stelle (Zeile, Feld). Häufige Ursachen: Tippfehler beim Bearbeiten von Hand, ein unbekannter
 Gittertyp oder Regelname.
@@ -695,6 +784,21 @@ Speichern schreibt GraphDoku die Datei neu; von Hand eingefügte Kommentare gehe
   `Ratio` `factor`.
 - Werte werden immer als Zahlen gespeichert, auch im Hex-Modus.
 
+Gruppenvergleiche stehen in einer eigenen Liste `groupComparisons` nach `groups`:
+
+```
+  "groupComparisons": [
+    { "id": 1, "left": 2, "right": 5, "op": "<=" }
+  ]
+```
+
+- `left` und `right` sind Gruppen-Ids; alle vier Felder sind Pflicht, andere Felder werden abgelehnt.
+- `op`: genau `=`, `!=`, `<`, `<=`, `>` oder `>=` (in der App =, ≠, <, ≤, >, ≥).
+- Die Ids der Gruppenvergleiche werden getrennt gezählt, wie die von Knoten, Kanten und Gruppen.
+- GraphDoku schreibt die Liste nur, wenn es Gruppenvergleiche gibt. Fehlt sie (oder ist sie `null`), gibt es keine.
+  `formatVersion` bleibt `1`: Dateien ohne Gruppenvergleiche sind unverändert und lassen sich auch mit älteren
+  Versionen öffnen; Dateien mit Gruppenvergleichen lehnen ältere Versionen mit „Unbekanntes Feld“ ab.
+
 ## Die Beispielrätsel
 
 | Datei | Inhalt |
@@ -708,6 +812,7 @@ Speichern schreibt GraphDoku die Datei neu; von Hand eingefügte Kommentare gehe
 | `thermo-sudoku-6x6.json` | 6×6-Sudoku mit Thermometern und Kleiner-als-Pfeilen |
 | `hexadoku-16x16.json` | Hexadoku 16×16 mit den Werten 0–F |
 | `dreiecks-sudoku.json` | Dreiecks-Sudoku (Tridoku-ähnlich) auf dem Dreiecksgitter |
+| `vergleichs-sudoku-6x6.json` | 6×6-Sudoku mit sechs Käfigen ohne Summe und sechs Gruppenvergleichen (=, ≠, ≤, >) |
 
 Alle Beispiele außer dem leeren Sudoku sind eindeutig lösbar; die Varianten-Rätsel lassen sich ohne Raten erklären.
 
@@ -730,6 +835,7 @@ Alle Beispiele außer dem leeren Sudoku sind eindeutig lösbar; die Varianten-R�
 | Wertebereich | die erlaubten Werte eines Knotens (global oder eigener Bereich) |
 | Kante | Regel zwischen zwei Knoten |
 | Gruppe | Regel für eine geordnete Menge von Knoten |
+| Gruppenvergleich | Vergleich der Summen zweier Gruppen mit =, ≠, <, ≤, > oder ≥ |
 | Marke | Zeichen einer Kante auf der Zeichenfläche (Punkt, Pfeil) |
 | Kandidat | ein Wert, der für einen Knoten noch möglich ist |
 | Verzweigung | ein Schritt im Erklär-Modus, bei dem geraten wird |

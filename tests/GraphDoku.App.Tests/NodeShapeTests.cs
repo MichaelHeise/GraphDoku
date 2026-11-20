@@ -452,10 +452,13 @@ public sealed class NodeShapeTests : IDisposable
         File.ReadAllBytes(cells).Should().Equal(File.ReadAllBytes(circles), "die Darstellung steht nicht in der Rätseldatei");
 
         // Die Datei hat genau die Felder des Formats (der Serializer lehnt unbekannte Felder ab – ältere Versionen lesen sie).
+        // „groupComparisons“ steht nur in Rätseln mit Gruppenvergleichen (dem Vergleichs-Sudoku).
+        string[] fields = viewModel.Editor.Puzzle.GroupComparisons.Count == 0
+            ? ["formatVersion", "name", "grid", "domain", "nodes", "edges", "groups"]
+            : ["formatVersion", "name", "grid", "domain", "nodes", "edges", "groups", "groupComparisons"];
         using (var json = JsonDocument.Parse(File.ReadAllText(cells)))
         {
-            json.RootElement.EnumerateObject().Select(p => p.Name).Should()
-                .BeSubsetOf(["formatVersion", "name", "grid", "domain", "nodes", "edges", "groups"]);
+            json.RootElement.EnumerateObject().Select(p => p.Name).Should().BeSubsetOf(fields);
             json.RootElement.GetProperty("formatVersion").GetInt32().Should().Be(1);
         }
 

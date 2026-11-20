@@ -267,4 +267,28 @@ public class ExamplePuzzleTests
         puzzle.Edges.Should().NotBeEmpty().And.OnlyContain(e => e.Rule == LessThanRule.Name && AreOrthogonalNeighbors(puzzle, e.From, e.To));
         puzzle.Edges.Should().OnlyContain(e => solution[e.From] < solution[e.To]);
     }
+
+    [Fact]
+    public void Comparison_sudoku_compares_cages_with_several_operators()
+    {
+        var puzzle = TestPuzzles.Load("vergleichs-sudoku-6x6.json");
+        var solution = UniqueSolution(puzzle);
+
+        puzzle.Domain.Should().Be(new ValueDomain(1, 6));
+        puzzle.Nodes.Should().HaveCount(36);
+        puzzle.Edges.Should().BeEmpty();
+        var cages = puzzle.Groups.Where(g => g.Label!.StartsWith("Käfig ", StringComparison.Ordinal)).ToList();
+        cages.Should().HaveCountGreaterThanOrEqualTo(4);
+        cages.Should().OnlyContain(c => c.Rule == AllDifferentRule.Name && c.Color != null && IsConnected(puzzle, c.Nodes));
+        puzzle.Groups.Except(cages).Should().HaveCount(18, "Zeilen, Spalten und Blöcke");
+        puzzle.GroupComparisons.Should().HaveCountGreaterThanOrEqualTo(4);
+        puzzle.GroupComparisons.Select(c => c.Operator).Distinct().Should().HaveCountGreaterThanOrEqualTo(4, "das Beispiel zeigt mehrere Operatoren");
+        puzzle.GroupComparisons.Should().OnlyContain(c => cages.Any(g => g.Id == c.Left) && cages.Any(g => g.Id == c.Right));
+        cages.Should().OnlyContain(g => puzzle.GroupComparisons.Any(c => c.Left == g.Id || c.Right == g.Id), "jeder Käfig wird verglichen");
+        foreach (var comparison in puzzle.GroupComparisons)
+        {
+            long Sum(int group) => puzzle.FindGroup(group)!.Nodes.Sum(id => solution[id]);
+            ComparisonOperators.Holds(comparison.Operator, Sum(comparison.Left), Sum(comparison.Right)).Should().BeTrue(comparison.ToString());
+        }
+    }
 }

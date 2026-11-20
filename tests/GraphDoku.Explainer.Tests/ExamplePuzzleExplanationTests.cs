@@ -15,9 +15,12 @@ public sealed class ExamplePuzzleExplanationTests(ITestOutputHelper output)
     /// <summary>Großzügige Obergrenze pro Erklärung (lokal dauert die langsamste, das Hexadoku, deutlich unter 1 s).</summary>
     private static readonly TimeSpan MaxExplanationTime = TimeSpan.FromSeconds(30);
 
-    /// <summary>Die Beispiele aus Paket 5 wurden so erzeugt, dass sie ohne Verzweigung (ohne Raten) erklärbar sind.</summary>
+    /// <summary>
+    /// Die Beispiele aus Paket 5 und das Vergleichs-Sudoku wurden so erzeugt, dass sie ohne Verzweigung (ohne Raten)
+    /// erklärbar sind.
+    /// </summary>
     private static readonly string[] BranchFreeExamples =
-        ["killer-sudoku.json", "kropki-sudoku.json", "hexadoku-16x16.json", "dreiecks-sudoku.json", "thermo-sudoku-6x6.json", "klassisch-leicht.json"];
+        ["killer-sudoku.json", "kropki-sudoku.json", "hexadoku-16x16.json", "dreiecks-sudoku.json", "thermo-sudoku-6x6.json", "klassisch-leicht.json", "vergleichs-sudoku-6x6.json"];
 
     private static readonly OrToolsSolver Solver = new();
 
@@ -76,6 +79,7 @@ public sealed class ExamplePuzzleExplanationTests(ITestOutputHelper output)
     [InlineData("dreiecks-sudoku.json", "CoverRange")]
     [InlineData("thermo-sudoku-6x6.json", "Thermometer")]
     [InlineData("thermo-sudoku-6x6.json", "LessThan")]
+    [InlineData("vergleichs-sudoku-6x6.json", ExplainerPuzzles.GroupComparisonName)]
     public void Characteristic_rule_of_an_example_justifies_steps(string file, string rule)
     {
         var puzzle = ExplainerPuzzles.Load(file);

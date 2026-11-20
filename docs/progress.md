@@ -649,3 +649,27 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 
 - `LICENSE` auf PolyForm Strict 1.0.0 umgestellt, Kontakt für Erlaubnisse: Issue-Tracker; alle Lizenzangaben im Repo,
   im Handbuch und im Release-Text angepasst (Nr. 191). Erste Version mit dieser Lizenz: v1.1.0.
+
+## Gruppenvergleich (Branch `feature/gruppenvergleich`)
+
+- Neues Element `GroupComparison`: Summe zweier vorhandener Gruppen mit =, ≠, <, ≤, >, ≥ vergleichen, jede Gruppe
+  behält ihre Regel; eigenes Element statt `IRule` als Entscheidung des Projektinhabers (Nr. 192).
+- Core: Modell, Operatoren, optionale JSON-Liste `groupComparisons` (nur geschrieben, wenn nicht leer;
+  `formatVersion` bleibt 1), Prüfung, Propagation mit Begründung (Nr. 193–196).
+- Solver: eine lineare Bedingung je Vergleich ohne Hilfsvariablen (Nr. 197). Erklär-Modus: Vergleiche in Stufe 3
+  nach den Katalogregeln, ohne Bestätigung durch den Solver (Nr. 198).
+- App: Erstellen im Gruppen-Panel („Summe vergleichen“), Panel des Vergleichs, Liste „Gruppenvergleiche“, Löschen
+  mit Kaskade, Verbindung mit Operator-Etikett auf der Zeichenfläche, Treffertest, Hervorhebung im Erklär-Modus
+  (Nr. 199–201).
+- Beispielrätsel `puzzles/vergleichs-sudoku-6x6.json` (6 Käfige ohne Summe, 6 Vergleiche mit `=`, `!=`, `<=`, `>`,
+  6 Givens, 103 Schritte ohne Verzweigung, Erklärung ≈ 8 ms), Handbuch (Konzept, Regelkatalog, Varianten,
+  Erklär-Modus, Bedienung, Ansicht, Tasten, Dateiformat, Begriffe), zwei neue Handbuchbilder, README (Nr. 202).
+- Zwei bestehende Tests bewusst angepasst, weil jetzt ein Beispielrätsel Vergleiche hat (Nr. 202); Rätsel ohne
+  Vergleiche verhalten sich, lauten und speichern sich wie vorher (eigene Tests mit fester Ausgabe und unveränderte
+  Schritt- und Texttests).
+- Tests: 982, alle grün in Release, 0 Warnungen (Core 339, Solver 128, Explainer 99, App 416 inkl. 12
+  Screenshot-Facts, die ohne Umgebungsvariable nichts tun).
+- Nicht geprüft: Handtest am Desktop (die App wurde nur headless gestartet), PDF des Handbuchs (pandoc und WeasyPrint
+  sind lokal nicht installiert, Docker läuft nicht), Lauf auf dem Gitea-Runner (Linux), Verhalten älterer
+  GraphDoku-Versionen mit einer Datei mit Vergleichen (aus dem Code der alten Version abgeleitet), ein Review mit
+  Widerlegungsschritt über den ganzen Branch. Die Website (`GraphDokuWebsite`) nennt den Gruppenvergleich noch nicht.

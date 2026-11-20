@@ -2,7 +2,7 @@
 
 GraphDoku ist eine Desktop-App (Avalonia, .NET 10), die beliebige Sudoku-Varianten als **Constraint-Graph** modelliert:
 Zellen sind **Knoten** mit Wertebereich, Beziehungen zwischen zwei Zellen sind **Kanten**, Regeln für Zellmengen hängen
-an **Gruppen**. Gelöst wird mit Google OR-Tools (CP-SAT); ein Erklär-Modus macht den Lösungsweg Schritt für Schritt
+an **Gruppen**, und **Gruppenvergleiche** setzen die Summen zweier Gruppen in Beziehung. Gelöst wird mit Google OR-Tools (CP-SAT); ein Erklär-Modus macht den Lösungsweg Schritt für Schritt
 nachvollziehbar. Anlass sind die Rätsel der Langen Nacht der Mathematik (Tridoku, Hexadoku, Sonderregeln).
 
 Die verbindliche Spezifikation liegt in `docs/spec/`.
@@ -35,6 +35,11 @@ Entscheidungen und Abweichungen einzeln begründet: `docs/decisions.md`.
 | `Difference` | Kante | `k` (Pflicht, ≥ 0), `mode` = `exact` (Standard) oder `atLeast` | \|a − b\| = k bzw. ≥ k |
 | `Ratio` | Kante | `factor` (Standard 2, ≥ 1) | a = factor·b oder b = factor·a |
 | `LessThan` | gerichtete Kante | – | from < to |
+
+Dazu kommt der **Gruppenvergleich** (`GroupComparison`): kein `IRule` der Registry, sondern ein eigenes Element mit
+eigener Liste im Rätsel und im JSON (`docs/decisions.md`, Nr. 192). Er verbindet zwei verschiedene Gruppen und verlangt
+`Summe(left) OP Summe(right)` mit `OP` = `=`, `!=`, `<`, `<=`, `>`, `>=` (Anzeige =, ≠, <, ≤, >, ≥); jede Gruppe
+behält ihre eigene Regel, Knoten in beiden Gruppen heben sich auf.
 
 ## Voraussetzungen
 
@@ -71,11 +76,12 @@ Fenster: links die **Gruppenliste**, in der Mitte die **Zeichenfläche**, rechts
 | Knoten setzen | Werkzeug „Knoten setzen“, klicken oder über mehrere Gitterpunkte ziehen |
 | Auswählen | Werkzeug „Auswahl“: Klick, Shift-Klick (hinzufügen/entfernen), Rahmen ziehen (Shift: hinzufügen; mit Strg/Cmd beginnt der Rahmen auch auf einem Knoten), Strg/Cmd+A |
 | Verschieben | ausgewählte Knoten ziehen; sie rasten auf Gitterpunkte ein |
-| Löschen | Entf (Mac: fn+⌫) löscht ausgewählte Knoten (mit ihren Kanten), die gewählte Kante oder Gruppe |
+| Löschen | Entf (Mac: fn+⌫) löscht ausgewählte Knoten (mit ihren Kanten), die gewählte Kante, Gruppe oder den gewählten Gruppenvergleich |
 | Givens | Knoten auswählen und Ziffern tippen (mehrstellig nacheinander, bei 0–15 auch A–F); ⌫ löscht Givens |
 | Kante | Werkzeug „Kante ziehen“, Regel in der Werkzeugleiste wählen, von Knoten zu Knoten ziehen; Kante anklicken, um Regel und Parameter zu ändern |
 | Kanten-Generator | „Erzeugen …“ neben der Kantenregel, Bearbeiten → Kanten erzeugen … oder Strg/Cmd+E: Abstandsregel (direkte Nachbarn, inkl. diagonal, Springerzug nur auf dem Quadratgitter, freier Abstand von–bis mit Toleranz), Regel und Parameter, bei „Kleiner als“ die Richtung, Knotenmenge (ausgewählte Knoten oder alle). Die Vorschau zeigt, wie viele Kanten entstehen und welche Paare schon eine solche Kante haben; „Kanten erzeugen“ fügt alle als **einen** Schritt für „Rückgängig“ ein |
 | Gruppe | Knoten auswählen (die Reihenfolge zählt, z. B. für Thermometer), im Panel Regel wählen, „Gruppe erstellen“ (Strg/Cmd+G); Beschriftung, Farbe, Regel, Parameter und Reihenfolge im Panel |
+| Gruppenvergleich | linke Gruppe wählen, im Gruppen-Panel unter „Summe vergleichen“ Operator und rechte Gruppe wählen, „Gruppenvergleich erstellen“. Auswählen über die Liste „Gruppenvergleiche“ links (nur sichtbar, wenn es Vergleiche gibt) oder einen Klick auf das Operator-Etikett bzw. die gestrichelte Linie; im Panel Operator ändern, „Linke/Rechte Gruppe auswählen“, „Vergleich löschen“ (auch Entf). Verschwindet eine Gruppe (auch weil gelöschte Knoten sie leeren), verschwinden ihre Vergleiche im selben Schritt |
 | Thermometer | erste Zelle (Kolben) anklicken, dann die weiteren der Reihe nach mit Shift-Klick; die Nummern an den Knoten zeigen die Reihenfolge; „Reihenfolge umkehren“ im Gruppen-Panel |
 | Kleiner als | Kante vom kleineren zum größeren Wert ziehen; „Richtung umkehren“ im Kanten-Panel |
 | Eigener Wertebereich | Knoten auswählen, im Panel „Eigener Wertebereich“ von–bis eingeben, „Bereich setzen“; „Globalen Bereich verwenden“ entfernt ihn |
@@ -90,6 +96,8 @@ steht im Statusbereich. Kantenmarken: Ungleich = Linie, Differenz = weißer Punk
 schwarzer Punkt (mit Faktor, falls nicht 2), Kleiner als = Pfeil vom kleineren zum größeren Wert; bei Kanten über
 einen Knoten hinweg sitzt die Marke im ersten freien Stück neben diesem Knoten. Summen-Gruppen (Killer-Käfige)
 zeigen ihre Zielsumme klein oben links in ihrer ersten Zelle; Thermometer erscheinen als Linie mit Kolben am Anfang.
+Gruppenvergleiche sind eine gestrichelte Linie zwischen den Mitten beider Gruppen mit Operator-Etikett; gezeichnet, wenn
+beide Gruppen eingeblendet sind oder der Vergleich ausgewählt bzw. im Erklär-Modus verantwortlich ist.
 In der Zelldarstellung sitzen die Marken auf der Mitte der gemeinsamen Seite zweier Zellen, Kanten ohne Marke
 („Ungleich“) als kurzer Steg über jedem Zellrand, den sie kreuzen.
 
@@ -112,7 +120,7 @@ rot (unlösbar, ungültig – mit Liste der Probleme).
 
 „Erklären“ (Lösen-Leiste, Menü „Lösen“ oder F7) berechnet einen menschlich nachvollziehbaren Lösungsweg: erst
 feststehende Werte streichen, dann einziger Kandidat, einziger Platz in einer Gruppe, dann Schlüsse der Kanten- und
-Gruppenregeln; nur wenn das nicht weiterhilft, wird verzweigt (der Wert kommt aus der Lösung des Solvers). Die
+Gruppenregeln und danach der Gruppenvergleiche; nur wenn das nicht weiterhilft, wird verzweigt (der Wert kommt aus der Lösung des Solvers). Die
 Berechnung läuft im Hintergrund und lässt sich abbrechen (die bis dahin gefundenen Schritte bleiben ansehbar); das
 Zeitlimit der Lösen-Leiste gilt auch hier.
 
@@ -127,7 +135,7 @@ Zeitlimit der Lösen-Leiste gilt auch hier.
 Farben auf der Zeichenfläche: **schwarz** Givens, **blau** hergeleitete Werte, **orange** geratene Werte;
 **gelb** hinterlegt die Knoten des aktuellen Schritts (rot durchgestrichen: gerade gestrichene Kandidaten),
 **orange** mit Marke „Raten“ eine Verzweigung, **grün** die Knoten, die Gruppe bzw. die Kante der verantwortlichen
-Regel; **rot umrandet** ein Knoten ohne Kandidaten (Widerspruch) – bei Kreisen als Ring außen, in der Zelldarstellung als Rahmen innen in der Zelle. Wie die Lösung ist die Erklärung nur Anzeige: Sie ändert das Rätsel nicht und wird nicht gespeichert.
+Regel (bei einem Gruppenvergleich beide Gruppen, Linie und Etikett); **rot umrandet** ein Knoten ohne Kandidaten (Widerspruch) – bei Kreisen als Ring außen, in der Zelldarstellung als Rahmen innen in der Zelle. Wie die Lösung ist die Erklärung nur Anzeige: Sie ändert das Rätsel nicht und wird nicht gespeichert.
 
 Rendering-Rauchtest: `dotnet test tests/GraphDoku.App.Tests --filter Rendering` rendert das Hauptfenster headless
 (Skia, auch mit gelöstem und mehrdeutigem Sudoku, im Erklär-Modus und in der Zelldarstellung) und legt PNGs in `$GRAPHDOKU_RENDER_DIR` bzw. im Temp-Verzeichnis unter `GraphDoku-Render` ab.
@@ -148,9 +156,10 @@ außer `klassisch-leer.json` eindeutig).
 | `hexadoku-16x16.json` | Hexadoku 16×16 mit Werten 0–15 (Anzeige 0–F), Zeilen, Spalten und 4×4-Blöcke als `CoverRange`, 90 Givens |
 | `dreiecks-sudoku.json` | Dreiecks-Sudoku (Tridoku-ähnlich) auf dem Dreiecksgitter: 9 Regionen, 3 Außenseiten, sich berührende Dreiecke verschiedener Regionen ungleich (`NotEqual`), 33 Givens |
 | `thermo-sudoku-6x6.json` | Thermo-Sudoku 6×6 mit 3 Thermometern und 4 „Kleiner als“-Kanten, 5 Givens |
+| `vergleichs-sudoku-6x6.json` | Vergleichs-Sudoku 6×6: 6 Käfige ohne Summe (`AllDifferent`) und 6 Gruppenvergleiche (`=`, `!=`, `<=`, `>`), 6 Givens |
 
-Die fünf Varianten-Rätsel sind eindeutig und ohne Verzweigung erklärbar; erzeugt wurden sie einmalig mit Testcode
-(`ExamplePuzzleGenerator`, siehe `docs/decisions.md`, Nr. 125).
+Die sechs Varianten-Rätsel sind eindeutig und ohne Verzweigung erklärbar; erzeugt wurden sie einmalig mit Testcode
+(`ExamplePuzzleGenerator`, siehe `docs/decisions.md`, Nr. 125 und 202).
 
 ## Projektstruktur
 
@@ -179,8 +188,10 @@ zugreifen). Core kennt niemanden.
 
 Wichtige Typen in `GraphDoku.Core`:
 
-- `Model`: `Puzzle`, `Node`, `Edge`, `Group`, `ValueDomain`, `RuleParams`, `GridType`, `PuzzleComparer`
-- `Rules`: `IRule`, `RuleBase`, `RuleRegistry`, Katalogregeln unter `Rules/Catalog`
+- `Model`: `Puzzle`, `Node`, `Edge`, `Group`, `GroupComparison`, `ComparisonOperator` (mit `ComparisonOperators`),
+  `ValueDomain`, `RuleParams`, `GridType`, `ConstraintRef`, `PuzzleComparer`
+- `Rules`: `IRule`, `RuleBase`, `RuleRegistry`, Katalogregeln unter `Rules/Catalog`; `GroupComparisonLogic`
+  (Auflösen, Propagation mit Begründung, Prüfung einer Belegung für Gruppenvergleiche)
 - `Candidates`: `CandidateState`, `CandidateChange`, `Reason`
 - `Geometry`: `GridGeometry` (Weltkoordinaten, Nachbarschaften, Springerzug, Abstände, Einrasten)
 - `Serialization`: `PuzzleSerializer`, `PuzzleFormatException`
@@ -195,10 +206,13 @@ Wichtige Typen in `GraphDoku.Solver`:
   Die Methoden arbeiten synchron; `SolveAsync`/`CountSolutionsAsync` (`SolverExtensions`) laufen im Hintergrund.
 - `SolverOptions` (Zeitlimit, Standard 30 s); Abbruch per `CancellationToken`.
 - `OrTools.OrToolsSolver`: eine Integer-Variable pro Knoten, Givens fixiert, jede Regel über einen Adapter
-  (`IOrToolsRuleAdapter`, Registry `OrToolsAdapterRegistry`, Schlüssel = Typname der Regel).
+  (`IOrToolsRuleAdapter`, Registry `OrToolsAdapterRegistry`, Schlüssel = Typname der Regel). Gruppenvergleiche
+  übersetzt `GroupComparisonTranslator` außerhalb der Registry in je eine lineare Bedingung ohne Hilfsvariablen.
 
 Neue Regel einbinden: `IRule` implementieren und in `RuleRegistry` aufnehmen (Core) sowie einen
-`IOrToolsRuleAdapter` in `OrToolsAdapterRegistry` (Solver) – das JSON-Format bleibt gleich. Hilfsvariablen eines
+`IOrToolsRuleAdapter` in `OrToolsAdapterRegistry` (Solver) – das JSON-Format bleibt gleich. Der Gruppenvergleich
+folgt diesem Weg bewusst nicht: Er gehört zu keiner einzelnen Gruppe, hat eine eigene JSON-Liste, eine eigene
+Übersetzung im Solver und eine eigene Stufe im Erklär-Modus (Nr. 192). Hilfsvariablen eines
 Adapters sollten durch die Knotenwerte festgelegt sein; die Lösungszählung zählt ohnehin nur verschiedene
 Knotenbelegungen, freie Hilfsvariablen machen sie aber langsamer.
 
@@ -212,13 +226,20 @@ Knotenbelegungen, freie Hilfsvariablen machen sie aber langsamer.
   "domain": { "min": 1, "max": 9 },
   "nodes": [ { "id": 1, "x": 0, "y": 0, "given": 5 }, { "id": 2, "x": 1, "y": 0, "domain": { "min": 1, "max": 4 } } ],
   "edges": [ { "id": 1, "from": 1, "to": 2, "rule": "Difference", "params": { "k": 1, "mode": "exact" } } ],
-  "groups": [ { "id": 1, "nodes": [1, 2], "rule": "AllDifferent", "params": {}, "color": "#3366ff", "label": "Zeile 1" } ]
+  "groups": [ { "id": 1, "nodes": [1, 2], "rule": "AllDifferent", "params": {}, "color": "#3366ff", "label": "Zeile 1" },
+              { "id": 2, "nodes": [3, 4], "rule": "AllDifferent", "params": {} } ],
+  "groupComparisons": [ { "id": 1, "left": 1, "right": 2, "op": "<=" } ]
 }
 ```
 
 - `formatVersion` ist Pflicht und muss `1` sein; andere Versionen werden mit Meldung abgelehnt.
 - `grid`: `square`, `triangle` (Zelle (x, y) zeigt nach oben, wenn x + y gerade ist) oder `hex` (axiale Koordinaten q = x, r = y).
-- Ids sind positive Ganzzahlen, fortlaufend pro Rätsel und getrennt gezählt für Knoten, Kanten und Gruppen.
+- Ids sind positive Ganzzahlen, fortlaufend pro Rätsel und getrennt gezählt für Knoten, Kanten, Gruppen und
+  Gruppenvergleiche.
+- `groupComparisons` (optional) steht nach `groups` und wird nur geschrieben, wenn es Vergleiche gibt; fehlt die Liste
+  oder ist sie `null`, gibt es keine. Felder `id`, `left`, `right` (Gruppen-Ids), `op` (genau `=`, `!=`, `<`, `<=`,
+  `>`, `>=`), alle Pflicht. `formatVersion` bleibt `1`: Dateien ohne Vergleiche sind bytegleich wie bisher; ältere
+  Versionen lehnen Dateien mit Vergleichen wegen des unbekannten Felds ab.
 - `domain` am Knoten überschreibt den globalen Wertebereich; `given` ist optional.
 - `params` enthält nur die Parameter der Regel; unbekannte Parameter, unbekannte Felder und unbekannte Regeltypen
   werden mit verständlicher deutscher Meldung abgelehnt (mit Angabe von Kante/Gruppe).

@@ -1259,3 +1259,107 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      Copyright-Angaben (`Directory.Build.props`, `Info.plist`) sind angepasst. Die Lizenzen der Komponenten Dritter
      bleiben unberührt. Frühere Einträge, die „proprietär“ nennen (Nr. 6 und 8), beschreiben den damaligen Stand.
      Hinweis: Solange das Gitea-Repository privat ist, ist der Issue-Tracker für Außenstehende nicht erreichbar.
+
+## Gruppenvergleich
+
+192. **Gruppenvergleich als eigenes Element statt als `IRule`** (Modell, Entscheidung des Projektinhabers vom
+     20. November 2026): Ein Gruppenvergleich verbindet zwei vorhandene Gruppen und verlangt `Summe(left) OP
+     Summe(right)` mit OP ∈ {=, ≠, <, ≤, >, ≥}; jede Gruppe behält ihre eigene Regel. Das weicht von der
+     Agenten-Anleitung ab („Kernmodell“: `Puzzle` hat Listen von `Node`, `Edge`, `Group`; neue Regeln kommen über die
+     Registry, „das JSON-Format ändert sich dafür nicht“). Grund: Der Vergleich gehört zu keiner einzelnen Gruppe und
+     braucht deren Regel nicht zu ersetzen. Erwogen und verworfen: (a) eine Gruppenregel „Summenvergleich“ über eine
+     Knotenliste mit Trennstelle – dann verlöre jede der beiden Seiten ihre eigene Regel (ein Käfig wäre nicht mehr
+     zugleich „alle verschieden“), und gleiche Käfige müssten doppelt angelegt werden; (b) ein `IRule` mit Verweisen
+     auf Gruppen-Ids in `params` – Parameter sind Zahlen und Wahrheitswerte ohne Bezug auf andere Elemente, Prüfung,
+     Löschen und Darstellung müssten sie trotzdem eigens kennen. Umsetzung: `GroupComparison` (Id, `Left`, `Right`,
+     `Operator`) in `Puzzle.GroupComparisons`, kein `IConstraint`; `Puzzle.Constraints` bleibt bei Kanten und Gruppen
+     (nur Registry-Regeln), `ConstraintKind.GroupComparison` und `ConstraintRef.ForGroupComparison` für Begründungen
+     und Auswahl, `FindConstraint` liefert für diese Art `null` (dafür `FindGroupComparison`). Eigene Ids, getrennt
+     gezählt (`NextGroupComparisonId`). Die Spezifikation selbst bleibt unverändert; dieser Eintrag ist die Abweichung.
+193. **Dateiformat: eigene Liste, `formatVersion` bleibt 1** (JSON): Die optionale Liste `"groupComparisons"` steht
+     nach `groups` und wird **nur geschrieben, wenn sie nicht leer ist** – Dateien ohne Vergleiche bleiben bytegleich
+     (eigener Test mit fester Ausgabe; kein Beispielrätsel ohne Vergleiche schreibt die Liste). Felder in fester
+     Reihenfolge `id`, `left`, `right`, `op`, alle Pflicht, unbekannte Felder abgelehnt wie überall (Nr. 25); fehlt die
+     Liste oder ist sie `null`, ist sie leer. Fehlermeldungen mit Pfad, z. B. „groupComparisons[0]: Unbekannter
+     Vergleichsoperator „=>“. Erlaubt sind: =, !=, <, <=, >, >=.“ Die Meldung „Unbekanntes Feld“ am Rätsel nennt
+     `groupComparisons` jetzt unter den erlaubten Feldern. Erwogen: `formatVersion` 2. Verworfen, weil ältere Versionen
+     eine Datei mit der neuen Liste ohnehin mit „Rätsel: Unbekanntes Feld „groupComparisons““ ablehnen und eine
+     Version 2 auch Dateien ohne Vergleiche für ältere Versionen unlesbar gemacht hätte. Handbuch und README sagen das.
+194. **Schreibweise der Operatoren** (JSON, Anzeige): In der Datei genau `=`, `!=`, `<`, `<=`, `>`, `>=` (ASCII,
+     Groß-/Kleinschreibung zählt, keine Synonyme wie `==` oder `≤`), damit Dateien von Hand bearbeitbar und
+     eindeutig bleiben; angezeigt werden =, ≠, <, ≤, >, ≥, im Text „gleich“, „ungleich“, „kleiner als“, „kleiner oder
+     gleich“, „größer als“, „größer oder gleich“ (`ComparisonOperators`). Undefinierte Werte (nur aus Code oder mit
+     `validate: false` denkbar) erscheinen in Texten als „?“ statt eine Ausnahme zu werfen. `PuzzleComparer` (nur
+     Diagnose) nennt den Operator mit dem Namen der Aufzählung, z. B. „LessOrEqual“.
+195. **Prüfung** (Validation): Ein eigener Durchgang nach den Gruppen meldet: Id ≤ 0, doppelte Id, undefinierter
+     Operator, fehlende linke oder rechte Gruppe, linke = rechte Gruppe und zwei Gruppen mit genau denselben Knoten
+     („… vergleicht zwei Gruppen mit denselben Knoten: Gemeinsame Knoten zählen auf beiden Seiten gleich und heben sich
+     auf, also bleibt nichts zu vergleichen.“). Gemeinsame Knoten sind sonst **erlaubt**: Sie heben sich auf (Koeffizient
+     Anzahl links − Anzahl rechts). Doppelte Gruppen-Ids meldet schon die Gruppenprüfung; ein Vergleich nimmt wie
+     `FindGroup` die erste Gruppe mit der Id und meldet sie nicht noch einmal. Hat eine Gruppe selbst einen Fehler, folgt
+     daraus kein zusätzlicher Fehler des Vergleichs. Wie bisher öffnet die App Dateien ohne inhaltliche Prüfung
+     (Nr. 57); Editor und Zeichenfläche vertragen deshalb fehlende Gruppen, leere Gruppen und doppelte Ids.
+196. **Propagation in Core** (`GroupComparisonLogic`): `Resolve` fasst beide Gruppen zu Termen `c·x` zusammen
+     (c = Anzahl links − Anzahl rechts, Terme mit c = 0 entfallen) und prüft `D = Σ c·x OP 0` mit Schranken in
+     `long`-Rechnung: Ein Wert bleibt, wenn er mit den Bereichen der übrigen Terme die Bedingung noch erfüllen kann; bei
+     ≠ wird nur gestrichen, wenn die übrigen Terme feststehen. Die Regel ist **korrekt** (Zufallstest gegen vollständige
+     Aufzählung, alle sechs Operatoren, mit gemeinsamen Knoten) und **vollständig auf vollen Belegungen** (jede
+     verletzende Belegung streicht einen Wert) – das braucht der Erklär-Modus, weil er Katalog-Logik ohne Solver
+     vertraut (Nr. 97). Kein Suchbudget nötig, anders als bei `Sum`: die Rechnung ist linear in der Zahl der Terme und
+     Kandidaten. Begründung je Knoten, z. B. „Gruppenvergleich 1: Summe von Gruppe 1 „Links“ ≥ Summe von Gruppe 2
+     „Rechts“: Knoten 1 kann nicht 1, 2 sein, denn die Summe von Gruppe 2 „Rechts“ ist genau 7 und die übrigen Knoten
+     von Gruppe 1 „Links“ ergeben zusammen 1 bis 4.“; bei gemeinsamen Knoten mit dem Zusatz „(gemeinsame Knoten zählen
+     auf beiden Seiten gleich und bleiben außen vor)“. Beteiligte Knoten: alle Knoten beider Gruppen.
+197. **Übersetzung für den Solver** (Solver): `GroupComparisonTranslator` fügt je Vergleich genau eine lineare
+     Bedingung `LinearExpr.Sum(links) OP LinearExpr.Sum(rechts)` hinzu, ohne Hilfsvariablen und **außerhalb** der
+     Adapter-Registry (es gibt keinen Typnamen); gemeinsame Knoten heben sich im linearen Ausdruck von selbst auf.
+     `OrToolsModelBuilder.Build` übersetzt die Vergleiche nach allen Kanten und Gruppen. Eine fehlende Gruppe oder ein
+     undefinierter Operator ergibt statt einer Ausnahme einen Fehler „Gruppenvergleich N: …“ und damit „ungültig“ (die
+     Prüfung fängt beides schon vorher ab). `SolutionVerifier` der Tests prüft Vergleiche unabhängig mit rohen Summen.
+198. **Erklär-Modus: Stufe nach den Katalogregeln** (Explainer): Die Vergleiche werden je Sitzung einmal aufgelöst und
+     laufen in Stufe 3 („Regel“) **nach** allen Katalogregeln der Ränge 0–2 (Nr. 88) und **vor** eigenen Regeln
+     (Rang 3), in Rätselreihenfolge. Sie zählen als Katalog-Logik: keine Bestätigung durch den Solver (Nr. 97), weil
+     sie auf vollen Belegungen vollständig sind (Nr. 196); Schlussweise bleibt „Regel“ (`RulePropagation`), der
+     Constraint des Schritts ist der Vergleich. Filterung wirksamer Änderungen, Widerspruch beim Setzen und
+     Zusammenfassen von Streichungen wie bei Regeln (gemeinsamer Helfer `StepFrom`). Weil der Text den Knoten nennt,
+     ergibt ein Vergleich je Knoten einen eigenen Schritt. Einen eigenen Widerspruchstest gibt es nicht: Ein
+     unerfüllbarer Vergleich leert einen Knoten, und die nächste Runde meldet „Knoten N hat keinen Kandidaten mehr …“
+     mit dem Vergleich als Constraint. Rätsel ohne Vergleiche laufen exakt wie bisher (alle Schritt- und Texttests
+     unverändert). Testhelfer, die `FindConstraint(...)!` nutzten, gehen jetzt über `ExplainerPuzzles.RuleOf`.
+199. **Bedienung im Editor** (App): Erstellt wird im Panel der linken Gruppe, Abschnitt „Summe vergleichen“
+     (Operator, rechte Gruppe, „Gruppenvergleich erstellen“; Vorgabe „=“ und die erste andere Gruppe), danach ist der
+     neue Vergleich ausgewählt. Es gibt dafür keinen Menüeintrag und kein Tastenkürzel. Das Panel des Vergleichs zeigt
+     die Bedeutung, ändert den Operator (jede Wahl ein Undo-Schritt „Vergleich ändern“) und springt zu den Gruppen;
+     die Gruppen eines bestehenden Vergleichs lassen sich nicht ändern (löschen und neu erstellen; Seiten tauschen
+     erledigt der Operator). Die Auswahl eines Vergleichs schließt Knoten-, Kanten- und Gruppenauswahl aus. Die Liste
+     „Gruppenvergleiche“ unter der Gruppenliste erscheint nur, wenn es Vergleiche gibt (höchstens 88 px hoch), damit
+     das Fenster für Rätsel ohne Vergleiche gleich bleibt; die Gruppenliste bleibt die erste Liste im Fenster.
+     Operator- und Gruppenlisten sind wie die Farbliste geteilte Instanzen, damit beim Wechsel der Auswahl nichts in das
+     neue Panel zurückgeschrieben wird (keine falschen Undo-Schritte). Status, Öffnen-Meldung und Statistik nennen
+     „…, N Gruppenvergleich(e)“ nur, wenn es welche gibt; die Legende im Erklär-Panel blieb unverändert.
+200. **Löschen kaskadiert** (App): Entfernt ein Löschbefehl eine Gruppe – direkt oder weil gelöschte Knoten sie
+     leeren –, entfernt er im selben Undo-Schritt jeden Vergleich, der diese Gruppe nennt, sofern danach keine Gruppe
+     mit dieser Id mehr existiert (bei doppelten Gruppen-Ids bleibt der Vergleich). Ein schon vorher hängender Vergleich
+     (Datei ohne Prüfung) wird bei einer unbeteiligten Löschung nicht mitgelöscht. *Rückgängig* stellt dieselben
+     Objekte in derselben Reihenfolge wieder her. Erwogen: ein Prüffehler „Gruppe fehlt“ statt Löschen – verworfen, weil
+     ein Vergleich ohne Gruppe nichts mehr bedeutet und sonst jede Gruppenlöschung einen Folgefehler erzeugte.
+201. **Darstellung und Treffertest** (Zeichenfläche): gestrichelte Verbindung zwischen den Schwerpunkten der
+     Knotenmitten beider Gruppen (unter den Knoten) und ein Operator-Etikett in der Mitte (über allem). Gezeichnet nur,
+     wenn beide Gruppen Knoten haben und entweder beide eingeblendet sind oder der Vergleich ausgewählt bzw.
+     verantwortlich im Erklär-Modus ist. Ausgewählt: Akzentfarbe, dicker, beide Gruppen hervorgehoben wie eine gewählte
+     Gruppe (auch ausgeblendete) samt Zielsummen; im Erklär-Modus grün mit grünem Umriss beider Gruppen. Treffertest
+     mit dem Werkzeug „Auswahl“: Ein Klick auf das Etikett hat Vorrang vor allem (wird vor Knoten und Kanten geprüft),
+     ein Klick nahe der Linie kommt zuletzt, nach Knoten und Kanten. Nur gezeichnete Vergleiche sind anklickbar.
+202. **Beispielrätsel „Vergleichs-Sudoku 6x6“ und Doku** (Beispielrätsel, Doku): `puzzles/vergleichs-sudoku-6x6.json`
+     erzeugt `ExamplePuzzleGenerator.Comparison` (Nr. 125, Startwert 5006): 6×6-Sudoku, Käfige aus 2–3 Zellen mit
+     `AllDifferent` ohne Summe, Vergleiche zu den zwei nächstgelegenen Käfigen mit zur Lösung passendem Operator
+     (gleiche Summen „=“, sonst reihum `<`/`>`, `<=`/`>=`, `!=`); Givens wie bei den übrigen Beispielen verkleinert,
+     solange der Erklär-Modus ohne Verzweigung auskommt; danach fallen Vergleiche weg, die keinen Schritt begründen,
+     und Käfige ohne Vergleich, solange die Erklärung ohne Verzweigung bleibt. Von 40 Versuchen gewann der mit den
+     meisten Operatoren: 6 Käfige, 6 Vergleiche (`=`, `!=`, `<=`, `>`), 6 Givens, 103 Schritte ohne Verzweigung.
+     Zwei bestehende Tests sind bewusst angepasst, weil es jetzt ein Beispiel mit Vergleichen gibt: „kein Beispielrätsel
+     schreibt `groupComparisons`“ gilt nur noch für Rätsel ohne Vergleiche (`PuzzleSerializerTests`), und die Liste
+     der erlaubten Felder einer gespeicherten Datei enthält `groupComparisons` nur für Rätsel mit Vergleichen
+     (`NodeShapeTests`). Neue Handbuchbilder `editor-gruppenvergleich.png` und `gruppe-summe-vergleichen.png`
+     (`UserGuideScreenshots`, letzteres in 1280 × 880, damit der Abschnitt ganz im Panel steht); `editor-killer.png`
+     zeigt jetzt unten im Gruppen-Panel den neuen Abschnitt.

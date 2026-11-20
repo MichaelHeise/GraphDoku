@@ -146,6 +146,108 @@ public sealed class ExamplePuzzleGenerator(ITestOutputHelper output)
         Save(BestOfRestarts(puzzle, solution, rng, restarts: 20), "thermo-sudoku-6x6.json");
     }
 
+    /// <summary>
+    /// Vergleichs-Sudoku 6×6: Käfige ohne Summe („Alle verschieden“), benachbarte Käfige über Gruppenvergleiche mit
+    /// verschiedenen Operatoren verbunden. Nach dem Verkleinern der Givens fallen Vergleiche weg, die keinen Schritt der
+    /// Erklärung begründen (die Erklärung bleibt dabei gleich). Von mehreren Versuchen gewinnt der mit den meisten
+    /// verschiedenen Operatoren, dann den meisten Vergleichen, dann den wenigsten Givens.
+    /// </summary>
+    [Fact]
+    public void Comparison()
+    {
+        if (OutputDirectory is null)
+        {
+            return;
+        }
+
+        var rng = new Random(5_006);
+        Puzzle? best = null;
+        (int Operators, int Comparisons, int Givens) bestScore = (0, 0, int.MaxValue);
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            var structure = SquareSudoku(3, 2, 1, AllDifferentRule.Name, "Vergleichs-Sudoku 6x6");
+            var solution = RandomSolution(structure, rng);
+            if (!AddComparedCages(structure, solution, rng, cages: 8))
+            {
+                continue;
+            }
+
+            var puzzle = BestOfRestarts(structure, solution, rng, restarts: 8);
+            var used = Engine.Explain(puzzle).Steps
+                .Where(s => s.Constraint is { Kind: ConstraintKind.GroupComparison })
+                .Select(s => s.Constraint!.Value.Id)
+                .ToHashSet();
+            var unused = puzzle.GroupComparisons.Where(c => !used.Contains(c.Id)).ToList();
+            foreach (var comparison in unused)
+            {
+                puzzle.GroupComparisons.Remove(comparison);
+            }
+
+            // Ids neu zählen, damit die Datei mit 1 beginnt.
+            for (var i = 0; i < puzzle.GroupComparisons.Count; i++)
+            {
+                puzzle.GroupComparisons[i].Id = i + 1;
+            }
+
+            var score = (
+                puzzle.GroupComparisons.Select(c => c.Operator).Distinct().Count(),
+                puzzle.GroupComparisons.Count,
+                puzzle.Nodes.Count(n => n.Given is not null));
+            Log($"Vergleich Versuch {attempt + 1}: {score.Item1} Operatoren, {score.Item2} Vergleiche genutzt, {score.Item3} Givens");
+            if (score.Item1 > bestScore.Operators
+                || (score.Item1 == bestScore.Operators && score.Item2 > bestScore.Comparisons)
+                || (score.Item1 == bestScore.Operators && score.Item2 == bestScore.Comparisons && score.Item3 < bestScore.Givens))
+            {
+                best = puzzle;
+                bestScore = score;
+            }
+        }
+
+        CompactCages(best!);
+        IsExplainableWithoutBranching(best!, out _).Should().BeTrue();
+        Save(best!, "vergleichs-sudoku-6x6.json");
+    }
+
+    /// <summary>
+    /// Entfernt Käfige ohne Gruppenvergleich, solange die Erklärung ohne Verzweigung auskommt, und nummeriert die übrigen
+    /// neu: Ids direkt nach Zeilen, Spalten und Blöcken, Beschriftung „Käfig A“ …, je Käfig eine eigene Farbe der Palette.
+    /// </summary>
+    private static void CompactCages(Puzzle puzzle)
+    {
+        bool IsCage(Group g) => g.Label?.StartsWith("Käfig ", StringComparison.Ordinal) == true;
+        foreach (var cage in puzzle.Groups.Where(IsCage).ToList())
+        {
+            if (puzzle.GroupComparisons.Any(c => c.Left == cage.Id || c.Right == cage.Id))
+            {
+                continue;
+            }
+
+            var index = puzzle.Groups.IndexOf(cage);
+            puzzle.Groups.RemoveAt(index);
+            if (!IsExplainableWithoutBranching(puzzle, out _))
+            {
+                puzzle.Groups.Insert(index, cage);
+            }
+        }
+
+        var cages = puzzle.Groups.Where(IsCage).ToList();
+        var nextId = puzzle.Groups.Where(g => !IsCage(g)).Max(g => g.Id) + 1;
+        var newId = new Dictionary<int, int>();
+        for (var i = 0; i < cages.Count; i++)
+        {
+            newId[cages[i].Id] = nextId + i;
+            cages[i].Id = nextId + i;
+            cages[i].Label = $"Käfig {(char)('A' + i)}";
+            cages[i].Color = GroupColors[i % GroupColors.Length];
+        }
+
+        foreach (var comparison in puzzle.GroupComparisons)
+        {
+            comparison.Left = newId[comparison.Left];
+            comparison.Right = newId[comparison.Right];
+        }
+    }
+
     // ---------------------------------------------------------------- Strukturen
 
     /// <summary>
@@ -326,6 +428,86 @@ public sealed class ExamplePuzzleGenerator(ITestOutputHelper output)
             var parameters = new RuleParams().Set("target", cages[i].Sum(id => solution[id]));
             puzzle.Groups.Add(new Group(puzzle.NextGroupId(), cages[i], SumRule.Name, parameters, colors[i], $"Käfig {i + 1}"));
         }
+    }
+
+    /// <summary>
+    /// Käfige ohne Summe (2–3 zusammenhängende Zellen ohne doppelte Lösungswerte, Regel <c>AllDifferent</c>) und je
+    /// Käfig Gruppenvergleiche mit den zwei nächstgelegenen späteren Käfigen. Der Operator passt zur Lösung: gleiche Summen
+    /// „=“, sonst reihum „&lt;“/„&gt;“, „≤“/„≥“ oder „≠“. false, wenn nicht genug Käfige entstehen.
+    /// </summary>
+    private static bool AddComparedCages(Puzzle puzzle, IReadOnlyDictionary<int, int> solution, Random rng, int cages)
+    {
+        var byPoint = puzzle.Nodes.ToDictionary(n => new GridPoint(n.X, n.Y));
+        var used = new HashSet<int>();
+        var made = new List<List<int>>();
+        for (var attempt = 0; attempt < 500 && made.Count < cages; attempt++)
+        {
+            var start = puzzle.Nodes[rng.Next(puzzle.Nodes.Count)].Id;
+            if (used.Contains(start))
+            {
+                continue;
+            }
+
+            var cage = new List<int> { start };
+            var size = rng.Next(2, 4);
+            while (cage.Count < size)
+            {
+                var options = cage
+                    .SelectMany(id => Neighbors(puzzle, byPoint, id))
+                    .Where(id => !cage.Contains(id) && !used.Contains(id) && cage.All(c => solution[c] != solution[id]))
+                    .Distinct()
+                    .ToList();
+                if (options.Count == 0)
+                {
+                    break;
+                }
+
+                cage.Add(options[rng.Next(options.Count)]);
+            }
+
+            if (cage.Count < 2)
+            {
+                continue;
+            }
+
+            used.UnionWith(cage);
+            made.Add(cage);
+        }
+
+        if (made.Count < cages)
+        {
+            return false;
+        }
+
+        made = [.. made.Select(c => c.Order().ToList()).OrderBy(c => c[0])];
+        var colors = ColorGroups(made, puzzle);
+        var firstCage = puzzle.NextGroupId();
+        for (var i = 0; i < made.Count; i++)
+        {
+            puzzle.Groups.Add(new Group(puzzle.NextGroupId(), made[i], AllDifferentRule.Name, color: colors[i], label: $"Käfig {(char)('A' + i)}"));
+        }
+
+        WorldPoint Center(List<int> cage) => new(
+            cage.Average(id => puzzle.FindNode(id)!.X),
+            cage.Average(id => puzzle.FindNode(id)!.Y));
+
+        ComparisonOperator[][] unequal = [[ComparisonOperator.Less, ComparisonOperator.Greater], [ComparisonOperator.LessOrEqual, ComparisonOperator.GreaterOrEqual], [ComparisonOperator.NotEqual, ComparisonOperator.NotEqual]];
+        var turn = rng.Next(unequal.Length);
+        for (var i = 0; i < made.Count - 1; i++)
+        {
+            var from = Center(made[i]);
+            var nearest = Enumerable.Range(i + 1, made.Count - i - 1)
+                .OrderBy(k => Math.Pow(Center(made[k]).X - from.X, 2) + Math.Pow(Center(made[k]).Y - from.Y, 2))
+                .Take(2);
+            foreach (var j in nearest)
+            {
+                var difference = made[i].Sum(id => solution[id]) - made[j].Sum(id => solution[id]);
+                var op = difference == 0 ? ComparisonOperator.Equal : unequal[turn++ % unequal.Length][difference < 0 ? 0 : 1];
+                puzzle.GroupComparisons.Add(new GroupComparison(puzzle.NextGroupComparisonId(), firstCage + i, firstCage + j, op));
+            }
+        }
+
+        return true;
     }
 
     /// <summary>Thermometer (steigende Lösungswerte entlang orthogonaler Nachbarn) und „Kleiner als“-Kanten.</summary>

@@ -770,10 +770,23 @@ public class PuzzleSerializerTests
             "  ]\n" +
             "}\n");
 
+        // Beispielrätsel ohne Gruppenvergleiche schreiben die Liste nicht; das Vergleichs-Sudoku (mit Vergleichen) schon.
         foreach (var file in Directory.GetFiles(PuzzlesDirectory, "*.json"))
         {
-            PuzzleSerializer.Serialize(PuzzleSerializer.Load(file)).Should().NotContain("groupComparisons", Path.GetFileName(file));
+            var loaded = PuzzleSerializer.Load(file);
+            var json = PuzzleSerializer.Serialize(loaded);
+            if (loaded.GroupComparisons.Count == 0)
+            {
+                json.Should().NotContain("groupComparisons", Path.GetFileName(file));
+            }
+            else
+            {
+                json.Should().Contain("\"groupComparisons\"", Path.GetFileName(file));
+            }
         }
+
+        Directory.GetFiles(PuzzlesDirectory, "*.json").Count(f => PuzzleSerializer.Load(f).GroupComparisons.Count == 0)
+            .Should().BeGreaterThan(1, "die übrigen Beispielrätsel haben keine Gruppenvergleiche");
     }
 
     [Fact]
