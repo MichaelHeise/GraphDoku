@@ -218,6 +218,28 @@ public sealed partial class GroupPropertiesViewModel : ConstraintPropertiesViewM
     [ObservableProperty]
     public partial bool IsOrdered { get; set; }
 
+    /// <summary>Andere Gruppen für „Summe vergleichen“, Text wie in der Gruppenliste (jede Id einmal).</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<GroupOption> ComparisonTargets { get; private set; } = [];
+
+    /// <summary>Gruppe, mit deren Summe verglichen werden soll (rechte Seite des neuen Vergleichs).</summary>
+    [ObservableProperty]
+    public partial GroupOption? NewComparisonTarget { get; set; }
+
+    /// <summary>Operator des neuen Vergleichs (Vorgabe „=“).</summary>
+    [ObservableProperty]
+    public partial OperatorOption? NewComparisonOperator { get; set; } = OperatorOption.Shared[0];
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instanzeigenschaft für die kompilierte Bindung im Panel.")]
+    public IReadOnlyList<OperatorOption> OperatorOptions => OperatorOption.Shared;
+
+    [ObservableProperty]
+    public partial bool HasComparisonTargets { get; private set; }
+
+    /// <summary>In wie vielen Gruppenvergleichen die Gruppe vorkommt (null bei keinem).</summary>
+    [ObservableProperty]
+    public partial string? ComparisonUsage { get; private set; }
+
     private Group Group => Editor.Puzzle.FindGroup(GroupId) ?? throw new InvalidOperationException($"Gruppe {GroupId} gibt es nicht mehr.");
 
     protected override string CurrentRule => Group.Rule;
@@ -244,11 +266,54 @@ public sealed partial class GroupPropertiesViewModel : ConstraintPropertiesViewM
             NodeOrder = group.Nodes.Count == 0 ? "(keine Knoten)" : string.Join(" → ", group.Nodes);
             LoadRule();
             IsOrdered = SelectedRule?.Kind.IsOrdered() ?? false;
+            RefreshComparison();
         }
         finally
         {
             _loadingGroup = false;
         }
+    }
+
+    /// <summary>
+    /// Erstellt „Summe dieser Gruppe OP Summe der gewählten Gruppe“ als Undo-Schritt und wählt den neuen Vergleich aus.
+    /// </summary>
+    [RelayCommand]
+    private void CreateComparison()
+    {
+        if (NewComparisonTarget is not { } target)
+        {
+            Editor.StatusMessage = "Zuerst die Gruppe wählen, mit deren Summe verglichen werden soll.";
+            return;
+        }
+
+        Editor.CreateGroupComparison(GroupId, target.Id, NewComparisonOperator?.Operator ?? ComparisonOperator.Equal);
+    }
+
+    private void RefreshComparison()
+    {
+        var puzzle = Editor.Puzzle;
+        var targets = puzzle.Groups
+            .Where(g => g.Id != GroupId)
+            .DistinctBy(g => g.Id)
+            .Select(g => new GroupOption(g.Id, GroupComparisonTexts.GroupTitle(puzzle, g.Id)))
+            .ToList();
+
+        // Liste nur bei inhaltlicher Änderung ersetzen: Ein neuer Listen-Inhalt setzt die Auswahl der ComboBox zurück.
+        if (!targets.SequenceEqual(ComparisonTargets))
+        {
+            var keep = NewComparisonTarget?.Id;
+            ComparisonTargets = targets;
+            NewComparisonTarget = targets.FirstOrDefault(t => t.Id == keep) ?? targets.FirstOrDefault();
+        }
+
+        HasComparisonTargets = targets.Count > 0;
+        var uses = puzzle.GroupComparisons.Count(c => c.Left == GroupId || c.Right == GroupId);
+        ComparisonUsage = uses switch
+        {
+            0 => null,
+            1 => "Diese Gruppe kommt in 1 Gruppenvergleich vor; „Gruppe löschen“ löscht ihn mit.",
+            _ => $"Diese Gruppe kommt in {uses} Gruppenvergleichen vor; „Gruppe löschen“ löscht sie mit.",
+        };
     }
 
     partial void OnLabelChanged(string value)
@@ -487,7 +552,7 @@ public sealed partial class PuzzlePropertiesViewModel : PropertiesViewModel
 
             DomainError = null;
             GridText = GridNames.ToGerman(puzzle.Grid);
-            Statistics = $"{puzzle.Nodes.Count} Knoten, {puzzle.Edges.Count} Kanten, {puzzle.Groups.Count} Gruppen";
+            Statistics = GroupComparisonTexts.PuzzleCounts(puzzle);
         }
         finally
         {

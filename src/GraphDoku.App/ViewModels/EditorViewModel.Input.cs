@@ -448,6 +448,13 @@ public sealed partial class EditorViewModel
             return;
         }
 
+        // Das Operator-Etikett eines Gruppenvergleichs liegt über allem anderen und hat beim Klick Vorrang.
+        if (!shift && HitGroupComparison(world, badgeOnly: true) is { } badge)
+        {
+            SelectGroupComparison(badge.Id);
+            return;
+        }
+
         // Zellen füllen die Fläche lückenlos (Paket 7): Kanten sind dann nur über ihre Stege am Zellrand und ihre Marke
         // zu treffen und haben dort beim Klick Vorrang vor der Zelle (Nr. 154). Wird gezogen, verschiebt das die Zelle
         // darunter (Nr. 158).
@@ -496,6 +503,13 @@ public sealed partial class EditorViewModel
         if (HitEdge(world) is { } edge && !shift)
         {
             SelectEdge(edge.Id);
+            return;
+        }
+
+        // Die Verbindungslinie eines Gruppenvergleichs liegt unter Knoten und Kanten und kommt zuletzt.
+        if (!shift && HitGroupComparison(world) is { } comparison)
+        {
+            SelectGroupComparison(comparison.Id);
             return;
         }
 

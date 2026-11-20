@@ -1,6 +1,7 @@
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GraphDoku.App.Editing;
 using GraphDoku.App.Explaining;
 using GraphDoku.App.Services;
 using GraphDoku.Core.Model;
@@ -161,7 +162,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
 
         ReplaceDocument(puzzle, path);
-        Editor.StatusMessage = $"„{Path.GetFileName(path)}“ geöffnet: {puzzle.Nodes.Count} Knoten, {puzzle.Edges.Count} Kanten, {puzzle.Groups.Count} Gruppen.";
+        Editor.StatusMessage = $"„{Path.GetFileName(path)}“ geöffnet: {GroupComparisonTexts.PuzzleCounts(puzzle)}.";
         return true;
     }
 

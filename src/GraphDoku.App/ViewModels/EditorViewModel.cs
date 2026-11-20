@@ -179,7 +179,7 @@ public sealed partial class EditorViewModel : ViewModelBase
         ArgumentNullException.ThrowIfNull(puzzle);
         return puzzle.Nodes.Count == 0
             ? $"Leeres Rätsel „{puzzle.Name}“ ({GridNames.ToGerman(puzzle.Grid)}, Werte {puzzle.Domain}). Mit „Knoten setzen“ Knoten auf das Gitter setzen oder eine Vorlage wählen."
-            : $"Rätsel „{puzzle.Name}“: {puzzle.Nodes.Count} Knoten, {puzzle.Edges.Count} Kanten, {puzzle.Groups.Count} Gruppen.";
+            : $"Rätsel „{puzzle.Name}“: {GroupComparisonTexts.PuzzleCounts(puzzle)}.";
     }
 
     /// <summary>Führt eine Bearbeitung als Undo-Schritt aus.</summary>
@@ -215,7 +215,10 @@ public sealed partial class EditorViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Löscht die Auswahl: Knoten (mit ihren Kanten), die gewählte Kante oder die gewählte Gruppe.</summary>
+    /// <summary>
+    /// Löscht die Auswahl: Knoten (mit ihren Kanten), die gewählte Kante, die gewählte Gruppe (mit ihren
+    /// Gruppenvergleichen) oder den gewählten Gruppenvergleich.
+    /// </summary>
     [RelayCommand]
     public void DeleteSelection()
     {
@@ -230,6 +233,10 @@ public sealed partial class EditorViewModel : ViewModelBase
         else if (SelectedGroupId is int groupId)
         {
             Execute(new DeleteElementsCommand(groupIds: [groupId]));
+        }
+        else if (SelectedGroupComparisonId is int comparisonId)
+        {
+            Execute(new DeleteElementsCommand(groupComparisonIds: [comparisonId]));
         }
         else
         {
@@ -348,7 +355,7 @@ public sealed partial class EditorViewModel : ViewModelBase
     public void AddToSelection(IEnumerable<int> ids)
     {
         ArgumentNullException.ThrowIfNull(ids);
-        var hadOther = SelectedEdgeId is not null || SelectedGroupId is not null;
+        var hadOther = SelectedEdgeId is not null || SelectedGroupId is not null || SelectedGroupComparisonId is not null;
         if (hadOther)
         {
             var keep = _selectedNodes.ToList();
@@ -457,6 +464,7 @@ public sealed partial class EditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(History));
         OnPropertyChanged(nameof(CellShapeText));
         Groups.Clear();
+        GroupComparisons.Clear();
         OnModelChanged();
         OnSelectionChanged();
         FitView();
@@ -481,6 +489,7 @@ public sealed partial class EditorViewModel : ViewModelBase
     {
         var selectionChanged = PruneSelection();
         SyncGroups();
+        SyncGroupComparisons();
         Validate();
         if (selectionChanged || Properties is null || !Properties.IsStillValid())
         {
@@ -525,6 +534,12 @@ public sealed partial class EditorViewModel : ViewModelBase
             changed = true;
         }
 
+        if (SelectedGroupComparisonId is int comparisonId && Puzzle.FindGroupComparison(comparisonId) is null)
+        {
+            SelectedGroupComparisonId = null;
+            changed = true;
+        }
+
         return changed;
     }
 
@@ -534,6 +549,7 @@ public sealed partial class EditorViewModel : ViewModelBase
         _selectedNodeSet.Clear();
         SelectedEdgeId = null;
         SelectedGroupId = null;
+        SelectedGroupComparisonId = null;
     }
 
     private void OnSelectionChanged()
@@ -543,6 +559,7 @@ public sealed partial class EditorViewModel : ViewModelBase
         try
         {
             SelectedGroupItem = SelectedGroupId is int id ? Groups.FirstOrDefault(g => g.Id == id) : null;
+            SelectedGroupComparisonItem = SelectedGroupComparisonId is int comparisonId ? GroupComparisons.FirstOrDefault(c => c.Id == comparisonId) : null;
         }
         finally
         {
@@ -556,7 +573,8 @@ public sealed partial class EditorViewModel : ViewModelBase
 
     private void RebuildProperties()
     {
-        Properties = SelectedGroupId is int groupId ? new GroupPropertiesViewModel(this, groupId)
+        Properties = SelectedGroupComparisonId is int comparisonId ? new GroupComparisonPropertiesViewModel(this, comparisonId)
+            : SelectedGroupId is int groupId ? new GroupPropertiesViewModel(this, groupId)
             : SelectedEdgeId is int edgeId ? new EdgePropertiesViewModel(this, edgeId)
             : _selectedNodes.Count > 0 ? new NodeSelectionPropertiesViewModel(this)
             : new PuzzlePropertiesViewModel(this);

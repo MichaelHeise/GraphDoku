@@ -130,6 +130,34 @@ public sealed class AddGroupCommand : IEditCommand
     public bool TryMerge(IEditCommand later) => false;
 }
 
+/// <summary>Fügt einen Gruppenvergleich hinzu.</summary>
+public sealed class AddGroupComparisonCommand : IEditCommand
+{
+    private readonly GroupComparison _comparison;
+
+    public AddGroupComparisonCommand(GroupComparison comparison)
+    {
+        ArgumentNullException.ThrowIfNull(comparison);
+        _comparison = comparison.Clone();
+    }
+
+    public string Description => "Gruppenvergleich erstellen";
+
+    public void Execute(Puzzle puzzle)
+    {
+        ArgumentNullException.ThrowIfNull(puzzle);
+        puzzle.GroupComparisons.Add(_comparison.Clone());
+    }
+
+    public void Undo(Puzzle puzzle)
+    {
+        ArgumentNullException.ThrowIfNull(puzzle);
+        AddNodesCommand.RemoveWhere(puzzle.GroupComparisons, c => c.Id == _comparison.Id);
+    }
+
+    public bool TryMerge(IEditCommand later) => false;
+}
+
 /// <summary>Bearbeitbare Eigenschaften einer Kante.</summary>
 public sealed record EdgeState(int From, int To, string Rule, RuleParams Params)
 {
@@ -171,6 +199,24 @@ public sealed record GroupState(IReadOnlyList<int> Nodes, string Rule, RuleParam
         group.Params = Params.Clone();
         group.Color = Color;
         group.Label = Label;
+    }
+}
+
+/// <summary>Bearbeitbare Eigenschaften eines Gruppenvergleichs (Operator und die Ids der beiden Gruppen).</summary>
+public sealed record GroupComparisonState(ComparisonOperator Operator, int Left, int Right)
+{
+    public static GroupComparisonState Of(GroupComparison comparison)
+    {
+        ArgumentNullException.ThrowIfNull(comparison);
+        return new GroupComparisonState(comparison.Operator, comparison.Left, comparison.Right);
+    }
+
+    public void ApplyTo(GroupComparison comparison)
+    {
+        ArgumentNullException.ThrowIfNull(comparison);
+        comparison.Operator = Operator;
+        comparison.Left = Left;
+        comparison.Right = Right;
     }
 }
 
@@ -233,6 +279,37 @@ public sealed class ModifyGroupCommand : EditCommandBase
     {
         ArgumentNullException.ThrowIfNull(puzzle);
         return puzzle.FindGroup(_groupId);
+    }
+}
+
+/// <summary>Ändert Operator oder Gruppen eines Gruppenvergleichs.</summary>
+public sealed class ModifyGroupComparisonCommand : EditCommandBase
+{
+    private readonly int _comparisonId;
+    private readonly GroupComparisonState _before;
+    private GroupComparisonState _after;
+
+    public ModifyGroupComparisonCommand(int comparisonId, GroupComparisonState before, GroupComparisonState after, string description = "Vergleich ändern", object? mergeKey = null)
+        : base(mergeKey)
+    {
+        _comparisonId = comparisonId;
+        _before = before;
+        _after = after;
+        Description = description;
+    }
+
+    public override string Description { get; }
+
+    public override void Execute(Puzzle puzzle) => Find(puzzle).Let(_after.ApplyTo);
+
+    public override void Undo(Puzzle puzzle) => Find(puzzle).Let(_before.ApplyTo);
+
+    protected override void MergeFrom(EditCommandBase later) => _after = ((ModifyGroupComparisonCommand)later)._after;
+
+    private GroupComparison? Find(Puzzle puzzle)
+    {
+        ArgumentNullException.ThrowIfNull(puzzle);
+        return puzzle.FindGroupComparison(_comparisonId);
     }
 }
 

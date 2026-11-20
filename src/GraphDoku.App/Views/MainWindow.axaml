@@ -271,17 +271,15 @@
       </DockPanel>
     </Border>
 
-    <!-- Gruppenliste -->
+    <!-- Gruppenliste; darunter die Gruppenvergleiche, sobald es welche gibt. -->
     <Border DockPanel.Dock="Left" Width="240" BorderBrush="#dddddd" BorderThickness="0,0,1,0" Padding="8">
-      <DockPanel>
-        <TextBlock DockPanel.Dock="Top" Text="Gruppen" Classes="header" />
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4" Margin="0,0,0,6">
+      <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+        <TextBlock Grid.Row="0" Text="Gruppen" Classes="header" />
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" Margin="0,0,0,6">
           <Button Content="Alle ein" Command="{Binding Editor.ShowAllGroupsCommand}" Padding="8,2" />
           <Button Content="Alle aus" Command="{Binding Editor.HideAllGroupsCommand}" Padding="8,2" />
         </StackPanel>
-        <TextBlock DockPanel.Dock="Bottom" Classes="hint" Margin="0,6,0,0"
-                   Text="Häkchen: Hervorhebung ein/aus. Eintrag anklicken: Gruppe bearbeiten." />
-        <ListBox ItemsSource="{Binding Editor.Groups}" SelectedItem="{Binding Editor.SelectedGroupItem}">
+        <ListBox x:Name="GroupList" Grid.Row="2" ItemsSource="{Binding Editor.Groups}" SelectedItem="{Binding Editor.SelectedGroupItem}">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:GroupItemViewModel">
               <DockPanel>
@@ -295,7 +293,30 @@
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
-      </DockPanel>
+        <!-- Gruppenvergleiche: Eintrag anklicken wählt den Vergleich (wie ein Klick auf sein Etikett in der Zeichenfläche). -->
+        <DockPanel x:Name="GroupComparisonSection" Grid.Row="3" Margin="0,8,0,0" IsVisible="{Binding Editor.HasGroupComparisons}">
+          <TextBlock DockPanel.Dock="Top" Text="Gruppenvergleiche" FontWeight="SemiBold" Margin="0,0,0,4" />
+          <ListBox x:Name="GroupComparisonList" MaxHeight="88" ItemsSource="{Binding Editor.GroupComparisons}"
+                   SelectedItem="{Binding Editor.SelectedGroupComparisonItem}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:GroupComparisonItemViewModel">
+                <DockPanel>
+                  <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="2" Margin="0,0,6,0" VerticalAlignment="Center">
+                    <Border Width="10" Height="10" CornerRadius="5" Background="{Binding LeftColorHex}" />
+                    <Border Width="10" Height="10" CornerRadius="5" Background="{Binding RightColorHex}" />
+                  </StackPanel>
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Details}" Classes="hint" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </DockPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+        <TextBlock Grid.Row="4" Classes="hint" Margin="0,6,0,0"
+                   Text="Häkchen: Hervorhebung ein/aus. Eintrag anklicken: Gruppe bearbeiten." />
+      </Grid>
     </Border>
 
     <!-- Eigenschaften-Panel -->
@@ -465,6 +486,62 @@
                   <Button Content="Reihenfolge umkehren" Command="{Binding ReverseOrderCommand}" />
                   <Button Content="Gruppe löschen" Command="{Binding DeleteCommand}" />
                 </WrapPanel>
+                <!-- Gruppenvergleich: Summe dieser Gruppe (links) mit der Summe einer anderen Gruppe (rechts). Die Listen
+                     sind für alle Gruppen-Panels dieselben bzw. werden nur bei inhaltlicher Änderung ersetzt. -->
+                <TextBlock Text="Summe vergleichen" FontWeight="SemiBold" Margin="0,10,0,0" />
+                <TextBlock Text="{Binding ComparisonUsage}" Classes="hint"
+                           IsVisible="{Binding ComparisonUsage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <TextBlock Classes="hint" IsVisible="{Binding !HasComparisonTargets}"
+                           Text="Für einen Vergleich wird eine zweite Gruppe gebraucht." />
+                <StackPanel Spacing="6" IsVisible="{Binding HasComparisonTargets}">
+                  <TextBlock Classes="hint" Text="Summe dieser Gruppe …" />
+                  <ComboBox ItemsSource="{Binding OperatorOptions}" SelectedItem="{Binding NewComparisonOperator}" HorizontalAlignment="Stretch"
+                            ToolTip.Tip="Vergleichsoperator">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:OperatorOption">
+                        <TextBlock Text="{Binding Text}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <TextBlock Classes="hint" Text="… Summe der Gruppe" />
+                  <ComboBox ItemsSource="{Binding ComparisonTargets}" SelectedItem="{Binding NewComparisonTarget}" HorizontalAlignment="Stretch"
+                            ToolTip.Tip="Gruppe, mit deren Summe verglichen wird">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:GroupOption">
+                        <TextBlock Text="{Binding Text}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <Button Content="Gruppenvergleich erstellen" Command="{Binding CreateComparisonCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                </StackPanel>
+              </StackPanel>
+            </DataTemplate>
+
+            <DataTemplate x:DataType="vm:GroupComparisonPropertiesViewModel">
+              <StackPanel Spacing="6">
+                <TextBlock Text="{Binding Header}" Classes="header" />
+                <TextBlock Text="{Binding Meaning}" TextWrapping="Wrap" />
+                <TextBlock Text="Operator" Margin="0,6,0,0" />
+                <ComboBox ItemsSource="{Binding OperatorOptions}" SelectedItem="{Binding SelectedOperator}" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:OperatorOption">
+                      <TextBlock Text="{Binding Text}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="Links" Margin="0,6,0,0" />
+                <TextBlock Text="{Binding LeftText}" TextWrapping="Wrap" Classes="hint" />
+                <TextBlock Text="Rechts" />
+                <TextBlock Text="{Binding RightText}" TextWrapping="Wrap" Classes="hint" />
+                <TextBlock Text="{Binding SharedNodesText}" Classes="hint"
+                           IsVisible="{Binding SharedNodesText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6" Margin="0,8,0,0">
+                  <Button Content="Linke Gruppe auswählen" Command="{Binding SelectLeftGroupCommand}" />
+                  <Button Content="Rechte Gruppe auswählen" Command="{Binding SelectRightGroupCommand}" />
+                  <Button Content="Vergleich löschen" Command="{Binding DeleteCommand}" />
+                </WrapPanel>
+                <TextBlock Classes="hint" Margin="0,6,0,0"
+                           Text="Jede Gruppe behält ihre eigene Regel. Die Gruppen eines Vergleichs lassen sich nicht austauschen: dafür den Vergleich löschen und im Panel der Gruppe neu erstellen." />
               </StackPanel>
             </DataTemplate>
           </ContentControl.DataTemplates>

@@ -38,6 +38,13 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     private static readonly IBrush SumLabelBackground = new ImmutableSolidColorBrush(Colors.White, 0.85);
     private static readonly IBrush SumTextBrush = new ImmutableSolidColorBrush(Color.Parse("#1f2937"));
 
+    /// <summary>Gruppenvergleich: gestrichelte Verbindung zwischen den beiden Gruppen und Rand des Operator-Etiketts.</summary>
+    public static readonly Color GroupComparisonColor = Color.Parse("#4b5563");
+
+    private static readonly IBrush GroupComparisonBrush = new ImmutableSolidColorBrush(GroupComparisonColor);
+    private static readonly IBrush GroupComparisonBadgeFill = new ImmutableSolidColorBrush(Colors.White, 0.92);
+    private static readonly IDashStyle GroupComparisonDash = new ImmutableDashStyle([5, 3], 0);
+
     /// <summary>Lösungswerte: blau und normal statt schwarz und halbfett wie Givens (Paket 4).</summary>
     public static readonly Color SolutionColor = Color.Parse("#1d4ed8");
 
@@ -324,6 +331,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
 
         DrawGroups(context, puzzle, viewport, nodes, radius);
         DrawEdges(context, puzzle, viewport, nodes, radius, marks: false);
+        DrawGroupComparisons(context, puzzle, viewport, badges: false);
         DrawEdgePreview(context, puzzle, viewport, nodes);
         DrawNodes(context, puzzle, viewport, radius, cells ? NodePass.CellContent : NodePass.Circle);
 
@@ -333,6 +341,9 @@ public sealed class GraphCanvas : Control, ICustomHitTest
 
         // Zielsummen meiden den Wert: bei Kreisen den ganzen Kreis, bei Zellen nur die Schrift in der Mitte.
         DrawSumTargets(context, puzzle, viewport, nodes, radius, cells ? radius * 0.55 : radius);
+
+        // Operator-Etiketten der Gruppenvergleiche über allem anderen (die Linie liegt unter den Knoten).
+        DrawGroupComparisons(context, puzzle, viewport, badges: true);
         DrawOrderBadges(context, puzzle, viewport, nodes, radius);
         DrawBranchBadge(context, puzzle, viewport, nodes, radius);
         if (_editor.RubberBand is { } band)
@@ -369,10 +380,12 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     private void DrawGroups(DrawingContext context, Puzzle puzzle, Viewport viewport, Dictionary<int, Node> nodes, double radius)
     {
         var editor = _editor!;
+        var emphasized = EmphasizedGroupIds(puzzle);
         var shown = new List<(Group Group, List<Node> Members, Color Color, bool Selected)>();
         foreach (var group in puzzle.Groups)
         {
-            var selected = editor.SelectedGroupId == group.Id;
+            // Gewählte Gruppe oder eine der beiden Gruppen des gewählten Gruppenvergleichs.
+            var selected = emphasized.Contains(group.Id);
             if (!selected && !editor.IsGroupVisible(group.Id))
             {
                 continue;
@@ -426,17 +439,22 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             }
         }
 
-        // Erklär-Modus: Gruppe der verantwortlichen Regel grün hervorheben (auch wenn ihre Hervorhebung ausgeblendet ist).
-        if (editor.Explanation?.Constraint is { Kind: ConstraintKind.Group, Id: var ruleGroupId })
+        // Erklär-Modus: Gruppe der verantwortlichen Regel grün hervorheben (auch wenn ihre Hervorhebung ausgeblendet ist),
+        // bei einem Gruppenvergleich beide Gruppen.
+        List<Group> ruleGroups = editor.Explanation?.Constraint switch
         {
-            foreach (var group in puzzle.Groups.Where(g => g.Id == ruleGroupId))
+            { Kind: ConstraintKind.Group, Id: var ruleGroupId } => [.. puzzle.Groups.Where(g => g.Id == ruleGroupId)],
+            { Kind: ConstraintKind.GroupComparison, Id: var comparisonId } when puzzle.FindGroupComparison(comparisonId) is { } comparison =>
+                [.. new[] { puzzle.FindGroup(comparison.Left), puzzle.FindGroup(comparison.Right) }.OfType<Group>().Distinct()],
+            _ => [],
+        };
+        foreach (var group in ruleGroups)
+        {
+            var members = group.Nodes.Where(nodes.ContainsKey).Select(id => nodes[id]).ToList();
+            if (members.Count > 0)
             {
-                var members = group.Nodes.Where(nodes.ContainsKey).Select(id => nodes[id]).ToList();
-                if (members.Count > 0)
-                {
-                    context.DrawGeometry(new ImmutableSolidColorBrush(ExplanationRuleColor, 0.12), null, CellGeometry(puzzle.Grid, viewport, members));
-                    context.DrawGeometry(null, new Pen(ExplanationRuleBrush, 3.5, lineCap: PenLineCap.Round), OutlineGeometry(puzzle.Grid, viewport, members));
-                }
+                context.DrawGeometry(new ImmutableSolidColorBrush(ExplanationRuleColor, 0.12), null, CellGeometry(puzzle.Grid, viewport, members));
+                context.DrawGeometry(null, new Pen(ExplanationRuleBrush, 3.5, lineCap: PenLineCap.Round), OutlineGeometry(puzzle.Grid, viewport, members));
             }
         }
 
@@ -957,10 +975,11 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         }
 
         var editor = _editor!;
+        var emphasized = EmphasizedGroupIds(puzzle);
         var size = Math.Clamp(viewport.Scale * (puzzle.Grid == GridType.Triangle ? 0.13 : 0.2), 8, 18);
         foreach (var group in puzzle.Groups)
         {
-            if (group.Rule != "Sum" || (!editor.IsGroupVisible(group.Id) && editor.SelectedGroupId != group.Id))
+            if (group.Rule != "Sum" || (!editor.IsGroupVisible(group.Id) && !emphasized.Contains(group.Id)))
             {
                 continue;
             }
@@ -1008,6 +1027,64 @@ public sealed class GraphCanvas : Control, ICustomHitTest
             var box = new Rect(topLeft.X - 1.5, topLeft.Y, text.Width + 3, text.Height);
             context.DrawRectangle(SumLabelBackground, null, new RoundedRect(box, 2));
             context.DrawText(text, topLeft);
+        }
+    }
+
+    /// <summary>Wie eine gewählte Gruppe hervorgehoben: die gewählte Gruppe bzw. beide Gruppen des gewählten Vergleichs.</summary>
+    private HashSet<int> EmphasizedGroupIds(Puzzle puzzle)
+    {
+        var editor = _editor!;
+        var ids = new HashSet<int>();
+        if (editor.SelectedGroupId is int groupId)
+        {
+            ids.Add(groupId);
+        }
+
+        if (editor.SelectedGroupComparisonId is int comparisonId)
+        {
+            foreach (var comparison in puzzle.GroupComparisons.Where(c => c.Id == comparisonId))
+            {
+                ids.Add(comparison.Left);
+                ids.Add(comparison.Right);
+            }
+        }
+
+        return ids;
+    }
+
+    /// <summary>
+    /// Gruppenvergleiche: ohne <paramref name="badges"/> die gestrichelte Verbindung zwischen den Schwerpunkten beider
+    /// Gruppen, mit <paramref name="badges"/> das Operator-Etikett in ihrer Mitte. Gewählt blau und kräftiger, als Regel
+    /// des Erklärschritts grün. Fehlende oder leere Gruppen (Datei ohne Prüfung) zeichnen nichts.
+    /// </summary>
+    private void DrawGroupComparisons(DrawingContext context, Puzzle puzzle, Viewport viewport, bool badges)
+    {
+        var editor = _editor!;
+        foreach (var comparison in puzzle.GroupComparisons)
+        {
+            if (!editor.IsGroupComparisonShown(comparison) || editor.GroupComparisonConnector(comparison) is not { } connector)
+            {
+                continue;
+            }
+
+            var explained = editor.IsExplainedGroupComparison(comparison.Id);
+            var selected = editor.SelectedGroupComparisonId == comparison.Id;
+            var brush = explained ? ExplanationRuleBrush : selected ? AccentBrush : GroupComparisonBrush;
+            var from = ToPoint(viewport.ToScreen(connector.From));
+            var to = ToPoint(viewport.ToScreen(connector.To));
+            if (!badges)
+            {
+                context.DrawLine(new Pen(brush, explained || selected ? 3 : 1.8, GroupComparisonDash, PenLineCap.Round), from, to);
+                continue;
+            }
+
+            var center = ToPoint(viewport.ToScreen(GroupComparisonGeometry.BadgeCenter(connector.From, connector.To)));
+            var half = GroupComparisonGeometry.BadgeHalfSize(viewport.Scale);
+            var text = CreateText(GroupComparisonTexts.Symbol(comparison.Operator), GroupComparisonGeometry.BadgeFontSize(viewport.Scale), brush, FontWeight.Bold);
+            var width = Math.Max(half * 2, text.Width + 6);
+            var rect = new Rect(center.X - (width / 2), center.Y - half, width, half * 2);
+            context.DrawRectangle(GroupComparisonBadgeFill, new Pen(brush, explained || selected ? 2.5 : 1.5), new RoundedRect(rect, half * 0.5));
+            context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
         }
     }
 
