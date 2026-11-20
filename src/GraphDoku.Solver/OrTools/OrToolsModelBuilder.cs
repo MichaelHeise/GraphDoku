@@ -36,7 +36,8 @@ public sealed class OrToolsModelBuildResult
 
 /// <summary>
 /// Übersetzt ein Rätsel in ein CP-SAT-Modell: eine Integer-Variable pro Knoten mit ihrem (ggf. eigenen) Wertebereich,
-/// Givens fixiert, jede Kante und Gruppe über den Adapter ihres Regeltyps.
+/// Givens fixiert, jede Kante und Gruppe über den Adapter ihres Regeltyps, danach jeder Gruppenvergleich als lineare
+/// Bedingung <c>Summe links OP Summe rechts</c> (ohne Adapter und ohne Hilfsvariablen).
 /// </summary>
 public sealed class OrToolsModelBuilder
 {
@@ -91,6 +92,14 @@ public sealed class OrToolsModelBuilder
             catch (RuleParamsException exception)
             {
                 errors.Add($"{constraint.Ref} ({constraint.Rule}): {exception.Message}");
+            }
+        }
+
+        foreach (var comparison in puzzle.GroupComparisons)
+        {
+            if (GroupComparisonTranslator.Add(context, comparison) is { } error)
+            {
+                errors.Add(error);
             }
         }
 

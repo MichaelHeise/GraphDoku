@@ -8,6 +8,9 @@ namespace GraphDoku.Explainer.Tests.Helpers;
 /// <summary>Testrätsel: Beispieldateien aus <c>puzzles/</c> und kleine Rätsel, die jeweils eine Regel benutzen.</summary>
 internal static class ExplainerPuzzles
 {
+    /// <summary>Name, unter dem Gruppenvergleiche in <see cref="RulePuzzles"/> und <see cref="RuleOf"/> erscheinen.</summary>
+    public const string GroupComparisonName = "GroupComparison";
+
     public const string EasySolution = "534678912672195348198342567859761423426853791713924856961537284287419635345286179";
 
     public static Puzzle Load(string fileName) =>
@@ -41,6 +44,21 @@ internal static class ExplainerPuzzles
         puzzle.Groups.Add(new Group(puzzle.NextGroupId(), nodes, rule, parameters, label: label));
         return puzzle;
     }
+
+    /// <summary>Fügt einen Gruppenvergleich <c>Summe(Gruppe left) op Summe(Gruppe right)</c> mit der nächsten freien Id hinzu.</summary>
+    public static Puzzle Compare(this Puzzle puzzle, int left, ComparisonOperator op, int right)
+    {
+        puzzle.GroupComparisons.Add(new GroupComparison(puzzle.NextGroupComparisonId(), left, right, op));
+        return puzzle;
+    }
+
+    /// <summary>
+    /// Regeltyp hinter einem Verweis eines Schritts: bei Kanten und Gruppen deren Regel, bei einem Gruppenvergleich
+    /// <see cref="GroupComparisonName"/>; <c>null</c>, wenn das Element fehlt.
+    /// </summary>
+    public static string? RuleOf(this Puzzle puzzle, ConstraintRef reference) => reference.Kind == ConstraintKind.GroupComparison
+        ? puzzle.FindGroupComparison(reference.Id) is null ? null : GroupComparisonName
+        : puzzle.FindConstraint(reference)?.Rule;
 
     public static RuleParams Params(params (string Name, object Value)[] values)
     {
@@ -102,7 +120,38 @@ internal static class ExplainerPuzzles
 
         // Killer-artig: Mini-Sudoku 4×4 ganz ohne Givens, nur über Summen.
         yield return (SumRule.Name + "/Killer", KillerMini4());
+
+        // Gruppenvergleich: „Links“ ≥ „Rechts“ (= 7), Knoten 1 höchstens 3 → (3, 4).
+        yield return (GroupComparisonName, ComparisonPair());
+
+        // Gruppenvergleiche mit gemeinsamen Knoten: Knoten 1 < Knoten 3 und Knoten 2 < Knoten 1 → (2, 1, 3).
+        yield return (GroupComparisonName + "/shared", ComparisonChain());
     }
+
+    /// <summary>
+    /// Knoten 1..4 mit Werten 1..4, Knoten 1 nur 1..3; Gruppe 1 „Links“ = [1, 2] und Gruppe 2 „Rechts“ = [3, 4] (Givens
+    /// 4 und 3), beide <c>AllDifferent</c>; Gruppenvergleich 1: Links ≥ Rechts. Eindeutige Lösung 3, 4, 4, 3.
+    /// </summary>
+    public static Puzzle ComparisonPair()
+    {
+        var puzzle = WithNodes(4, 1, 4).Given(3, 4).Given(4, 3)
+            .Group(AllDifferentRule.Name, [1, 2], label: "Links")
+            .Group(AllDifferentRule.Name, [3, 4], label: "Rechts")
+            .Compare(1, ComparisonOperator.GreaterOrEqual, 2);
+        puzzle.FindNode(1)!.Domain = new ValueDomain(1, 3);
+        return puzzle;
+    }
+
+    /// <summary>
+    /// Knoten 1..3 mit Werten 1..3; Gruppen [1, 2], [2, 3], [1, 3] (<c>AllDifferent</c>); Gruppe 1 &lt; Gruppe 2 und
+    /// Gruppe 2 &lt; Gruppe 3. Eindeutige Lösung 2, 1, 3.
+    /// </summary>
+    public static Puzzle ComparisonChain() => WithNodes(3, 1, 3)
+        .Group(AllDifferentRule.Name, [1, 2])
+        .Group(AllDifferentRule.Name, [2, 3])
+        .Group(AllDifferentRule.Name, [1, 3])
+        .Compare(1, ComparisonOperator.Less, 2)
+        .Compare(2, ComparisonOperator.Less, 3);
 
     /// <summary>Givens des 4×4-Sudokus, zeilenweise, '.' = leer.</summary>
     public const string MiniSudokuGivens = "1..4" + "..1." + "2..." + ".3.1";

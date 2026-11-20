@@ -26,7 +26,9 @@ namespace GraphDoku.Explainer;
 /// <item>Einziger Platz (hidden single) in einer <c>CoverRange</c>-Gruppe (jede Zahl des Bereichs muss vorkommen) oder
 /// einer <c>AllDifferent</c>-Gruppe, in der genau so viele Werte möglich sind wie Knoten (Schubfachprinzip).</item>
 /// <item>Kandidaten streichen über <c>IRule.Propagate</c> aller Kanten und Gruppen, sortiert nach Regelrang
-/// (<see cref="GetRuleRank"/>) und dann nach Reihenfolge im Rätsel (erst Kanten, dann Gruppen).</item>
+/// (<see cref="GetRuleRank"/>) und dann nach Reihenfolge im Rätsel (erst Kanten, dann Gruppen). Die Gruppenvergleiche
+/// (<see cref="GroupComparisonLogic.Propagate"/>) kommen in ihrer Reihenfolge im Rätsel nach den Regeln mit Rang 0 bis 2
+/// und vor den sonstigen Regeln (Rang 3).</item>
 /// </list>
 /// <para>
 /// Ein Streichschritt fasst alle Streichungen einer Regel mit gleicher Begründung zusammen (z. B. „Zeile 3 enthält
@@ -37,6 +39,7 @@ namespace GraphDoku.Explainer;
 /// <para>
 /// Enthält das Rätsel eigene (nicht im Katalog enthaltene) Regeln und wurde es ohne Verzweigung vollständig belegt,
 /// bestätigt der Solver die Belegung, weil eine eigene Regel einen Verstoß in ihrer Propagation übersehen kann.
+/// Gruppenvergleiche zählen wie Katalogregeln: Ihre Propagation erkennt jeden Verstoß einer vollständigen Belegung.
 /// </para>
 /// </remarks>
 public sealed class ExplanationEngine
@@ -61,8 +64,8 @@ public sealed class ExplanationEngine
     /// Rang einer Regel in Stufe 3 (kleiner = früher): 0 = festgelegte Werte streichen (<c>AllDifferent</c>,
     /// <c>CoverRange</c>, <c>NotEqual</c>), 1 = Kantenregeln mit Rechnung (<c>LessThan</c>, <c>Difference</c>,
     /// <c>Ratio</c>), 2 = Gruppenregeln mit Rechnung (<c>Thermometer</c>, <c>Sum</c>), 3 = sonstige registrierte Regeln.
-    /// Streichungen der Katalogregeln mit Rang 0, die nur an Givens und gesetzten Werten hängen, kommen schon in
-    /// Stufe 0 (vor den Singles).
+    /// Die Gruppenvergleiche haben keinen Regeltyp; sie kommen nach Rang 2 und vor Rang 3. Streichungen der
+    /// Katalogregeln mit Rang 0, die nur an Givens und gesetzten Werten hängen, kommen schon in Stufe 0 (vor den Singles).
     /// </summary>
     public static int GetRuleRank(string typeName) => typeName switch
     {
@@ -155,6 +158,10 @@ public sealed class ExplanationEngine
         private readonly List<WorkingState> _checkpoints = [];
         private readonly (IConstraint Constraint, IRule Rule)[] _ruleOrder;
         private readonly (IConstraint Constraint, IRule Rule)[] _fixedValueRules;
+        private readonly ResolvedGroupComparison[] _comparisons;
+
+        /// <summary>Anzahl der Einträge in <see cref="_ruleOrder"/> mit Rang 0 bis 2; danach kommen die Gruppenvergleiche.</summary>
+        private readonly int _rulesBeforeComparisons;
         private readonly Group[] _singleGroups;
         private readonly Dictionary<Group, int> _domainUnionSizes = new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<IConstraint, CachedPropagation> _propagationCache = new(ReferenceEqualityComparer.Instance);
@@ -177,6 +184,12 @@ public sealed class ExplanationEngine
                     .OrderBy(c => GetRuleRank(c.Rule.TypeName)),
             ];
             _fixedValueRules = [.. _ruleOrder.Where(c => GetRuleRank(c.Rule.TypeName) == 0 && IsCatalogRule(c.Rule))];
+            _rulesBeforeComparisons = _ruleOrder.Count(c => GetRuleRank(c.Rule.TypeName) <= 2);
+            _comparisons =
+            [
+                .. puzzle.GroupComparisons.Select(c => GroupComparisonLogic.Resolve(puzzle, c)
+                    ?? throw new InvalidOperationException($"Interner Fehler: {c} verweist auf eine fehlende Gruppe, obwohl das Rätsel geprüft wurde.")),
+            ];
             _hasCustomRules = _ruleOrder.Any(c => !IsCatalogRule(c.Rule));
             // Singles und Zählwidersprüche setzen die Semantik des Katalogs voraus; eine eigene Regel unter demselben
             // Namen zählt nicht.
@@ -395,50 +408,83 @@ public sealed class ExplanationEngine
             [.. group.Nodes.SelectMany(n => Candidates.GetCandidates(n)).Distinct().Order()];
 
         /// <summary>
-        /// Stufe 3: erster Constraint (nach Rang) mit wirksamer Änderung. Setzt eine (eigene) Regel einen Wert, der kein
-        /// Kandidat mehr ist, ist das ein Widerspruch (<paramref name="contradiction"/>).
+        /// Stufe 3: erster Constraint (nach Rang, die Gruppenvergleiche zwischen Rang 2 und 3) mit wirksamer Änderung.
+        /// Setzt eine (eigene) Regel einen Wert, der kein Kandidat mehr ist, ist das ein Widerspruch
+        /// (<paramref name="contradiction"/>).
         /// </summary>
         private ExplanationStep? TryRules(out Reason? contradiction)
         {
             contradiction = null;
-            foreach (var (constraint, rule) in _ruleOrder)
+            for (var i = 0; i <= _ruleOrder.Length; i++)
             {
-                if (_cancellationToken.IsCancellationRequested)
+                if (i == _rulesBeforeComparisons)
+                {
+                    foreach (var comparison in _comparisons)
+                    {
+                        if (_cancellationToken.IsCancellationRequested)
+                        {
+                            return null;
+                        }
+
+                        var comparisonStep = StepFrom(GroupComparisonLogic.Propagate(Candidates, comparison), out contradiction);
+                        if (comparisonStep is not null || contradiction is not null)
+                        {
+                            return comparisonStep;
+                        }
+                    }
+                }
+
+                if (i == _ruleOrder.Length || _cancellationToken.IsCancellationRequested)
                 {
                     return null;
                 }
 
-                var changes = new List<CandidateChange>();
-                foreach (var change in Propagate(constraint, rule))
+                var (constraint, rule) = _ruleOrder[i];
+                var step = StepFrom(Propagate(constraint, rule), out contradiction);
+                if (step is not null || contradiction is not null)
                 {
-                    if (change.Kind == CandidateChangeKind.Assign && !Candidates.GetCandidates(change.NodeId).Contains(change.Values[0]))
-                    {
-                        var value = Format(change.Values[0]);
-                        contradiction = new Reason(
-                            change.Reason.Constraint,
-                            [.. change.Reason.NodeIds.Append(change.NodeId).Distinct()],
-                            $"{change.Reason.Text} Die {value} ist für Knoten {change.NodeId} aber nicht mehr möglich.");
-                        return null;
-                    }
-
-                    if (IsEffective(change))
-                    {
-                        changes.Add(change);
-                    }
+                    return step;
                 }
-
-                if (changes.Count == 0)
-                {
-                    continue;
-                }
-
-                var first = changes[0];
-                return first.Kind == CandidateChangeKind.Assign
-                    ? new ExplanationStep(_steps.Count, StepKind.SetValue, ExplanationTechnique.RulePropagation, [first], first.Reason)
-                    : EliminationStep(changes, ExplanationTechnique.RulePropagation);
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Schritt aus den wirksamen Änderungen einer Propagation oder <c>null</c>, wenn keine wirkt. Eine Zuweisung eines
+        /// Werts, der kein Kandidat mehr ist, liefert stattdessen den Widerspruch (<paramref name="contradiction"/>).
+        /// </summary>
+        private ExplanationStep? StepFrom(IReadOnlyList<CandidateChange> propagated, out Reason? contradiction)
+        {
+            contradiction = null;
+            var changes = new List<CandidateChange>();
+            foreach (var change in propagated)
+            {
+                if (change.Kind == CandidateChangeKind.Assign && !Candidates.GetCandidates(change.NodeId).Contains(change.Values[0]))
+                {
+                    var value = Format(change.Values[0]);
+                    contradiction = new Reason(
+                        change.Reason.Constraint,
+                        [.. change.Reason.NodeIds.Append(change.NodeId).Distinct()],
+                        $"{change.Reason.Text} Die {value} ist für Knoten {change.NodeId} aber nicht mehr möglich.");
+                    return null;
+                }
+
+                if (IsEffective(change))
+                {
+                    changes.Add(change);
+                }
+            }
+
+            if (changes.Count == 0)
+            {
+                return null;
+            }
+
+            var first = changes[0];
+            return first.Kind == CandidateChangeKind.Assign
+                ? new ExplanationStep(_steps.Count, StepKind.SetValue, ExplanationTechnique.RulePropagation, [first], first.Reason)
+                : EliminationStep(changes, ExplanationTechnique.RulePropagation);
         }
 
         /// <summary>Alle Streichungen mit derselben Begründung wie die erste bilden einen Schritt (pro Knoten zusammengefasst).</summary>

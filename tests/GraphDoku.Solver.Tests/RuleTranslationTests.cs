@@ -249,6 +249,148 @@ public class RuleTranslationTests
         ShouldBeUnsolvable(WithEdge("LessThan").Given(1, 4).Given(2, 4));
     }
 
+    // Gruppenvergleich
+
+    /// <summary>
+    /// Knoten 1..4 mit Werten 1..3; Gruppe 1 = [1, 2] mit Knoten 1 = 3 (Summe 4 oder 5, je einmal), Gruppe 2 = [3, 4]
+    /// (Summe 3, 4 oder 5, je zweimal), beide <c>AllDifferent</c>.
+    /// </summary>
+    private static Puzzle TwoPairs(ComparisonOperator op)
+    {
+        var puzzle = WithNodes(4, 1, 3).Given(1, 3);
+        puzzle.Groups.Add(new Group(1, [1, 2], "AllDifferent"));
+        puzzle.Groups.Add(new Group(2, [3, 4], "AllDifferent"));
+        return puzzle.Compare(1, op, 2);
+    }
+
+    [Theory]
+    [InlineData(ComparisonOperator.Equal, 4)]
+    [InlineData(ComparisonOperator.NotEqual, 8)]
+    [InlineData(ComparisonOperator.Less, 2)]
+    [InlineData(ComparisonOperator.LessOrEqual, 6)]
+    [InlineData(ComparisonOperator.Greater, 6)]
+    [InlineData(ComparisonOperator.GreaterOrEqual, 10)]
+    public void GroupComparison_compares_the_sums_of_both_groups(ComparisonOperator op, int expected) =>
+        ShouldHaveSolutions(TwoPairs(op), expected);
+
+    /// <summary>Gruppe 1 = [1, 2], Gruppe 2 = [2, 3], beide <c>AllDifferent</c>: Knoten 2 hebt sich auf, es bleibt Knoten 1 OP Knoten 3.</summary>
+    [Theory]
+    [InlineData(ComparisonOperator.Equal, 6)]
+    [InlineData(ComparisonOperator.NotEqual, 6)]
+    [InlineData(ComparisonOperator.Less, 3)]
+    [InlineData(ComparisonOperator.LessOrEqual, 9)]
+    [InlineData(ComparisonOperator.Greater, 3)]
+    [InlineData(ComparisonOperator.GreaterOrEqual, 9)]
+    public void GroupComparison_with_a_shared_node_compares_the_remaining_nodes(ComparisonOperator op, int expected)
+    {
+        var puzzle = WithNodes(3, 1, 3);
+        puzzle.Groups.Add(new Group(1, [1, 2], "AllDifferent"));
+        puzzle.Groups.Add(new Group(2, [2, 3], "AllDifferent"));
+
+        ShouldHaveSolutions(puzzle.Compare(1, op, 2), expected);
+    }
+
+    [Fact]
+    public void GroupComparison_with_a_group_inside_the_other_compares_against_zero()
+    {
+        // Gruppe 1 = [1, 2] liegt ganz in Gruppe 2 = [1, 2, 3]: Der Vergleich lautet 0 OP Knoten 3 (Werte 1..3).
+        Puzzle Nested(ComparisonOperator op)
+        {
+            var puzzle = WithNodes(3, 1, 3);
+            puzzle.Groups.Add(new Group(1, [1, 2], "AllDifferent"));
+            puzzle.Groups.Add(new Group(2, [1, 2, 3], "AllDifferent"));
+            return puzzle.Compare(1, op, 2);
+        }
+
+        ShouldHaveSolutions(Nested(ComparisonOperator.Less), 6);
+        ShouldHaveSolutions(Nested(ComparisonOperator.NotEqual), 6);
+        ShouldBeUnsolvable(Nested(ComparisonOperator.GreaterOrEqual));
+        ShouldBeUnsolvable(Nested(ComparisonOperator.Equal));
+    }
+
+    [Fact]
+    public void Chained_group_comparisons_can_make_the_solution_unique()
+    {
+        // Knoten 1 < Knoten 3 (Knoten 2 gemeinsam) und Knoten 2 < Knoten 1 (Knoten 3 gemeinsam).
+        var puzzle = WithNodes(3, 1, 3);
+        puzzle.Groups.Add(new Group(1, [1, 2], "AllDifferent"));
+        puzzle.Groups.Add(new Group(2, [2, 3], "AllDifferent"));
+        puzzle.Groups.Add(new Group(3, [1, 3], "AllDifferent"));
+        puzzle.Compare(1, ComparisonOperator.Less, 2).Compare(2, ComparisonOperator.Less, 3);
+
+        var values = SolveUnique(puzzle);
+
+        values.Should().Equal(new Dictionary<int, int> { [1] = 2, [2] = 1, [3] = 3 });
+        ShouldHaveSolutions(puzzle, 1);
+    }
+
+    [Fact]
+    public void GroupComparison_out_of_reach_is_unsolvable()
+    {
+        // Gruppe 1 ergibt 3 (Werte 1 und 2), Gruppe 2 ergibt 17 (Werte 8 und 9).
+        Puzzle Sums(ComparisonOperator op)
+        {
+            var puzzle = WithNodes(4);
+            puzzle.Groups.Add(new Group(1, [1, 2], "Sum", Params(("target", 3))));
+            puzzle.Groups.Add(new Group(2, [3, 4], "Sum", Params(("target", 17))));
+            return puzzle.Compare(1, op, 2);
+        }
+
+        ShouldBeUnsolvable(Sums(ComparisonOperator.Greater));
+        ShouldBeUnsolvable(Sums(ComparisonOperator.GreaterOrEqual));
+        ShouldBeUnsolvable(Sums(ComparisonOperator.Equal));
+        ShouldHaveSolutions(Sums(ComparisonOperator.Less), 4);
+        ShouldHaveSolutions(Sums(ComparisonOperator.NotEqual), 4);
+    }
+
+    [Fact]
+    public void Random_group_comparisons_match_brute_force_for_every_operator()
+    {
+        var random = new Random(4711);
+        var checkedPuzzles = 0;
+        foreach (var op in ComparisonOperators.All)
+        {
+            for (var round = 0; round < 25; round++)
+            {
+                var puzzle = WithNodes(4, 1, 3);
+                var groupCount = random.Next(2, 4);
+                for (var g = 1; g <= groupCount; g++)
+                {
+                    var nodes = Enumerable.Range(1, 4).OrderBy(_ => random.Next()).Take(random.Next(2, 4)).ToList();
+                    puzzle.Groups.Add(new Group(g, nodes, "AllDifferent"));
+                }
+
+                var left = random.Next(1, groupCount + 1);
+                var right = (left % groupCount) + 1;
+                puzzle.Compare(left, op, right);
+                if (random.Next(2) == 0)
+                {
+                    puzzle.Compare(right, ComparisonOperators.All[random.Next(6)], (right % groupCount) + 1);
+                }
+
+                if (random.Next(3) == 0)
+                {
+                    puzzle.Given(random.Next(1, 5), random.Next(1, 4));
+                }
+
+                if (Core.Validation.PuzzleValidator.Validate(puzzle).Count > 0)
+                {
+                    // z. B. zwei Gruppen mit denselben Knoten: ungültig, nicht übersetzt.
+                    _solver.Solve(puzzle).Status.Should().Be(SolveStatus.Invalid);
+                    continue;
+                }
+
+                var expected = SolutionVerifier.BruteForceCount(puzzle);
+                var count = _solver.CountSolutions(puzzle, limit: 10_000);
+                count.Count.Should().Be(expected, $"{string.Join(", ", puzzle.GroupComparisons)} mit {string.Join(", ", puzzle.Groups.Select(g => $"[{string.Join(" ", g.Nodes)}]"))}");
+                count.Solutions.Where(s => !SolutionVerifier.IsSolution(puzzle, s)).Should().BeEmpty();
+                checkedPuzzles++;
+            }
+        }
+
+        checkedPuzzles.Should().BeGreaterThan(100, "die meisten Zufallsrätsel sind gültig");
+    }
+
     // Zusammenspiel
 
     [Fact]

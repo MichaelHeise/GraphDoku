@@ -91,7 +91,7 @@ public class ExplanationAcceptanceTests
         result.Status.Should().Be(ExplanationStatus.Solved, result.Message);
         result.UsedBranching.Should().BeFalse();
         result.Steps.Should().Contain(
-            s => s.Constraint != null && puzzle.FindConstraint(s.Constraint.Value)!.Rule == rule,
+            s => s.Constraint != null && puzzle.RuleOf(s.Constraint.Value) == rule,
             $"die Regel {rule} muss mindestens einen Schritt begründen");
     }
 
@@ -232,7 +232,7 @@ public class ExplanationAcceptanceTests
             else
             {
                 step.Constraint.Should().NotBeNull();
-                result.Puzzle.FindConstraint(step.Constraint!.Value).Should().NotBeNull();
+                result.Puzzle.RuleOf(step.Constraint!.Value).Should().NotBeNull();
             }
         }
 

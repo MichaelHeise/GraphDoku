@@ -358,6 +358,76 @@ public class SolverBehaviorTests
     }
 
     [Fact]
+    public void Group_comparison_with_a_missing_group_is_reported()
+    {
+        var puzzle = WithGroup("AllDifferent", 2).Compare(1, ComparisonOperator.Less, 3);
+
+        var result = _solver.Solve(puzzle);
+        var count = _solver.CountSolutions(puzzle);
+
+        result.Status.Should().Be(SolveStatus.Invalid);
+        result.Errors.Should().ContainSingle().Which.Should()
+            .Be("Gruppenvergleich 1 (Gruppe 1 < Gruppe 3): Die rechte Gruppe 3 existiert nicht.");
+        count.Status.Should().Be(CountStatus.Invalid);
+        count.Errors.Should().Equal(result.Errors);
+    }
+
+    [Fact]
+    public void Group_comparison_of_a_group_with_itself_is_reported()
+    {
+        var puzzle = WithGroup("AllDifferent", 2).Compare(1, ComparisonOperator.Equal, 1);
+
+        var result = _solver.Solve(puzzle);
+        var count = _solver.CountSolutions(puzzle);
+
+        result.Status.Should().Be(SolveStatus.Invalid);
+        result.Errors.Should().ContainSingle().Which.Should().Contain("Gruppenvergleich 1").And.Contain("Linke und rechte Gruppe sind identisch");
+        count.Status.Should().Be(CountStatus.Invalid);
+        count.Errors.Should().Equal(result.Errors);
+    }
+
+    [Fact]
+    public void Group_comparison_with_an_undefined_operator_is_reported()
+    {
+        var puzzle = WithNodes(2);
+        puzzle.Groups.Add(new Group(1, [1], "Sum", Params(("target", 1))));
+        puzzle.Groups.Add(new Group(2, [2], "Sum", Params(("target", 2))));
+        puzzle.Compare(1, (ComparisonOperator)42, 2);
+
+        _solver.Solve(puzzle).Status.Should().Be(SolveStatus.Invalid);
+        _solver.CountSolutions(puzzle).Errors.Should().ContainSingle().Which.Should().Contain("Vergleichsoperator 42 ist ungültig");
+    }
+
+    [Fact]
+    public void Group_comparison_is_one_linear_constraint_without_helper_variables()
+    {
+        var puzzle = WithNodes(4);
+        puzzle.Groups.Add(new Group(1, [1, 2], "AllDifferent"));
+        puzzle.Groups.Add(new Group(2, [2, 3, 4], "AllDifferent"));
+        var without = new OrToolsModelBuilder().Build(puzzle).Model!.Model.Model;
+
+        puzzle.Compare(1, ComparisonOperator.NotEqual, 2);
+        var with = new OrToolsModelBuilder().Build(puzzle).Model!.Model.Model;
+
+        with.Variables.Should().HaveCount(4, "der Vergleich braucht keine Hilfsvariablen");
+        with.Constraints.Should().HaveCount(without.Constraints.Count + 1);
+        with.Constraints[^1].ConstraintCase.Should().Be(ConstraintProto.ConstraintOneofCase.Linear);
+    }
+
+    [Fact]
+    public async Task Async_solving_keeps_the_group_comparisons_of_the_snapshot()
+    {
+        // Die asynchronen Varianten arbeiten auf einer Kopie; ohne den Vergleich wäre das Rätsel lösbar.
+        var puzzle = WithNodes(2, 1, 2);
+        puzzle.Groups.Add(new Group(1, [1], "Sum", Params(("target", 1))));
+        puzzle.Groups.Add(new Group(2, [2], "Sum", Params(("target", 2))));
+        puzzle.Compare(1, ComparisonOperator.Greater, 2);
+
+        (await _solver.SolveAsync(puzzle)).Status.Should().Be(SolveStatus.Unsolvable);
+        (await _solver.CountSolutionsAsync(puzzle)).Count.Should().Be(0);
+    }
+
+    [Fact]
     public void Registered_rule_without_adapter_is_reported()
     {
         var rules = RuleRegistry.Default.With(new EvenRule());

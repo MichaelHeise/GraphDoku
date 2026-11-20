@@ -83,7 +83,7 @@ public sealed class ExamplePuzzleExplanationTests(ITestOutputHelper output)
         var result = new ExplanationEngine(Solver).Explain(puzzle);
 
         result.Steps.Should().Contain(
-            s => s.Constraint != null && puzzle.FindConstraint(s.Constraint.Value)!.Rule == rule,
+            s => s.Constraint != null && puzzle.RuleOf(s.Constraint.Value) == rule,
             $"die Regel {rule} muss in {file} mindestens einen Schritt begründen");
     }
 }

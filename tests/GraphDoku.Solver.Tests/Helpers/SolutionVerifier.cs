@@ -3,8 +3,9 @@ using GraphDoku.Core.Model;
 namespace GraphDoku.Solver.Tests.Helpers;
 
 /// <summary>
-/// Unabhängige Prüfung einer Belegung gegen ein Rätsel: Wertebereiche, Givens und die Bedeutung aller acht Regeln,
-/// direkt aus dem Regelkatalog der Spezifikation nachprogrammiert (ohne Solver- oder Propagationscode).
+/// Unabhängige Prüfung einer Belegung gegen ein Rätsel: Wertebereiche, Givens, die Bedeutung aller acht Regeln und die
+/// Gruppenvergleiche (Summen roh verglichen), direkt aus der Spezifikation nachprogrammiert (ohne Solver- oder
+/// Propagationscode).
 /// </summary>
 internal static class SolutionVerifier
 {
@@ -80,6 +81,34 @@ internal static class SolutionVerifier
             if (!ok)
             {
                 errors.Add($"Gruppe {group.Id} ({group.Rule}) verletzt: {string.Join(", ", groupValues)}.");
+            }
+        }
+
+        foreach (var comparison in puzzle.GroupComparisons)
+        {
+            var left = puzzle.Groups.FirstOrDefault(g => g.Id == comparison.Left);
+            var right = puzzle.Groups.FirstOrDefault(g => g.Id == comparison.Right);
+            if (left is null || right is null)
+            {
+                errors.Add($"Gruppenvergleich {comparison.Id} verweist auf eine fehlende Gruppe.");
+                continue;
+            }
+
+            var leftSum = left.Nodes.Sum(id => (long)values[id]);
+            var rightSum = right.Nodes.Sum(id => (long)values[id]);
+            var ok = comparison.Operator switch
+            {
+                ComparisonOperator.Equal => leftSum == rightSum,
+                ComparisonOperator.NotEqual => leftSum != rightSum,
+                ComparisonOperator.Less => leftSum < rightSum,
+                ComparisonOperator.LessOrEqual => leftSum <= rightSum,
+                ComparisonOperator.Greater => leftSum > rightSum,
+                ComparisonOperator.GreaterOrEqual => leftSum >= rightSum,
+                _ => throw new NotSupportedException($"Vergleichsoperator {comparison.Operator} ist im Prüfer nicht bekannt."),
+            };
+            if (!ok)
+            {
+                errors.Add($"Gruppenvergleich {comparison.Id} ({comparison.Operator}) verletzt: Summen {leftSum} und {rightSum}.");
             }
         }
 

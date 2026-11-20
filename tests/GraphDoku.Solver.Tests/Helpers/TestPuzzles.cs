@@ -37,6 +37,13 @@ internal static class TestPuzzles
         return puzzle;
     }
 
+    /// <summary>Fügt einen Gruppenvergleich <c>Summe(Gruppe left) op Summe(Gruppe right)</c> mit der nächsten freien Id hinzu.</summary>
+    public static Puzzle Compare(this Puzzle puzzle, int left, ComparisonOperator op, int right)
+    {
+        puzzle.GroupComparisons.Add(new GroupComparison(puzzle.NextGroupComparisonId(), left, right, op));
+        return puzzle;
+    }
+
     public static Puzzle Given(this Puzzle puzzle, int nodeId, int value)
     {
         puzzle.FindNode(nodeId)!.Given = value;

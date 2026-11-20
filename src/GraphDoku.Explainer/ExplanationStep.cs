@@ -32,7 +32,7 @@ public enum ExplanationTechnique
     /// <summary>Eine Zahl passt in einer <c>AllDifferent</c>-/<c>CoverRange</c>-Gruppe nur an eine Stelle (hidden single).</summary>
     HiddenSingle,
 
-    /// <summary>Schluss einer Kanten- oder Gruppenregel (<c>IRule.Propagate</c>).</summary>
+    /// <summary>Schluss einer Kanten- oder Gruppenregel (<c>IRule.Propagate</c>) oder eines Gruppenvergleichs.</summary>
     RulePropagation,
 
     /// <summary>Verzweigung mit dem Wert aus der Solver-Lösung.</summary>
@@ -107,7 +107,7 @@ public sealed class ExplanationStep
 
     public Reason Reason { get; }
 
-    /// <summary>Verantwortliche Kante oder Gruppe; <c>null</c> bei „einziger Kandidat“ und Verzweigung.</summary>
+    /// <summary>Verantwortliche Kante, Gruppe oder Gruppenvergleich; <c>null</c> bei „einziger Kandidat“ und Verzweigung.</summary>
     public ConstraintRef? Constraint => Reason.Constraint;
 
     /// <summary>Knoten, die für den Schluss gebraucht werden (zum Hervorheben).</summary>
