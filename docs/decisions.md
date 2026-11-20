@@ -1402,4 +1402,7 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      zeigte nur etwa anderthalb abgeschnittene Einträge und schob den Hinweis der Gruppenliste unter sich (alle
      Nr. 199). (i) Nr. 199 nannte die Liste der Vergleichsgruppen fälschlich eine geteilte Instanz. (j) Die
      Handbuch-Überschrift „Gruppenvergleiche bedienen“ trug ein überflüssiges Id-Attribut; die automatische Id ist
-     dieselbe (`#gruppenvergleiche-bedienen`), beide Verweise bleiben gültig. Zwei Befunde wurden widerlegt.
+     dieselbe (`#gruppenvergleiche-bedienen`), beide Verweise bleiben gültig. Zwei Befunde wurden widerlegt: Die
+     Legende im Erklär-Panel nennt Gruppenvergleiche nicht, das Handbuch beschreibt dort aber die Farben auf der
+     Zeichenfläche und gibt den Panel-Text auch sonst nicht wörtlich wieder; und Pandoc-Attribute wie `{width=…}`
+     nutzte das Handbuch schon vorher, es ist eine Pandoc-Quelle für das PDF.
