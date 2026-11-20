@@ -97,7 +97,9 @@ schwarzer Punkt (mit Faktor, falls nicht 2), Kleiner als = Pfeil vom kleineren z
 einen Knoten hinweg sitzt die Marke im ersten freien Stück neben diesem Knoten. Summen-Gruppen (Killer-Käfige)
 zeigen ihre Zielsumme klein oben links in ihrer ersten Zelle; Thermometer erscheinen als Linie mit Kolben am Anfang.
 Gruppenvergleiche sind eine gestrichelte Linie zwischen den Mitten beider Gruppen mit Operator-Etikett; gezeichnet, wenn
-beide Gruppen eingeblendet sind oder der Vergleich ausgewählt bzw. im Erklär-Modus verantwortlich ist.
+beide Gruppen eingeblendet sind oder der Vergleich ausgewählt bzw. im Erklär-Modus verantwortlich ist. Bei <, ≤, >, ≥
+zeigt die Spitze des Zeichens zur Gruppe mit der kleineren Summe; das Etikett sitzt abseits von Werten und Marken und
+überdeckt kein anderes Etikett.
 In der Zelldarstellung sitzen die Marken auf der Mitte der gemeinsamen Seite zweier Zellen, Kanten ohne Marke
 („Ungleich“) als kurzer Steg über jedem Zellrand, den sie kreuzen.
 
@@ -224,7 +226,8 @@ Knotenbelegungen, freie Hilfsvariablen machen sie aber langsamer.
   "name": "Klassisch 9x9",
   "grid": "square",
   "domain": { "min": 1, "max": 9 },
-  "nodes": [ { "id": 1, "x": 0, "y": 0, "given": 5 }, { "id": 2, "x": 1, "y": 0, "domain": { "min": 1, "max": 4 } } ],
+  "nodes": [ { "id": 1, "x": 0, "y": 0, "given": 5 }, { "id": 2, "x": 1, "y": 0, "domain": { "min": 1, "max": 4 } },
+             { "id": 3, "x": 0, "y": 1 }, { "id": 4, "x": 1, "y": 1 } ],
   "edges": [ { "id": 1, "from": 1, "to": 2, "rule": "Difference", "params": { "k": 1, "mode": "exact" } } ],
   "groups": [ { "id": 1, "nodes": [1, 2], "rule": "AllDifferent", "params": {}, "color": "#3366ff", "label": "Zeile 1" },
               { "id": 2, "nodes": [3, 4], "rule": "AllDifferent", "params": {} } ],

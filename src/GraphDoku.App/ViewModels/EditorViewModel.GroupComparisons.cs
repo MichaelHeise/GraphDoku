@@ -4,6 +4,7 @@ using GraphDoku.App.Editing;
 using GraphDoku.App.Editing.Commands;
 using GraphDoku.Core.Geometry;
 using GraphDoku.Core.Model;
+using GraphDoku.Core.Rules;
 
 namespace GraphDoku.App.ViewModels;
 
@@ -16,6 +17,9 @@ public sealed partial class EditorViewModel
     /// <summary>Ausgewählter Gruppenvergleich (schließt Knoten-, Kanten- und Gruppenauswahl aus).</summary>
     [ObservableProperty]
     public partial int? SelectedGroupComparisonId { get; private set; }
+
+    /// <summary>Freiraum um ein Operator-Etikett in Pixeln, den andere Etiketten nicht überdecken (zwischen zweien also doppelt).</summary>
+    private const double BadgeGap = 2;
 
     /// <summary>Liste „Gruppenvergleiche“ unter der Gruppenliste (in Modellreihenfolge, Einträge bleiben erhalten).</summary>
     public ObservableCollection<GroupComparisonItemViewModel> GroupComparisons { get; } = [];
@@ -57,6 +61,13 @@ public sealed partial class EditorViewModel
         if (!Enum.IsDefined(op))
         {
             StatusMessage = "Unbekannter Vergleichsoperator.";
+            return null;
+        }
+
+        // Wie die Prüfung: Heben sich alle Knoten auf (dieselben Knoten in beiden Gruppen), bleibt nichts zu vergleichen.
+        if (GroupComparisonLogic.Resolve(Puzzle, new GroupComparison(0, leftGroupId, rightGroupId, op)) is { Terms.Count: 0 })
+        {
+            StatusMessage = $"Gruppe {leftGroupId} und Gruppe {rightGroupId} haben dieselben Knoten; ihre Summen sind immer gleich und lassen sich nicht vergleichen.";
             return null;
         }
 
@@ -106,21 +117,52 @@ public sealed partial class EditorViewModel
     }
 
     /// <summary>
+    /// Alle gezeigten Gruppenvergleiche mit Verbindung und Etikett in Zeichenreihenfolge. Die Etiketten werden gemeinsam
+    /// angeordnet (<see cref="GroupComparisonGeometry.LayoutBadges"/>): weg von Knotenmittelpunkten und Kantenmitten,
+    /// ohne einander zu überdecken. Zeichenfläche und Treffertest nutzen genau diese Anordnung.
+    /// </summary>
+    public IReadOnlyList<GroupComparisonBadge> GroupComparisonBadges()
+    {
+        var shown = Puzzle.GroupComparisons
+            .Where(IsGroupComparisonShown)
+            .Select(c => (Comparison: c, Connector: GroupComparisonConnector(c)))
+            .Where(x => x.Connector is not null)
+            .Select(x => (x.Comparison, x.Connector!.Value.From, x.Connector!.Value.To))
+            .ToList();
+        if (shown.Count == 0)
+        {
+            return [];
+        }
+
+        // Hindernisse: Knotenmittelpunkte (Wert, Kandidaten) und Kantenmitten (Marken, bei Zellen die Randmitten); bei
+        // mehrfach vergebenen Knoten-Ids nimmt eine Kante wie beim Zeichnen den ersten Knoten.
+        var centers = new Dictionary<int, WorldPoint>();
+        foreach (var node in Puzzle.Nodes)
+        {
+            centers.TryAdd(node.Id, EditorGeometry.Center(Puzzle.Grid, node));
+        }
+
+        var obstacles = Puzzle.Nodes.Select(n => EditorGeometry.Center(Puzzle.Grid, n)).Distinct()
+            .Concat(Puzzle.Edges
+                .Where(e => centers.ContainsKey(e.From) && centers.ContainsKey(e.To))
+                .Select(e => new WorldPoint((centers[e.From].X + centers[e.To].X) / 2, (centers[e.From].Y + centers[e.To].Y) / 2)));
+        var scale = Viewport.Scale;
+        var half = (GroupComparisonGeometry.BadgeHalfSize(scale) + BadgeGap) / scale;
+        var layout = GroupComparisonGeometry.LayoutBadges([.. shown.Select(x => (x.From, x.To))], obstacles, half);
+        return [.. shown.Select((x, i) => new GroupComparisonBadge(x.Comparison, x.From, x.To, layout[i]))];
+    }
+
+    /// <summary>
     /// Gezeichneter Gruppenvergleich am Weltpunkt: zuerst ein Operator-Etikett (das zuletzt gezeichnete liegt oben),
     /// ohne <paramref name="badgeOnly"/> sonst die nächste Verbindungslinie im Fangradius der Kanten.
     /// </summary>
     public GroupComparison? HitGroupComparison(WorldPoint world, bool badgeOnly = false)
     {
         var scale = Viewport.Scale;
-        var shown = Puzzle.GroupComparisons
-            .Where(IsGroupComparisonShown)
-            .Select(c => (Comparison: c, Connector: GroupComparisonConnector(c)))
-            .Where(x => x.Connector is not null)
-            .Select(x => (x.Comparison, From: x.Connector!.Value.From, To: x.Connector!.Value.To))
-            .ToList();
+        var shown = GroupComparisonBadges();
         for (var i = shown.Count - 1; i >= 0; i--)
         {
-            var badge = GroupComparisonGeometry.BadgeCenter(shown[i].From, shown[i].To);
+            var badge = shown[i].Center;
             if (GroupComparisonGeometry.BadgeContains(scale, (world.X - badge.X) * scale, (world.Y - badge.Y) * scale, tolerance: 2))
             {
                 return shown[i].Comparison;

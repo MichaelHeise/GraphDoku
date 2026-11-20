@@ -212,7 +212,9 @@ Werte ihrer Knoten – auch wenn die Gruppe selbst gar keine Summenregel hat.
 - **Jede Gruppe behält ihre eigene Regel.** Der Vergleich kommt nur hinzu: Ein Käfig mit *Alle verschieden* bleibt
   „alle verschieden“, eine *Summe*-Gruppe muss weiter ihre Zielsumme ergeben.
 - **Gemeinsame Knoten** dürfen in beiden Gruppen liegen. Sie zählen auf beiden Seiten gleich und heben sich deshalb
-  auf. Zwei Gruppen mit genau denselben Knoten lassen sich nicht vergleichen, weil dann nichts übrig bliebe.
+  auf. Zwei Gruppen mit genau denselben Knoten lassen sich nicht vergleichen, weil dann nichts übrig bliebe: Der
+  Editor lehnt einen solchen Vergleich schon beim Erstellen ab. Entsteht der Fall später – etwa weil gelöschte Knoten
+  zwei Gruppen gleich machen –, meldet ihn die Prüfung.
 - Eine Gruppe darf in beliebig vielen Vergleichen vorkommen, auch auf beiden Seiten verschiedener Vergleiche.
 - Gruppenvergleiche werden fortlaufend nummeriert (eigene Ids, getrennt von den Gruppen) und erscheinen in Meldungen
   und im Erklär-Modus als „Gruppenvergleich 2“.
@@ -311,7 +313,8 @@ Kropki-Punkt ist eine Kante zwischen zwei Nachbarzellen.
 
 Das Beispielrätsel „Vergleichs-Sudoku 6x6“ hat sechs Käfige mit *Alle verschieden*, aber ohne Zielsumme. Sechs
 Gruppenvergleiche sagen, wie sich ihre Summen zueinander verhalten. Auf der Zeichenfläche verbindet eine gestrichelte
-Linie die Mitten der beiden Gruppen; das Etikett in der Mitte zeigt den Operator.
+Linie die Mitten der beiden Gruppen; das Etikett darauf zeigt den Operator. Die Spitze von <, ≤, > und ≥ zeigt
+dabei immer zur Gruppe mit der kleineren Summe – so liest man den Vergleich in jeder Richtung richtig.
 
 ![Vergleichs-Sudoku 6×6 mit ausgewähltem Gruppenvergleich „Käfig D ≤ Käfig F“: Verbindung und Etikett blau, beide Käfige hervorgehoben, rechts das Panel des Vergleichs.](bilder/editor-gruppenvergleich.png)
 
@@ -386,7 +389,8 @@ Von oben nach unten:
 4. **Schrittleiste** – während der Berechnung einer Erklärung und im Erklär-Modus.
 5. Links die **Gruppenliste:** alle Gruppen mit Farbe, Beschriftung, Regel und Knotenzahl. Das Häkchen blendet die
    Hervorhebung einer Gruppe ein oder aus (*Alle ein* / *Alle aus*); ein Klick auf den Eintrag wählt die Gruppe zum
-   Bearbeiten. Hat das Rätsel Gruppenvergleiche, steht darunter die Liste **Gruppenvergleiche**.
+   Bearbeiten. Hat das Rätsel Gruppenvergleiche, steht unter der Gruppenliste und ihrem Hinweis die Liste
+   **Gruppenvergleiche**.
 6. In der Mitte die **Zeichenfläche** mit dem Rätsel.
 7. Rechts das **Eigenschaften-Panel.** Es zeigt, was gerade ausgewählt ist: eine Gruppe, eine Kante, einen
    Gruppenvergleich, Knoten oder – ohne Auswahl – das Rätsel selbst (Name, Gitter, globaler Wertebereich).
@@ -477,7 +481,7 @@ hinzufügen noch herausnehmen noch einzeln umsortieren (nur *Reihenfolge umkehre
 löschen, die Knoten in der richtigen Reihenfolge neu auswählen und die Gruppe neu erstellen. Ein Klick auf eine Gruppe
 in der Gruppenliste wählt die Gruppe selbst, nicht ihre Knoten.
 
-## Gruppenvergleiche {#gruppenvergleiche-bedienen}
+## Gruppenvergleiche bedienen
 
 Ein Gruppenvergleich entsteht im Panel der linken Gruppe; beide Gruppen müssen also schon existieren.
 
@@ -489,14 +493,20 @@ Ein Gruppenvergleich entsteht im Panel der linken Gruppe; beide Gruppen müssen 
 4. **Gruppenvergleich erstellen.** Der neue Vergleich ist ausgewählt, und die Statuszeile meldet z. B.
    „Gruppenvergleich 4 erstellt: Summe von Gruppe 22 „Käfig D“ ≤ Summe von Gruppe 24 „Käfig F“.“
 
-Gibt es nur eine Gruppe, steht dort stattdessen „Für einen Vergleich wird eine zweite Gruppe gebraucht.“
+Gibt es nur eine Gruppe, steht dort stattdessen „Für einen Vergleich wird eine zweite Gruppe gebraucht.“ Haben beide
+Gruppen genau dieselben Knoten, lehnt der Editor den Vergleich mit einer Meldung in der Statuszeile ab (ihre Summen
+wären immer gleich).
 
 ![Das Gruppen-Panel von „Käfig B“ mit dem Abschnitt „Summe vergleichen“.](bilder/gruppe-summe-vergleichen.png)
 
 **Auswählen:** einen Eintrag in der Liste *Gruppenvergleiche* (links unter der Gruppenliste) anklicken oder mit dem
 Werkzeug *Auswahl* auf das Operator-Etikett bzw. die gestrichelte Linie klicken. Das Etikett hat dabei Vorrang vor
-Knoten und Kanten; die Linie trifft man nur dort, wo kein Knoten und keine Kante liegt. Die Liste zeigt je Vergleich
-die beiden Gruppen mit Operator („Käfig D (22) ≤ Käfig F (24)“) und ihre Farben.
+Knoten und Kanten; die Linie trifft man nur dort, wo kein Knoten und keine Kante liegt. Ein Klick auf die Linie wählt
+den Vergleich erst beim Loslassen: Wer an der Linie zu ziehen beginnt, zieht wie auf freier Fläche einen
+Auswahlrahmen. Die Liste zeigt je Vergleich in einer Zeile die beiden Gruppen mit Operator („Käfig D ≤ Käfig F“, bei
+Gruppen ohne Beschriftung „Gruppe 5“) und ihre Farben; mit dem Mauszeiger auf dem Eintrag erscheint die volle
+Bedeutung mit den Nummern, z. B. „Gruppenvergleich 4: Summe von Gruppe 22 „Käfig D“ ≤ Summe von Gruppe 24 „Käfig F“
+(kleiner oder gleich)“. Die Liste hat Platz für etwa vier Einträge, bei mehr Vergleichen lässt sie sich rollen.
 
 Das **Panel des Gruppenvergleichs** zeigt:
 
@@ -545,7 +555,13 @@ Kantenregel, **Bearbeiten → Kanten erzeugen …** oder <kbd>Strg/Cmd</kbd>+<kb
   eine deutliche Darstellung im Gruppen-Panel eine Farbe wählen. Eine ausgeblendete Summen-Gruppe zeigt auch ihre
   Zielsumme nicht. Beschriftungen wie „Zeile 1“ stehen nur in der Gruppenliste.
 - **Gruppenvergleiche** erscheinen als gestrichelte graue Linie zwischen den Mitten der beiden Gruppen mit einem
-  Etikett für den Operator. Die Linie liegt unter den Knoten, das Etikett über allem. Zu sehen sind sie, wenn beide
+  Etikett für den Operator. Die Linie liegt unter den Knoten, das Etikett über allem. Bei <, ≤, > und ≥ liegt das
+  Zeichen längs der Linie und zeigt mit der Spitze zur Gruppe mit der kleineren Summe; die Schrift bleibt dabei
+  aufrecht (= und ≠ stehen immer gerade). Das Etikett sitzt im mittleren Teil der Linie an der Stelle, die am
+  weitesten von Knotenmitten und Kantenmarken entfernt ist – bei Zellen meist auf einer Zellecke –, damit es keinen
+  Wert und keine Kandidaten verdeckt. Würden sich zwei Etiketten überdecken (etwa bei mehreren Vergleichen zwischen
+  denselben Gruppen oder bei sich kreuzenden Linien), rückt das spätere auf seiner Linie weiter oder, wenn dort kein
+  Platz ist, zur Seite; so bleiben alle sichtbar und anklickbar. Zu sehen sind sie, wenn beide
   Gruppen eingeblendet sind (Häkchen in der Gruppenliste); ein ausgewählter Gruppenvergleich und der des aktuellen
   Schritts im Erklär-Modus erscheinen immer. Ein ausgewählter Vergleich ist blau und hebt beide Gruppen hervor wie eine
   gewählte Gruppe.
@@ -686,7 +702,7 @@ Auf dem Mac funktionieren alle Kürzel mit <kbd>Cmd</kbd> und mit <kbd>Ctrl</kbd
 | Ziehen auf freier Fläche | Rahmenauswahl (mit Shift zusätzlich) |
 | Ausgewählte Knoten ziehen | Verschieben |
 | Klick auf Kante oder Marke | Kante wählen |
-| Klick auf Operator-Etikett oder Linie eines Gruppenvergleichs | Gruppenvergleich wählen |
+| Klick auf Operator-Etikett oder Linie eines Gruppenvergleichs | Gruppenvergleich wählen (an der Linie beginnt Ziehen trotzdem eine Rahmenauswahl) |
 | Mausrad | Zoomen |
 | Mittlere/rechte Taste ziehen, <kbd>Leertaste</kbd> + Ziehen | Ansicht verschieben |
 

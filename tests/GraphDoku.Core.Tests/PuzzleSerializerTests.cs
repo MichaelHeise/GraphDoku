@@ -833,4 +833,25 @@ public class PuzzleSerializerTests
         PuzzleSerializer.Deserialize(json, validate: false).GroupComparisons.Should().ContainSingle()
             .Which.Right.Should().Be(9);
     }
+
+    [Fact]
+    public void Readme_json_example_loads_with_full_validation()
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "GraphDoku.sln")))
+        {
+            root = root.Parent;
+        }
+
+        root.Should().NotBeNull("das Repository-Verzeichnis (mit GraphDoku.sln) muss auffindbar sein");
+        var readme = File.ReadAllText(Path.Combine(root!.FullName, "README.md"));
+        var section = readme[readme.IndexOf("## JSON-Format (Kurzfassung)", StringComparison.Ordinal)..];
+        var start = section.IndexOf("```json", StringComparison.Ordinal) + "```json".Length;
+        var json = section[start..section.IndexOf("```", start, StringComparison.Ordinal)];
+
+        var puzzle = PuzzleSerializer.Deserialize(json);
+        puzzle.Nodes.Select(n => n.Id).Should().Equal(1, 2, 3, 4);
+        puzzle.Groups.Should().HaveCount(2);
+        puzzle.GroupComparisons.Should().ContainSingle().Which.Operator.Should().Be(ComparisonOperator.LessOrEqual);
+    }
 }

@@ -236,7 +236,7 @@ public sealed partial class RenderingSmokeTests
             viewModel.Editor.Properties.Should().BeOfType<GroupComparisonPropertiesViewModel>();
         }
 
-        viewModel.Editor.GroupComparisons.Select(c => c.Title).Should().Equal("Links (1) < Gruppe 9 (fehlt)", "Gruppe 4 < Rechts (2)", "Rechts (2) ? Gruppe 3");
+        viewModel.Editor.GroupComparisons.Select(c => c.Title).Should().Equal("Links < Gruppe 9 (fehlt)", "Gruppe 4 < Rechts", "Rechts ? Gruppe 3");
         window.Close();
     }, CancellationToken.None);
 
@@ -251,8 +251,7 @@ public sealed partial class RenderingSmokeTests
     /// <summary>Bereich um das Etikett in Fensterpixeln (etwas größer als das Etikett, mit einem Stück Linie).</summary>
     private static PixelRect BadgeArea(Window window, Control canvas, EditorViewModel editor, GroupComparison comparison)
     {
-        var (from, to) = editor.GroupComparisonConnector(comparison)!.Value;
-        var center = editor.Viewport.ToScreen(GroupComparisonGeometry.BadgeCenter(from, to));
+        var center = editor.Viewport.ToScreen(editor.GroupComparisonBadges().Single(b => ReferenceEquals(b.Comparison, comparison)).Center);
         var point = canvas.TranslatePoint(new Point(center.X, center.Y), window)!.Value;
         var half = (int)Math.Ceiling(GroupComparisonGeometry.BadgeHalfSize(editor.Viewport.Scale)) + 3;
         return new PixelRect((int)point.X - half, (int)point.Y - half, 2 * half, 2 * half);

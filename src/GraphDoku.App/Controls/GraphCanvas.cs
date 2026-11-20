@@ -331,7 +331,8 @@ public sealed class GraphCanvas : Control, ICustomHitTest
 
         DrawGroups(context, puzzle, viewport, nodes, radius);
         DrawEdges(context, puzzle, viewport, nodes, radius, marks: false);
-        DrawGroupComparisons(context, puzzle, viewport, badges: false);
+        var comparisonBadges = _editor.GroupComparisonBadges();
+        DrawGroupComparisons(context, viewport, comparisonBadges, badges: false);
         DrawEdgePreview(context, puzzle, viewport, nodes);
         DrawNodes(context, puzzle, viewport, radius, cells ? NodePass.CellContent : NodePass.Circle);
 
@@ -343,7 +344,7 @@ public sealed class GraphCanvas : Control, ICustomHitTest
         DrawSumTargets(context, puzzle, viewport, nodes, radius, cells ? radius * 0.55 : radius);
 
         // Operator-Etiketten der Gruppenvergleiche über allem anderen (die Linie liegt unter den Knoten).
-        DrawGroupComparisons(context, puzzle, viewport, badges: true);
+        DrawGroupComparisons(context, viewport, comparisonBadges, badges: true);
         DrawOrderBadges(context, puzzle, viewport, nodes, radius);
         DrawBranchBadge(context, puzzle, viewport, nodes, radius);
         if (_editor.RubberBand is { } band)
@@ -1053,38 +1054,46 @@ public sealed class GraphCanvas : Control, ICustomHitTest
     }
 
     /// <summary>
-    /// Gruppenvergleiche: ohne <paramref name="badges"/> die gestrichelte Verbindung zwischen den Schwerpunkten beider
-    /// Gruppen, mit <paramref name="badges"/> das Operator-Etikett in ihrer Mitte. Gewählt blau und kräftiger, als Regel
-    /// des Erklärschritts grün. Fehlende oder leere Gruppen (Datei ohne Prüfung) zeichnen nichts.
+    /// Gruppenvergleiche (<see cref="EditorViewModel.GroupComparisonBadges"/>, dieselbe Anordnung wie im Treffertest):
+    /// ohne <paramref name="badges"/> die gestrichelte Verbindung zwischen den Schwerpunkten beider Gruppen, mit
+    /// <paramref name="badges"/> das Operator-Etikett. Bei &lt;, ≤, &gt;, ≥ liegt das Zeichen längs der Verbindung und zeigt
+    /// mit der Spitze zur kleineren Seite (<see cref="GroupComparisonGeometry.BadgeGlyph"/>). Gewählt blau und kräftiger,
+    /// als Regel des Erklärschritts grün. Fehlende oder leere Gruppen (Datei ohne Prüfung) zeichnen nichts.
     /// </summary>
-    private void DrawGroupComparisons(DrawingContext context, Puzzle puzzle, Viewport viewport, bool badges)
+    private void DrawGroupComparisons(DrawingContext context, Viewport viewport, IReadOnlyList<GroupComparisonBadge> shown, bool badges)
     {
         var editor = _editor!;
-        foreach (var comparison in puzzle.GroupComparisons)
+        foreach (var (comparison, fromWorld, toWorld, centerWorld) in shown)
         {
-            if (!editor.IsGroupComparisonShown(comparison) || editor.GroupComparisonConnector(comparison) is not { } connector)
-            {
-                continue;
-            }
-
             var explained = editor.IsExplainedGroupComparison(comparison.Id);
             var selected = editor.SelectedGroupComparisonId == comparison.Id;
             var brush = explained ? ExplanationRuleBrush : selected ? AccentBrush : GroupComparisonBrush;
-            var from = ToPoint(viewport.ToScreen(connector.From));
-            var to = ToPoint(viewport.ToScreen(connector.To));
+            var from = ToPoint(viewport.ToScreen(fromWorld));
+            var to = ToPoint(viewport.ToScreen(toWorld));
             if (!badges)
             {
                 context.DrawLine(new Pen(brush, explained || selected ? 3 : 1.8, GroupComparisonDash, PenLineCap.Round), from, to);
                 continue;
             }
 
-            var center = ToPoint(viewport.ToScreen(GroupComparisonGeometry.BadgeCenter(connector.From, connector.To)));
+            var center = ToPoint(viewport.ToScreen(centerWorld));
             var half = GroupComparisonGeometry.BadgeHalfSize(viewport.Scale);
-            var text = CreateText(GroupComparisonTexts.Symbol(comparison.Operator), GroupComparisonGeometry.BadgeFontSize(viewport.Scale), brush, FontWeight.Bold);
-            var width = Math.Max(half * 2, text.Width + 6);
-            var rect = new Rect(center.X - (width / 2), center.Y - half, width, half * 2);
+            var (symbol, rotation) = GroupComparisonGeometry.BadgeGlyph(comparison.Operator, to.X - from.X, to.Y - from.Y);
+            var text = CreateText(symbol, GroupComparisonGeometry.BadgeFontSize(viewport.Scale), brush, FontWeight.Bold);
+            var rect = new Rect(center.X - half, center.Y - half, half * 2, half * 2);
             context.DrawRectangle(GroupComparisonBadgeFill, new Pen(brush, explained || selected ? 2.5 : 1.5), new RoundedRect(rect, half * 0.5));
-            context.DrawText(text, new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2)));
+            var origin = new Point(center.X - (text.Width / 2), center.Y - (text.Height / 2));
+            if (rotation == 0)
+            {
+                context.DrawText(text, origin);
+                continue;
+            }
+
+            var turn = Matrix.CreateTranslation(-center.X, -center.Y) * Matrix.CreateRotation(rotation * Math.PI / 180) * Matrix.CreateTranslation(center.X, center.Y);
+            using (context.PushTransform(turn))
+            {
+                context.DrawText(text, origin);
+            }
         }
     }
 

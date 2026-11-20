@@ -4,6 +4,7 @@ using GraphDoku.App.Tests.Helpers;
 using GraphDoku.App.ViewModels;
 using GraphDoku.Core.Geometry;
 using GraphDoku.Core.Model;
+using GraphDoku.Core.Serialization;
 using GraphDoku.Solver.OrTools;
 
 namespace GraphDoku.App.Tests;
@@ -123,6 +124,41 @@ public class GroupComparisonEditorTests
     }
 
     [Fact]
+    public void Creating_is_rejected_for_two_groups_with_the_same_nodes()
+    {
+        var puzzle = Row();
+        puzzle.Groups.Add(new Group(4, [2, 1], "Sum", new RuleParams().Set("target", 5))); // dieselben Knoten wie Gruppe 1
+        var editor = EditorDriver.CreateEditor(puzzle);
+        editor.CreateGroupComparison(1, 4, ComparisonOperator.Less).Should().BeNull();
+        editor.StatusMessage.Should().Be("Gruppe 1 und Gruppe 4 haben dieselben Knoten; ihre Summen sind immer gleich und lassen sich nicht vergleichen.");
+        editor.History.UndoCount.Should().Be(0);
+        editor.Puzzle.GroupComparisons.Should().BeEmpty();
+
+        // Gemeinsame Knoten allein sind erlaubt (sie heben sich auf).
+        editor.CreateGroupComparison(1, 3, ComparisonOperator.Less).Should().NotBeNull();
+    }
+
+    [Fact]
+    public void New_group_ids_skip_ids_named_by_dangling_comparisons()
+    {
+        var puzzle = Row();
+        puzzle.GroupComparisons.Add(new GroupComparison(1, 1, 9, ComparisonOperator.Less)); // Gruppe 9 fehlt (ungeprüfte Datei)
+        var editor = EditorDriver.CreateEditor(puzzle);
+        editor.SelectNodes([2, 3]);
+        editor.CreateGroupFromSelectionCommand.Execute(null);
+        editor.Puzzle.Groups.Select(g => g.Id).Should().Equal(1, 2, 3, 10);
+        editor.Puzzle.GroupComparisons[0].Right.Should().Be(9);
+        editor.GroupComparisonConnector(editor.Puzzle.GroupComparisons[0]).Should().BeNull("der Vergleich hängt sich nicht an die neue Gruppe");
+        editor.GroupComparisons[0].Title.Should().Be("Links < Gruppe 9 (fehlt)");
+
+        // Ohne Vergleiche bleibt es bei der nächsten Gruppen-Id.
+        var plain = EditorDriver.CreateEditor(Row());
+        plain.SelectNodes([2, 3]);
+        plain.CreateGroupFromSelectionCommand.Execute(null);
+        plain.Puzzle.Groups.Select(g => g.Id).Should().Equal(1, 2, 3, 4);
+    }
+
+    [Fact]
     public void Group_panel_keeps_its_target_list_and_choice_across_unrelated_edits()
     {
         var editor = EditorDriver.CreateEditor(Row());
@@ -164,7 +200,7 @@ public class GroupComparisonEditorTests
         panel.SelectedOperator!.Operator.Should().Be(ComparisonOperator.Less);
         panel.Meaning.Should().Be("Summe von Gruppe 1 „Links“ < Summe von Gruppe 2 „Rechts“");
         editor.History.UndoCount.Should().Be(1, "das Neuladen ist kein Schritt");
-        editor.GroupComparisons[0].Title.Should().Be("Links (1) < Rechts (2)");
+        editor.GroupComparisons[0].Title.Should().Be("Links < Rechts");
     }
 
     [Fact]
@@ -250,7 +286,7 @@ public class GroupComparisonEditorTests
         puzzle.GroupComparisons.Add(new GroupComparison(1, 1, 9, ComparisonOperator.Less)); // Gruppe 9 fehlt
         puzzle.GroupComparisons.Add(new GroupComparison(2, 2, 3, ComparisonOperator.Less));
         var editor = EditorDriver.CreateEditor(puzzle);
-        editor.GroupComparisons[0].Title.Should().Be("Links (1) < Gruppe 9 (fehlt)");
+        editor.GroupComparisons[0].Title.Should().Be("Links < Gruppe 9 (fehlt)");
         editor.GroupComparisonConnector(editor.Puzzle.GroupComparisons[0]).Should().BeNull();
 
         // Knoten 3 und 4 leeren die erste Gruppe 2, es gibt aber noch eine Gruppe mit Id 2.
@@ -325,8 +361,8 @@ public class GroupComparisonEditorTests
         editor.CreateGroupComparison(1, 2, ComparisonOperator.LessOrEqual);
         editor.CreateGroupComparison(3, 1, ComparisonOperator.NotEqual);
         editor.HasGroupComparisons.Should().BeTrue();
-        editor.GroupComparisons.Select(c => c.Title).Should().Equal("Links (1) ≤ Rechts (2)", "Gruppe 3 ≠ Links (1)");
-        editor.GroupComparisons[1].Details.Should().Be("Gruppenvergleich 2 · ungleich");
+        editor.GroupComparisons.Select(c => c.Title).Should().Equal("Links ≤ Rechts", "Gruppe 3 ≠ Links");
+        editor.GroupComparisons[1].ToolTip.Should().Be("Gruppenvergleich 2: Summe von Gruppe 3 ≠ Summe von Gruppe 1 „Links“ (ungleich)");
         editor.GroupComparisons[1].LeftColorHex.Should().Be(GroupPalette.EffectiveColor(null, 3));
         var first = editor.GroupComparisons[0];
 
@@ -334,7 +370,7 @@ public class GroupComparisonEditorTests
         editor.SelectGroup(1);
         ((GroupPropertiesViewModel)editor.Properties!).Label = "West";
         editor.GroupComparisons[0].Should().BeSameAs(first);
-        first.Title.Should().Be("West (1) ≤ Rechts (2)");
+        first.Title.Should().Be("West ≤ Rechts");
 
         editor.SelectedGroupComparisonItem = editor.GroupComparisons[1];
         editor.SelectedGroupComparisonId.Should().Be(2);
@@ -393,6 +429,85 @@ public class GroupComparisonEditorTests
         editor.SelectGroupComparison(1);
         editor.HitGroupComparison(new WorldPoint(2, 0), badgeOnly: true).Should().NotBeNull();
         editor.History.UndoCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void Dragging_from_near_the_line_starts_a_rubber_band_and_a_click_selects_on_release()
+    {
+        var editor = EditorDriver.CreateEditor(RowWithComparison());
+
+        // Ziehen ab der Linie (zwischen Knoten 2 und 3): Auswahlrahmen über Knoten 3 und 4, kein Vergleich gewählt.
+        editor.RubberBand(1.6, 0.02, 4.4, -0.4);
+        editor.SelectedNodeIds.Should().Equal(3, 4);
+        editor.SelectedGroupComparisonId.Should().BeNull();
+
+        // Klick ohne Ziehen: erst das Loslassen wählt den Vergleich.
+        editor.PointerPressed(editor.ScreenOf(1.6, 0.02), PointerButton.Left);
+        editor.SelectedGroupComparisonId.Should().BeNull("beim Drücken steht noch nicht fest, ob gezogen wird");
+        editor.PointerReleased(editor.ScreenOf(1.6, 0.02), PointerButton.Left);
+        editor.SelectedGroupComparisonId.Should().Be(1);
+        editor.SelectedNodeIds.Should().BeEmpty();
+
+        // Abgebrochenes Ziehen (Escape) wählt nichts, der nächste Klick ins Leere hebt die Auswahl auf.
+        editor.PointerPressed(editor.ScreenOf(1.6, 0.02), PointerButton.Left);
+        editor.Escape();
+        editor.PointerReleased(editor.ScreenOf(1.6, 0.02), PointerButton.Left);
+        editor.SelectedGroupComparisonId.Should().Be(1);
+        editor.Click(editor.ScreenOf(1.6, 0.6));
+        editor.SelectedGroupComparisonId.Should().BeNull();
+        editor.History.UndoCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void Badges_of_comparisons_on_the_same_groups_are_all_visible_and_clickable()
+    {
+        var puzzle = RowWithComparison();
+        puzzle.GroupComparisons.Add(new GroupComparison(2, 2, 1, ComparisonOperator.NotEqual));
+        puzzle.GroupComparisons.Add(new GroupComparison(3, 1, 2, ComparisonOperator.Less));
+        var editor = EditorDriver.CreateEditor(puzzle);
+        var badges = editor.GroupComparisonBadges();
+        badges.Select(b => b.Comparison.Id).Should().Equal(1, 2, 3);
+        var half = GroupComparisonGeometry.BadgeHalfSize(editor.Viewport.Scale) / editor.Viewport.Scale;
+        for (var i = 0; i < badges.Count; i++)
+        {
+            for (var j = i + 1; j < badges.Count; j++)
+            {
+                var apart = Math.Abs(badges[i].Center.X - badges[j].Center.X) >= 2 * half || Math.Abs(badges[i].Center.Y - badges[j].Center.Y) >= 2 * half;
+                apart.Should().BeTrue($"Etikett {badges[i].Comparison.Id} und {badges[j].Comparison.Id} überdecken sich nicht");
+            }
+        }
+
+        foreach (var badge in badges)
+        {
+            editor.HitGroupComparison(badge.Center, badgeOnly: true).Should().BeSameAs(badge.Comparison, "Treffertest und Zeichnung nutzen dieselbe Anordnung");
+            editor.Click(editor.Viewport.ToScreen(badge.Center));
+            editor.SelectedGroupComparisonId.Should().Be(badge.Comparison.Id);
+        }
+    }
+
+    [Fact]
+    public void Example_puzzle_badges_read_in_the_direction_of_the_comparison_and_avoid_the_digits()
+    {
+        var path = Path.Combine(MainWindowViewModelTests.FindRepositoryRoot(), "puzzles", "vergleichs-sudoku-6x6.json");
+        var editor = EditorDriver.CreateEditor(PuzzleSerializer.Deserialize(File.ReadAllText(path)));
+        var badges = editor.GroupComparisonBadges();
+        badges.Should().HaveCount(6);
+
+        // Vergleich 1: Käfig A > Käfig C, A liegt rechts oben von C. Von A aus gelesen „A > C“: Das Zeichen zeigt mit der
+        // Spitze zu C – auf dem Bildschirm also „<“ (C links unten ist die kleinere Seite), aufrecht gedreht.
+        var first = badges[0];
+        first.Comparison.Operator.Should().Be(ComparisonOperator.Greater);
+        (first.To.X < first.From.X).Should().BeTrue("Käfig C liegt links von Käfig A");
+        var (symbol, rotation) = GroupComparisonGeometry.BadgeGlyph(first.Comparison.Operator, first.To.X - first.From.X, first.To.Y - first.From.Y);
+        symbol.Should().Be("<");
+        rotation.Should().BeInRange(-90, 0);
+
+        var centers = editor.Puzzle.Nodes.Select(n => EditorGeometry.Center(editor.Puzzle.Grid, n)).ToList();
+        foreach (var badge in badges)
+        {
+            centers.Min(c => c.DistanceTo(badge.Center)).Should().BeGreaterThan(0.45, $"Etikett von Vergleich {badge.Comparison.Id} liegt nicht auf einer Ziffer");
+            EditorGeometry.DistanceToSegment(badge.Center, badge.From, badge.To).Should().BeLessThan(1e-9, "das Etikett liegt auf seiner Verbindung");
+        }
     }
 
     [Fact]

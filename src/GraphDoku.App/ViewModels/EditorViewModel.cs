@@ -278,9 +278,14 @@ public sealed partial class EditorViewModel : ViewModelBase
             return;
         }
 
-        if (NextFreeId(Puzzle.Groups.Select(g => g.Id)) is not int groupId)
+        // Auch die von Gruppenvergleichen genannten Gruppen-Ids zählen als belegt: Sonst hinge sich ein Vergleich, dessen
+        // Gruppe fehlt (Datei ohne inhaltliche Prüfung, Nr. 57), still an die neue Gruppe.
+        var usedGroupIds = Puzzle.Groups.Select(g => g.Id)
+            .Concat(Puzzle.GroupComparisons.SelectMany(c => new[] { c.Left, c.Right }))
+            .ToList();
+        if (NextFreeId(usedGroupIds) is not int groupId)
         {
-            StatusMessage = NoFreeIdMessage("Gruppen", Puzzle.Groups.Select(g => g.Id));
+            StatusMessage = NoFreeIdMessage("Gruppen", usedGroupIds);
             return;
         }
 

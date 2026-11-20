@@ -4,7 +4,7 @@ using GraphDoku.Core.Model;
 
 namespace GraphDoku.App.ViewModels;
 
-/// <summary>Eintrag der Liste „Gruppenvergleiche“: beide Gruppen mit Operator und die Farben der Gruppen.</summary>
+/// <summary>Eintrag der Liste „Gruppenvergleiche“: einzeilig beide Gruppen mit Operator, die Farben der Gruppen und ein Tooltip.</summary>
 public sealed partial class GroupComparisonItemViewModel : ViewModelBase
 {
     private const string MissingColor = "#9ca3af";
@@ -13,13 +13,13 @@ public sealed partial class GroupComparisonItemViewModel : ViewModelBase
 
     public int Id { get; }
 
-    /// <summary>Z. B. „Käfig (2) ≤ Gruppe 5“.</summary>
+    /// <summary>Einzeilig, z. B. „Käfig D ≤ Käfig F“.</summary>
     [ObservableProperty]
     public partial string Title { get; private set; } = string.Empty;
 
-    /// <summary>Z. B. „Gruppenvergleich 1 · kleiner oder gleich“.</summary>
+    /// <summary>Volle Bedeutung als Tooltip, z. B. „Gruppenvergleich 1: Summe von Gruppe 22 „Käfig D“ ≤ … (kleiner oder gleich)“.</summary>
     [ObservableProperty]
-    public partial string Details { get; private set; } = string.Empty;
+    public partial string ToolTip { get; private set; } = string.Empty;
 
     /// <summary>Farbe der linken Gruppe als #rrggbb (fehlt sie, grau).</summary>
     [ObservableProperty]
@@ -32,8 +32,7 @@ public sealed partial class GroupComparisonItemViewModel : ViewModelBase
     internal void Refresh(Puzzle puzzle, GroupComparison comparison)
     {
         Title = GroupComparisonTexts.ListTitle(puzzle, comparison);
-        var text = Enum.IsDefined(comparison.Operator) ? ComparisonOperators.ToGermanText(comparison.Operator) : "unbekannter Operator";
-        Details = $"Gruppenvergleich {comparison.Id} · {text}";
+        ToolTip = GroupComparisonTexts.ListToolTip(puzzle, comparison);
         LeftColorHex = ColorOf(puzzle, comparison.Left);
         RightColorHex = ColorOf(puzzle, comparison.Right);
     }

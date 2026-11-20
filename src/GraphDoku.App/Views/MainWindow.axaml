@@ -271,7 +271,7 @@
       </DockPanel>
     </Border>
 
-    <!-- Gruppenliste; darunter die Gruppenvergleiche, sobald es welche gibt. -->
+    <!-- Gruppenliste mit ihrem Hinweis; darunter die Gruppenvergleiche, sobald es welche gibt. -->
     <Border DockPanel.Dock="Left" Width="240" BorderBrush="#dddddd" BorderThickness="0,0,1,0" Padding="8">
       <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
         <TextBlock Grid.Row="0" Text="Gruppen" Classes="header" />
@@ -293,29 +293,33 @@
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
-        <!-- Gruppenvergleiche: Eintrag anklicken wählt den Vergleich (wie ein Klick auf sein Etikett in der Zeichenfläche). -->
-        <DockPanel x:Name="GroupComparisonSection" Grid.Row="3" Margin="0,8,0,0" IsVisible="{Binding Editor.HasGroupComparisons}">
+        <TextBlock Grid.Row="3" Classes="hint" Margin="0,6,0,0"
+                   Text="Häkchen: Hervorhebung ein/aus. Eintrag anklicken: Gruppe bearbeiten." />
+        <!-- Gruppenvergleiche: einzeilige, kompakte Einträge (volle Bedeutung im Tooltip), Platz für etwa vier. Eintrag
+             anklicken wählt den Vergleich (wie ein Klick auf sein Etikett in der Zeichenfläche). Ein eigener Hinweis
+             passt bei der Mindestgröße nicht mehr dazu (die Gruppenliste bliebe sonst ohne ganzen Eintrag). -->
+        <DockPanel x:Name="GroupComparisonSection" Grid.Row="4" Margin="0,10,0,0" IsVisible="{Binding Editor.HasGroupComparisons}">
           <TextBlock DockPanel.Dock="Top" Text="Gruppenvergleiche" FontWeight="SemiBold" Margin="0,0,0,4" />
-          <ListBox x:Name="GroupComparisonList" MaxHeight="88" ItemsSource="{Binding Editor.GroupComparisons}"
+          <ListBox x:Name="GroupComparisonList" MaxHeight="96" ItemsSource="{Binding Editor.GroupComparisons}"
                    SelectedItem="{Binding Editor.SelectedGroupComparisonItem}">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem">
+                <Setter Property="Padding" Value="8,3" />
+              </Style>
+            </ListBox.Styles>
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:GroupComparisonItemViewModel">
-                <DockPanel>
+                <DockPanel ToolTip.Tip="{Binding ToolTip}" Background="Transparent">
                   <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="2" Margin="0,0,6,0" VerticalAlignment="Center">
                     <Border Width="10" Height="10" CornerRadius="5" Background="{Binding LeftColorHex}" />
                     <Border Width="10" Height="10" CornerRadius="5" Background="{Binding RightColorHex}" />
                   </StackPanel>
-                  <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding Details}" Classes="hint" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                  </StackPanel>
+                  <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                 </DockPanel>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
         </DockPanel>
-        <TextBlock Grid.Row="4" Classes="hint" Margin="0,6,0,0"
-                   Text="Häkchen: Hervorhebung ein/aus. Eintrag anklicken: Gruppe bearbeiten." />
       </Grid>
     </Border>
 

@@ -667,9 +667,16 @@ Entstand parallel zu Paket 3/4 im Branch `feature/wp6-explainer` und wurde danac
 - Zwei bestehende Tests bewusst angepasst, weil jetzt ein Beispielrätsel Vergleiche hat (Nr. 202); Rätsel ohne
   Vergleiche verhalten sich, lauten und speichern sich wie vorher (eigene Tests mit fester Ausgabe und unveränderte
   Schritt- und Texttests).
-- Tests: 982, alle grün in Release, 0 Warnungen (Core 339, Solver 128, Explainer 99, App 416 inkl. 12
+- Review mit Widerlegungsschritt über den ganzen Branch: 10 Befunde bestätigt und behoben, 2 widerlegt (Nr. 203).
+  Operator-Etikett jetzt in Leserichtung (Spitze zur kleineren Seite, aufrecht gedreht), abseits von Knotenmitten und
+  Kantenmarken, ohne Überdeckung und mit gemeinsamer Anordnung für Zeichnen und Treffertest; an der Linie beginnt
+  Ziehen einen Auswahlrahmen (Nr. 201). Vergleich gleicher Knotenmengen beim Erstellen abgelehnt, neue Gruppen-Ids
+  meiden von Vergleichen genannte Ids, einzeilige Vergleichsliste mit Tooltip für etwa vier Einträge, Gruppenhinweis
+  wieder direkt unter der Gruppenliste (Nr. 199); README-Beispiel ergänzt und per Test geladen, Handbuch-Überschrift
+  ohne Id-Attribut. Handbuchbilder `editor-gruppenvergleich.png` und `gruppe-summe-vergleichen.png` neu erzeugt.
+- Tests: 1007, alle grün in Release, 0 Warnungen (Core 340, Solver 128, Explainer 99, App 440 inkl. 12
   Screenshot-Facts, die ohne Umgebungsvariable nichts tun).
 - Nicht geprüft: Handtest am Desktop (die App wurde nur headless gestartet), PDF des Handbuchs (pandoc und WeasyPrint
   sind lokal nicht installiert, Docker läuft nicht), Lauf auf dem Gitea-Runner (Linux), Verhalten älterer
-  GraphDoku-Versionen mit einer Datei mit Vergleichen (aus dem Code der alten Version abgeleitet), ein Review mit
-  Widerlegungsschritt über den ganzen Branch. Die Website (`GraphDokuWebsite`) nennt den Gruppenvergleich noch nicht.
+  GraphDoku-Versionen mit einer Datei mit Vergleichen (aus dem Code der alten Version abgeleitet). Die Website
+  (`GraphDokuWebsite`) nennt den Gruppenvergleich noch nicht.

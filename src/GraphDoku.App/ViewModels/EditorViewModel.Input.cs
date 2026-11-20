@@ -22,6 +22,7 @@ public sealed partial class EditorViewModel
     private EditorModifiers _pressModifiers;
     private int? _pressNodeId;
     private int? _pressEdgeId;
+    private int? _pressComparisonId;
     private bool _pressedSelectedNode;
     private object? _gestureKey;
     private Dictionary<int, GridPoint> _moveOrigins = [];
@@ -239,6 +240,9 @@ public sealed partial class EditorViewModel
                 }
 
                 break;
+            case Gesture.PendingRubberBand when _pressComparisonId is int clickedComparison:
+                SelectGroupComparison(clickedComparison);
+                break;
             case Gesture.PendingRubberBand:
                 if (!_pressModifiers.HasFlag(EditorModifiers.Shift))
                 {
@@ -256,6 +260,7 @@ public sealed partial class EditorViewModel
 
         _pressNodeId = null;
         _pressEdgeId = null;
+        _pressComparisonId = null;
         RefitIfDeferred();
     }
 
@@ -266,6 +271,7 @@ public sealed partial class EditorViewModel
         _gestureKey = null;
         _pressNodeId = null;
         _pressEdgeId = null;
+        _pressComparisonId = null;
         if (RubberBand is not null || EdgePreview is not null)
         {
             RubberBand = null;
@@ -506,11 +512,12 @@ public sealed partial class EditorViewModel
             return;
         }
 
-        // Die Verbindungslinie eines Gruppenvergleichs liegt unter Knoten und Kanten und kommt zuletzt.
+        // Die Verbindungslinie eines Gruppenvergleichs liegt unter Knoten und Kanten und kommt zuletzt. Sie läuft oft
+        // lang und schräg durch freie Stellen: Ein Ziehen beginnt dort trotzdem den Auswahlrahmen, erst ein Klick ohne
+        // Ziehen wählt den Vergleich (beim Loslassen).
         if (!shift && HitGroupComparison(world) is { } comparison)
         {
-            SelectGroupComparison(comparison.Id);
-            return;
+            _pressComparisonId = comparison.Id;
         }
 
         _gesture = Gesture.PendingRubberBand;

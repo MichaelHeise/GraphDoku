@@ -1331,11 +1331,21 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      neue Vergleich ausgewählt. Es gibt dafür keinen Menüeintrag und kein Tastenkürzel. Das Panel des Vergleichs zeigt
      die Bedeutung, ändert den Operator (jede Wahl ein Undo-Schritt „Vergleich ändern“) und springt zu den Gruppen;
      die Gruppen eines bestehenden Vergleichs lassen sich nicht ändern (löschen und neu erstellen; Seiten tauschen
-     erledigt der Operator). Die Auswahl eines Vergleichs schließt Knoten-, Kanten- und Gruppenauswahl aus. Die Liste
-     „Gruppenvergleiche“ unter der Gruppenliste erscheint nur, wenn es Vergleiche gibt (höchstens 88 px hoch), damit
-     das Fenster für Rätsel ohne Vergleiche gleich bleibt; die Gruppenliste bleibt die erste Liste im Fenster.
-     Operator- und Gruppenlisten sind wie die Farbliste geteilte Instanzen, damit beim Wechsel der Auswahl nichts in das
-     neue Panel zurückgeschrieben wird (keine falschen Undo-Schritte). Status, Öffnen-Meldung und Statistik nennen
+     erledigt der Operator). Abgelehnt wird mit Statusmeldung wie linke = rechte Gruppe auch ein Vergleich zweier
+     Gruppen mit genau denselben Knoten (dasselbe Kriterium wie die Prüfung, Nr. 195: nach dem Aufheben bleibt kein
+     Term); entsteht der Fall später durch Löschen von Knoten, meldet ihn die Prüfung. Eine neue Gruppe bekommt die
+     nächste freie Id über die Gruppen-Ids **und** alle von Vergleichen genannten Gruppen-Ids – sonst hinge sich ein
+     hängender Vergleich aus einer ungeprüft geöffneten Datei (Nr. 57) still an die neue Gruppe. Die Auswahl eines
+     Vergleichs schließt Knoten-, Kanten- und Gruppenauswahl aus. Die Liste „Gruppenvergleiche“ steht unter der
+     Gruppenliste und deren Hinweis („Häkchen: …“) und erscheint nur, wenn es Vergleiche gibt, damit das Fenster für
+     Rätsel ohne Vergleiche gleich bleibt; die Gruppenliste bleibt die erste Liste im Fenster. Einträge sind einzeilig
+     mit kurzem Titel aus den Beschriftungen („Käfig D ≤ Käfig F“, ohne Beschriftung „Gruppe 5“, fehlend „Gruppe 9
+     (fehlt)“), die volle Bedeutung mit Id steht im Tooltip; kompakter Innenabstand, höchstens 96 px hoch (etwa vier
+     Einträge). Ein eigener Hinweis der Vergleichsliste passt bei der Mindestgröße 900 × 560 nicht mehr dazu (die
+     Gruppenliste zeigte dann keinen ganzen Eintrag) und entfällt. Die Operatorliste ist wie die Farbliste eine
+     geteilte Instanz; die Liste der Vergleichsgruppen gehört zum einzelnen Gruppen-Panel und wird nur bei inhaltlicher
+     Änderung ersetzt. Beides verhindert, dass beim Wechsel der Auswahl etwas in das neue Panel zurückgeschrieben wird
+     (keine falschen Undo-Schritte). Status, Öffnen-Meldung und Statistik nennen
      „…, N Gruppenvergleich(e)“ nur, wenn es welche gibt; die Legende im Erklär-Panel blieb unverändert.
 200. **Löschen kaskadiert** (App): Entfernt ein Löschbefehl eine Gruppe – direkt oder weil gelöschte Knoten sie
      leeren –, entfernt er im selben Undo-Schritt jeden Vergleich, der diese Gruppe nennt, sofern danach keine Gruppe
@@ -1344,12 +1354,32 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      Objekte in derselben Reihenfolge wieder her. Erwogen: ein Prüffehler „Gruppe fehlt“ statt Löschen – verworfen, weil
      ein Vergleich ohne Gruppe nichts mehr bedeutet und sonst jede Gruppenlöschung einen Folgefehler erzeugte.
 201. **Darstellung und Treffertest** (Zeichenfläche): gestrichelte Verbindung zwischen den Schwerpunkten der
-     Knotenmitten beider Gruppen (unter den Knoten) und ein Operator-Etikett in der Mitte (über allem). Gezeichnet nur,
-     wenn beide Gruppen Knoten haben und entweder beide eingeblendet sind oder der Vergleich ausgewählt bzw.
-     verantwortlich im Erklär-Modus ist. Ausgewählt: Akzentfarbe, dicker, beide Gruppen hervorgehoben wie eine gewählte
-     Gruppe (auch ausgeblendete) samt Zielsummen; im Erklär-Modus grün mit grünem Umriss beider Gruppen. Treffertest
-     mit dem Werkzeug „Auswahl“: Ein Klick auf das Etikett hat Vorrang vor allem (wird vor Knoten und Kanten geprüft),
-     ein Klick nahe der Linie kommt zuletzt, nach Knoten und Kanten. Nur gezeichnete Vergleiche sind anklickbar.
+     Knotenmitten beider Gruppen (unter den Knoten) und ein quadratisches Operator-Etikett darauf (über allem).
+     Gezeichnet nur, wenn beide Gruppen Knoten haben und entweder beide eingeblendet sind oder der Vergleich ausgewählt
+     bzw. verantwortlich im Erklär-Modus ist. Ausgewählt: Akzentfarbe, dicker, beide Gruppen hervorgehoben wie eine
+     gewählte Gruppe (auch ausgeblendete) samt Zielsummen; im Erklär-Modus grün mit grünem Umriss beider Gruppen.
+     **Leserichtung:** Bei <, ≤, >, ≥ liegt das Zeichen längs der Verbindung von der linken zur rechten Gruppe, die
+     schmale Spitze zeigt immer zur kleineren Seite. Zeigt die Verbindung auf dem Bildschirm nach links (cos θ < 0),
+     steht das gespiegelte Zeichen (< ↔ >, ≤ ↔ ≥) um θ − 180° gedreht, sonst das Zeichen um θ – die Schrift bleibt so
+     aufrecht (−90° bis 90°). = und ≠ stehen ungedreht. Vorher stand das Zeichen immer waagerecht und las sich verkehrt,
+     wenn die linke Gruppe rechts lag (im Beispiel „Käfig A > Käfig C“ mit A rechts von C als „C > A“).
+     **Lage:** Kandidaten im mittleren Teil der Verbindung (t = 0,25 bis 0,75, Abstand 0,05 Welt); gewählt wird der mit
+     dem größten Abstand zum nächsten Hindernis (Knotenmitten mit Wert und Kandidaten, Kantenmitten mit ihren Marken;
+     Abstände über 1 zählen gleich), bei Gleichstand der zur Mitte nächste. Bei Zellen landet das Etikett so auf
+     Zellecken statt auf Randmitten; eine Verbindung ohne Länge (gleiche Schwerpunkte) bekommt eine Stelle auf drei
+     kleinen Kreisen um den Schwerpunkt (Radius 0,35 bis 0,7). Vorher lag es genau in der Mitte, verdeckte dort oft einen
+     Wert oder eine Marke und nahm ihr den Klick weg. **Überdeckung:** Alle gezeigten Etiketten werden gemeinsam in
+     Listenreihenfolge angeordnet; überdeckt eines ein früheres (mit 2 px Abstand), nimmt es den nächstbesten freien
+     Kandidaten seiner Verbindung, gibt es keinen (gleiche, zu kurze Verbindung), rückt es quer zur Verbindung
+     abwechselnd zu beiden Seiten. So bleiben auch zwei Vergleiche derselben Gruppen und sich kreuzende Verbindungen (im
+     9×9 „Zeile 1 < Zeile 9“ und „Spalte 1 > Spalte 9“, beide Mitten auf (4, 4)) sichtbar und anklickbar.
+     Zeichenfläche und Treffertest nutzen dieselbe Anordnung (`EditorViewModel.GroupComparisonBadges`, reine Geometrie in
+     `GroupComparisonGeometry`). **Treffertest** mit dem Werkzeug „Auswahl“: Ein Klick auf ein Etikett hat Vorrang vor
+     allem (wird vor Knoten und Kanten geprüft, das zuletzt gezeichnete gewinnt), die Linie kommt zuletzt, nach Knoten
+     und Kanten. Ein Druck nahe der Linie beginnt wie auf freier Fläche einen möglichen Auswahlrahmen und merkt sich den
+     Vergleich; gewählt wird er erst beim Loslassen ohne Ziehen (wie beim Strg/Cmd-Klick auf einen Knoten, Nr. 159) –
+     lange schräge Verbindungen sperrten sonst das Aufziehen eines Rahmens in den Lücken. Nur gezeichnete Vergleiche
+     sind anklickbar.
 202. **Beispielrätsel „Vergleichs-Sudoku 6x6“ und Doku** (Beispielrätsel, Doku): `puzzles/vergleichs-sudoku-6x6.json`
      erzeugt `ExamplePuzzleGenerator.Comparison` (Nr. 125, Startwert 5006): 6×6-Sudoku, Käfige aus 2–3 Zellen mit
      `AllDifferent` ohne Summe, Vergleiche zu den zwei nächstgelegenen Käfigen mit zur Lösung passendem Operator
@@ -1363,3 +1393,13 @@ nummeriert (G1–G8 → Nr. 116–123, G17 → Nr. 124, G9–G16 → Nr. 125–1
      (`NodeShapeTests`). Neue Handbuchbilder `editor-gruppenvergleich.png` und `gruppe-summe-vergleichen.png`
      (`UserGuideScreenshots`, letzteres in 1280 × 880, damit der Abschnitt ganz im Panel steht); `editor-killer.png`
      zeigt jetzt unten im Gruppen-Panel den neuen Abschnitt.
+203. **Befunde aus dem Review des Gruppenvergleichs** (Review): Ein unabhängiges Review mit eigenem Widerlegungsschritt
+     bestätigte zehn Befunde, alle behoben: (a) Im JSON-Beispiel des README fehlten die Knoten 3 und 4 der zweiten
+     Gruppe; ein Test lädt den Block jetzt mit voller Prüfung. (b) Leserichtung des Operator-Etiketts, (c) seine Lage
+     auf Werten, Kandidaten und Marken, (d) sich überdeckende Etiketten und (e) die Linie, die das Aufziehen eines
+     Auswahlrahmens verhinderte (alle Nr. 201). (f) Neue Gruppen übernahmen die Id einer fehlenden Gruppe, die ein
+     Vergleich nennt, (g) ein Vergleich zweier Gruppen mit denselben Knoten ließ sich erstellen, (h) die Vergleichsliste
+     zeigte nur etwa anderthalb abgeschnittene Einträge und schob den Hinweis der Gruppenliste unter sich (alle
+     Nr. 199). (i) Nr. 199 nannte die Liste der Vergleichsgruppen fälschlich eine geteilte Instanz. (j) Die
+     Handbuch-Überschrift „Gruppenvergleiche bedienen“ trug ein überflüssiges Id-Attribut; die automatische Id ist
+     dieselbe (`#gruppenvergleiche-bedienen`), beide Verweise bleiben gültig. Zwei Befunde wurden widerlegt.

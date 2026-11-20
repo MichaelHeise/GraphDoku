@@ -35,11 +35,37 @@ public static class GroupComparisonTexts
         };
     }
 
-    /// <summary>Titel in der Liste der Gruppenvergleiche, z. B. „Käfig (2) ≤ Gruppe 5“.</summary>
+    /// <summary>
+    /// Kurzer, einzeiliger Titel in der Liste der Gruppenvergleiche, z. B. „Käfig D ≤ Käfig F“: die Beschriftung der
+    /// Gruppe, ohne Beschriftung „Gruppe 5“, fehlt sie „Gruppe 9 (fehlt)“. Die volle Bedeutung steht im Tooltip
+    /// (<see cref="ListToolTip"/>).
+    /// </summary>
     public static string ListTitle(Puzzle puzzle, GroupComparison comparison)
     {
         ArgumentNullException.ThrowIfNull(comparison);
-        return $"{GroupTitle(puzzle, comparison.Left)} {Symbol(comparison.Operator)} {GroupTitle(puzzle, comparison.Right)}";
+        return $"{ShortName(puzzle, comparison.Left)} {Symbol(comparison.Operator)} {ShortName(puzzle, comparison.Right)}";
+    }
+
+    /// <summary>
+    /// Tooltip eines Listeneintrags, z. B. „Gruppenvergleich 1: Summe von Gruppe 22 „Käfig D“ ≤ Summe von Gruppe 24
+    /// „Käfig F“ (kleiner oder gleich)“.
+    /// </summary>
+    public static string ListToolTip(Puzzle puzzle, GroupComparison comparison)
+    {
+        ArgumentNullException.ThrowIfNull(comparison);
+        var text = Enum.IsDefined(comparison.Operator) ? ComparisonOperators.ToGermanText(comparison.Operator) : "unbekannter Operator";
+        return $"Gruppenvergleich {comparison.Id}: {Meaning(puzzle, comparison)} ({text})";
+    }
+
+    private static string ShortName(Puzzle puzzle, int groupId)
+    {
+        ArgumentNullException.ThrowIfNull(puzzle);
+        return puzzle.FindGroup(groupId) switch
+        {
+            null => $"Gruppe {groupId} (fehlt)",
+            { Label: { } label } when !string.IsNullOrWhiteSpace(label) => label,
+            _ => $"Gruppe {groupId}",
+        };
     }
 
     /// <summary>Bedeutung, z. B. „Summe von Gruppe 2 „Käfig“ ≤ Summe von Gruppe 5“.</summary>
