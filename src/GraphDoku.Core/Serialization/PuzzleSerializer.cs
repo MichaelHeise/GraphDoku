@@ -9,7 +9,8 @@ namespace GraphDoku.Core.Serialization;
 
 /// <summary>
 /// Liest und schreibt Rätsel im JSON-Format (System.Text.Json, camelCase, <c>formatVersion</c> = 1).
-/// Lösungen werden nie geschrieben.
+/// Lösungen werden nie geschrieben. Die Liste <c>groupComparisons</c> ist optional und wird nur geschrieben, wenn das
+/// Rätsel Gruppenvergleiche enthält.
 /// </summary>
 public static class PuzzleSerializer
 {
@@ -313,6 +314,24 @@ public static class PuzzleSerializer
         }
 
         writer.WriteEndArray();
+
+        // Nur bei vorhandenen Vergleichen schreiben: Dateien ohne Vergleiche bleiben byte-gleich zu früheren Versionen.
+        if (puzzle.GroupComparisons.Count > 0)
+        {
+            writer.WriteStartArray("groupComparisons");
+            foreach (var comparison in puzzle.GroupComparisons)
+            {
+                writer.WriteStartObject();
+                writer.WriteNumber("id", comparison.Id);
+                writer.WriteNumber("left", comparison.Left);
+                writer.WriteNumber("right", comparison.Right);
+                writer.WriteString("op", ComparisonOperators.ToName(comparison.Operator));
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+        }
+
         writer.WriteEndObject();
     }
 
@@ -339,11 +358,12 @@ public static class PuzzleSerializer
     /// <summary>Liest das JSON-Dokument und sammelt dabei alle Formatfehler.</summary>
     private sealed class Reader
     {
-        private static readonly string[] PuzzleFields = ["formatVersion", "name", "grid", "domain", "nodes", "edges", "groups"];
+        private static readonly string[] PuzzleFields = ["formatVersion", "name", "grid", "domain", "nodes", "edges", "groups", "groupComparisons"];
         private static readonly string[] DomainFields = ["min", "max"];
         private static readonly string[] NodeFields = ["id", "x", "y", "domain", "given"];
         private static readonly string[] EdgeFields = ["id", "from", "to", "rule", "params"];
         private static readonly string[] GroupFields = ["id", "nodes", "rule", "params", "color", "label"];
+        private static readonly string[] GroupComparisonFields = ["id", "left", "right", "op"];
 
         public List<string> Errors { get; } = [];
 
@@ -394,6 +414,14 @@ public static class PuzzleSerializer
                 if (ReadGroup(element, path) is { } group)
                 {
                     puzzle.Groups.Add(group);
+                }
+            }
+
+            foreach (var (element, path) in ReadArray(root, "groupComparisons"))
+            {
+                if (ReadGroupComparison(element, path) is { } comparison)
+                {
+                    puzzle.GroupComparisons.Add(comparison);
                 }
             }
 
@@ -455,6 +483,36 @@ public static class PuzzleSerializer
             return id is null || from is null || to is null || rule is null || parameters is null
                 ? null
                 : new Edge(id.Value, from.Value, to.Value, rule, parameters);
+        }
+
+        private GroupComparison? ReadGroupComparison(JsonElement element, string path)
+        {
+            if (!ExpectObject(element, path))
+            {
+                return null;
+            }
+
+            CheckFields(element, path, GroupComparisonFields);
+            var id = ReadInt(element, "id", path, required: true);
+            var left = ReadInt(element, "left", path, required: true);
+            var right = ReadInt(element, "right", path, required: true);
+            var opName = ReadString(element, "op", path, required: true);
+            ComparisonOperator? op = null;
+            if (opName is not null)
+            {
+                if (ComparisonOperators.TryParse(opName, out var parsed))
+                {
+                    op = parsed;
+                }
+                else
+                {
+                    Errors.Add($"{path}: Unbekannter Vergleichsoperator „{opName}“. Erlaubt sind: {string.Join(", ", ComparisonOperators.Names)}.");
+                }
+            }
+
+            return id is null || left is null || right is null || op is null
+                ? null
+                : new GroupComparison(id.Value, left.Value, right.Value, op.Value);
         }
 
         private Group? ReadGroup(JsonElement element, string path)

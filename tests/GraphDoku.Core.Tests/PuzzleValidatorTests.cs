@@ -137,4 +137,60 @@ public class PuzzleValidatorTests
             .Where(e => e.Errors.Count == 2)
             .WithMessage("Das Rätsel ist ungültig (2 Fehler):*");
     }
+    /// <summary>Rätsel mit vier Knoten und den Gruppen 1 = {1, 2}, 2 = {3, 4} und 3 = {2, 1} (gleiche Knoten wie 1).</summary>
+    private static Puzzle WithComparableGroups()
+    {
+        var puzzle = TestPuzzles.WithNodes(4);
+        puzzle.Groups.Add(new Group(1, [1, 2], "AllDifferent", label: "A"));
+        puzzle.Groups.Add(new Group(2, [3, 4], "AllDifferent"));
+        puzzle.Groups.Add(new Group(3, [2, 1], "AllDifferent"));
+        return puzzle;
+    }
+
+    [Fact]
+    public void Valid_group_comparisons_pass_including_shared_nodes()
+    {
+        var puzzle = WithComparableGroups();
+        puzzle.Groups.Add(new Group(4, [2, 3], "AllDifferent"));
+        foreach (var op in ComparisonOperators.All)
+        {
+            puzzle.GroupComparisons.Add(new GroupComparison(puzzle.NextGroupComparisonId(), 1, 2, op));
+        }
+
+        puzzle.GroupComparisons.Add(new GroupComparison(puzzle.NextGroupComparisonId(), 1, 4, ComparisonOperator.Less));
+        puzzle.GroupComparisons.Add(new GroupComparison(puzzle.NextGroupComparisonId(), 2, 1, ComparisonOperator.Less));
+
+        PuzzleValidator.Validate(puzzle).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Invalid_group_comparisons_are_reported()
+    {
+        var puzzle = WithComparableGroups();
+        puzzle.GroupComparisons.Add(new GroupComparison(0, 1, 2));
+        puzzle.GroupComparisons.Add(new GroupComparison(2, 1, 2, ComparisonOperator.Less));
+        puzzle.GroupComparisons.Add(new GroupComparison(2, 7, 8, ComparisonOperator.Greater));
+        puzzle.GroupComparisons.Add(new GroupComparison(3, 2, 2, ComparisonOperator.NotEqual));
+        puzzle.GroupComparisons.Add(new GroupComparison(4, 1, 3, ComparisonOperator.LessOrEqual));
+        puzzle.GroupComparisons.Add(new GroupComparison(5, 1, 2, (ComparisonOperator)42));
+
+        PuzzleValidator.Validate(puzzle).Should().Equal(
+            "Gruppenvergleich-Id 0 ist ungültig: Ids müssen positive Ganzzahlen sein.",
+            "Die Gruppenvergleich-Id 2 ist mehrfach vergeben.",
+            "Gruppenvergleich 2 (Gruppe 7 > Gruppe 8): Die linke Gruppe 7 existiert nicht.",
+            "Gruppenvergleich 2 (Gruppe 7 > Gruppe 8): Die rechte Gruppe 8 existiert nicht.",
+            "Gruppenvergleich 3 (Gruppe 2 ≠ Gruppe 2): Linke und rechte Gruppe sind identisch (Gruppe 2); ein Gruppenvergleich muss zwei verschiedene Gruppen vergleichen.",
+            "Gruppenvergleich 4 (Gruppe 1 ≤ Gruppe 3) vergleicht zwei Gruppen mit denselben Knoten: Gemeinsame Knoten zählen auf beiden Seiten gleich und heben sich auf, also bleibt nichts zu vergleichen.",
+            "Gruppenvergleich 5 (Gruppe 1 ? Gruppe 2): Der Vergleichsoperator 42 ist ungültig. Erlaubt sind: =, !=, <, <=, >, >=.");
+    }
+
+    [Fact]
+    public void Comparisons_may_reference_groups_with_other_errors_without_follow_up_errors()
+    {
+        var puzzle = WithComparableGroups();
+        puzzle.Groups[1].Rule = "Unbekannt";
+        puzzle.GroupComparisons.Add(new GroupComparison(1, 1, 2));
+
+        PuzzleValidator.Validate(puzzle).Should().ContainSingle().Which.Should().StartWith("Gruppe 2: Unbekannter Regeltyp „Unbekannt“");
+    }
 }

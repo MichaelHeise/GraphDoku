@@ -3,7 +3,10 @@ using GraphDoku.Core.Rules;
 
 namespace GraphDoku.Core.Validation;
 
-/// <summary>Prüft ein Rätsel auf strukturelle und regelbezogene Fehler. Alle Meldungen sind deutsch.</summary>
+/// <summary>
+/// Prüft ein Rätsel auf strukturelle und regelbezogene Fehler (Wertebereich, Knoten, Kanten, Gruppen, Gruppenvergleiche).
+/// Alle Meldungen sind deutsch.
+/// </summary>
 public static class PuzzleValidator
 {
     /// <summary>Liefert alle gefundenen Fehler (leer = gültig).</summary>
@@ -16,7 +19,8 @@ public static class PuzzleValidator
         ValidateDomain(puzzle.Domain, "Der globale Wertebereich", errors);
         var nodeIds = ValidateNodes(puzzle, errors);
         ValidateEdges(puzzle, registry, nodeIds, errors);
-        ValidateGroups(puzzle, registry, nodeIds, errors);
+        var groupIds = ValidateGroups(puzzle, registry, nodeIds, errors);
+        ValidateGroupComparisons(puzzle, groupIds, errors);
         return errors;
     }
 
@@ -123,7 +127,7 @@ public static class PuzzleValidator
         }
     }
 
-    private static void ValidateGroups(Puzzle puzzle, RuleRegistry registry, HashSet<int> nodeIds, List<string> errors)
+    private static HashSet<int> ValidateGroups(Puzzle puzzle, RuleRegistry registry, HashSet<int> nodeIds, List<string> errors)
     {
         var ids = new HashSet<int>();
         foreach (var group in puzzle.Groups)
@@ -171,6 +175,52 @@ public static class PuzzleValidator
             if (structureOk)
             {
                 AddRuleErrors(rule, group, puzzle, $"{subject} ({rule.TypeName})", errors);
+            }
+        }
+
+        return ids;
+    }
+
+    private static void ValidateGroupComparisons(Puzzle puzzle, HashSet<int> groupIds, List<string> errors)
+    {
+        var ids = new HashSet<int>();
+        foreach (var comparison in puzzle.GroupComparisons)
+        {
+            var subject = comparison.ToString();
+            if (comparison.Id <= 0)
+            {
+                errors.Add($"Gruppenvergleich-Id {comparison.Id} ist ungültig: Ids müssen positive Ganzzahlen sein.");
+            }
+
+            if (!ids.Add(comparison.Id))
+            {
+                errors.Add($"Die Gruppenvergleich-Id {comparison.Id} ist mehrfach vergeben.");
+            }
+
+            if (!Enum.IsDefined(comparison.Operator))
+            {
+                errors.Add($"{subject}: Der Vergleichsoperator {(int)comparison.Operator} ist ungültig. Erlaubt sind: {string.Join(", ", ComparisonOperators.Names)}.");
+            }
+
+            var structureOk = true;
+            foreach (var (role, groupId) in new[] { ("linke", comparison.Left), ("rechte", comparison.Right) })
+            {
+                if (!groupIds.Contains(groupId))
+                {
+                    errors.Add($"{subject}: Die {role} Gruppe {groupId} existiert nicht.");
+                    structureOk = false;
+                }
+            }
+
+            if (comparison.Left == comparison.Right)
+            {
+                errors.Add($"{subject}: Linke und rechte Gruppe sind identisch (Gruppe {comparison.Left}); ein Gruppenvergleich muss zwei verschiedene Gruppen vergleichen.");
+                structureOk = false;
+            }
+
+            if (structureOk && GroupComparisonLogic.Resolve(puzzle, comparison) is { Terms.Count: 0 })
+            {
+                errors.Add($"{subject} vergleicht zwei Gruppen mit denselben Knoten: Gemeinsame Knoten zählen auf beiden Seiten gleich und heben sich auf, also bleibt nichts zu vergleichen.");
             }
         }
     }

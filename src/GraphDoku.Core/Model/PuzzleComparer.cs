@@ -47,6 +47,14 @@ public static class PuzzleComparer
             Compare(diffs, path + ".label", x.Label, y.Label);
         });
 
+        CompareLists(diffs, "groupComparisons", a.GroupComparisons, b.GroupComparisons, (path, x, y) =>
+        {
+            Compare(diffs, path + ".id", x.Id, y.Id);
+            Compare(diffs, path + ".left", x.Left, y.Left);
+            Compare(diffs, path + ".right", x.Right, y.Right);
+            Compare(diffs, path + ".op", x.Operator, y.Operator);
+        });
+
         return diffs;
     }
 

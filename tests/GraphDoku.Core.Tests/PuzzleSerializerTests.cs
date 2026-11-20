@@ -24,6 +24,8 @@ public class PuzzleSerializerTests
         puzzle.Groups.Add(new Group(2, [1, 2, 3, 4], "CoverRange", TestPuzzles.Params(("min", 1), ("max", 4))));
         puzzle.Groups.Add(new Group(3, [2, 3], "Sum", TestPuzzles.Params(("target", 5), ("allowRepeats", false))));
         puzzle.Groups.Add(new Group(4, [1, 3, 4], "Thermometer", label: "Thermo"));
+        puzzle.GroupComparisons.Add(new GroupComparison(1, 3, 4, ComparisonOperator.LessOrEqual));
+        puzzle.GroupComparisons.Add(new GroupComparison(2, 1, 3, ComparisonOperator.NotEqual));
         return puzzle;
     }
 
@@ -227,6 +229,7 @@ public class PuzzleSerializerTests
         puzzle.Nodes.Should().BeEmpty();
         puzzle.Edges.Should().BeEmpty();
         puzzle.Groups.Should().BeEmpty();
+        puzzle.GroupComparisons.Should().BeEmpty();
     }
 
     [Fact]
@@ -260,12 +263,14 @@ public class PuzzleSerializerTests
     [InlineData("nodes")]
     [InlineData("edges")]
     [InlineData("groups")]
+    [InlineData("groupComparisons")]
     public void Null_lists_mean_empty_lists(string field)
     {
         var puzzle = PuzzleSerializer.Deserialize(Wrap($"\"{field}\": null"));
         puzzle.Nodes.Should().BeEmpty();
         puzzle.Edges.Should().BeEmpty();
         puzzle.Groups.Should().BeEmpty();
+        puzzle.GroupComparisons.Should().BeEmpty();
     }
 
     [Fact]
@@ -718,5 +723,101 @@ public class PuzzleSerializerTests
     {
         var puzzle = PuzzleSerializer.Deserialize("{ \"formatVersion\": 1, \"name\": \"\\uD83D\\uDE00\", \"grid\": \"square\", \"domain\": { \"min\": 1, \"max\": 3 } }");
         puzzle.Name.Should().Be("\U0001F600");
+    }
+
+    private const string TwoGroups =
+        "\"nodes\": [ { \"id\": 1, \"x\": 0, \"y\": 0 }, { \"id\": 2, \"x\": 1, \"y\": 0 } ], " +
+        "\"groups\": [ { \"id\": 1, \"nodes\": [1], \"rule\": \"Sum\", \"params\": { \"target\": 3 } }, " +
+        "{ \"id\": 2, \"nodes\": [2], \"rule\": \"Sum\", \"params\": { \"target\": 4 } } ]";
+
+    [Fact]
+    public void Group_comparisons_are_written_after_groups_in_fixed_field_order()
+    {
+        var json = PuzzleSerializer.Serialize(CreateFullPuzzle());
+
+        json.Should().EndWith(
+            "  \"groupComparisons\": [\n" +
+            "    {\n      \"id\": 1,\n      \"left\": 3,\n      \"right\": 4,\n      \"op\": \"<=\"\n    },\n" +
+            "    {\n      \"id\": 2,\n      \"left\": 1,\n      \"right\": 3,\n      \"op\": \"!=\"\n    }\n" +
+            "  ]\n}\n");
+        json.IndexOf("\"groupComparisons\"", StringComparison.Ordinal).Should().BeGreaterThan(json.IndexOf("\"groups\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Puzzles_without_comparisons_are_written_exactly_as_before()
+    {
+        var puzzle = new Puzzle("Klein", GridType.Square, new ValueDomain(1, 3));
+        puzzle.Nodes.Add(new Node(1, 0, 0, given: 2));
+        puzzle.Nodes.Add(new Node(2, 1, 0));
+        puzzle.Edges.Add(new Edge(1, 1, 2, "NotEqual"));
+        puzzle.Groups.Add(new Group(1, [1, 2], "AllDifferent", label: "Z"));
+
+        PuzzleSerializer.Serialize(puzzle).Should().Be(
+            "{\n" +
+            "  \"formatVersion\": 1,\n" +
+            "  \"name\": \"Klein\",\n" +
+            "  \"grid\": \"square\",\n" +
+            "  \"domain\": {\n    \"min\": 1,\n    \"max\": 3\n  },\n" +
+            "  \"nodes\": [\n" +
+            "    {\n      \"id\": 1,\n      \"x\": 0,\n      \"y\": 0,\n      \"given\": 2\n    },\n" +
+            "    {\n      \"id\": 2,\n      \"x\": 1,\n      \"y\": 0\n    }\n" +
+            "  ],\n" +
+            "  \"edges\": [\n" +
+            "    {\n      \"id\": 1,\n      \"from\": 1,\n      \"to\": 2,\n      \"rule\": \"NotEqual\",\n      \"params\": {}\n    }\n" +
+            "  ],\n" +
+            "  \"groups\": [\n" +
+            "    {\n      \"id\": 1,\n      \"nodes\": [\n        1,\n        2\n      ],\n      \"rule\": \"AllDifferent\",\n      \"params\": {},\n      \"label\": \"Z\"\n    }\n" +
+            "  ]\n" +
+            "}\n");
+
+        foreach (var file in Directory.GetFiles(PuzzlesDirectory, "*.json"))
+        {
+            PuzzleSerializer.Serialize(PuzzleSerializer.Load(file)).Should().NotContain("groupComparisons", Path.GetFileName(file));
+        }
+    }
+
+    [Fact]
+    public void Group_comparisons_are_read_with_all_operators()
+    {
+        var comparisons = string.Join(", ", ComparisonOperators.Names.Select((name, i) =>
+            $"{{ \"id\": {i + 1}, \"left\": 1, \"right\": 2, \"op\": \"{name}\" }}"));
+
+        var puzzle = PuzzleSerializer.Deserialize(Wrap(TwoGroups + ", \"groupComparisons\": [ " + comparisons + " ]"));
+
+        puzzle.GroupComparisons.Select(c => c.Operator).Should().Equal(ComparisonOperators.All);
+        puzzle.GroupComparisons.Select(c => c.Id).Should().Equal(1, 2, 3, 4, 5, 6);
+        puzzle.GroupComparisons.Should().OnlyContain(c => c.Left == 1 && c.Right == 2);
+        PuzzleComparer.Differences(puzzle, PuzzleSerializer.Deserialize(PuzzleSerializer.Serialize(puzzle))).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Group_comparisons_are_read_strictly()
+    {
+        ShouldFail(Wrap(TwoGroups + ", \"groupComparisons\": [ { \"id\": 1, \"left\": 1, \"right\": 2, \"op\": \"<\", \"label\": \"x\" } ]"),
+            "groupComparisons[0]: Unbekanntes Feld „label“. Erlaubt sind: id, left, right, op.");
+        ShouldFail(Wrap(TwoGroups + ", \"groupComparisons\": [ { \"id\": 1, \"left\": 1 } ]"),
+            "groupComparisons[0]: Das Feld „right“ fehlt.",
+            "groupComparisons[0]: Das Feld „op“ fehlt.");
+        ShouldFail(Wrap(TwoGroups + ", \"groupComparisons\": [ { \"id\": 1, \"left\": 1, \"right\": 2, \"op\": \"≤\" } ]"),
+            "groupComparisons[0]: Unbekannter Vergleichsoperator „≤“. Erlaubt sind: =, !=, <, <=, >, >=.");
+        ShouldFail(Wrap(TwoGroups + ", \"groupComparisons\": [ { \"id\": 1, \"left\": \"1\", \"right\": 2, \"op\": 1 } ]"),
+            "groupComparisons[0]: Das Feld „left“ muss eine ganze Zahl sein",
+            "groupComparisons[0]: Das Feld „op“ muss eine Zeichenkette sein");
+        ShouldFail(Wrap(TwoGroups + ", \"groupComparisons\": [ { \"id\": 1, \"left\": 1, \"right\": 2, \"op\": null } ]"),
+            "groupComparisons[0]: Das Feld „op“ muss eine Zeichenkette sein");
+        ShouldFail(Wrap(TwoGroups + ", \"groupComparisons\": {}"),
+            "Das Feld „groupComparisons“ muss eine Liste sein");
+        ShouldFail(Wrap(TwoGroups + ", \"groupComparisons\": [ 1 ]"),
+            "groupComparisons[0]: Erwartet wird ein Objekt");
+    }
+
+    [Fact]
+    public void Group_comparisons_are_validated_on_load_and_kept_without_validation()
+    {
+        var json = Wrap(TwoGroups + ", \"groupComparisons\": [ { \"id\": 1, \"left\": 1, \"right\": 9, \"op\": \">=\" } ]");
+
+        ShouldFail(json, "Gruppenvergleich 1 (Gruppe 1 ≥ Gruppe 9): Die rechte Gruppe 9 existiert nicht.");
+        PuzzleSerializer.Deserialize(json, validate: false).GroupComparisons.Should().ContainSingle()
+            .Which.Right.Should().Be(9);
     }
 }

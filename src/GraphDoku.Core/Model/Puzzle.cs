@@ -1,6 +1,8 @@
 namespace GraphDoku.Core.Model;
 
-/// <summary>Ein Rätsel: Gittertyp, globaler Wertebereich, Knoten, Kanten und Gruppen. Lösungen gehören nicht dazu.</summary>
+/// <summary>
+/// Ein Rätsel: Gittertyp, globaler Wertebereich, Knoten, Kanten, Gruppen und Gruppenvergleiche. Lösungen gehören nicht dazu.
+/// </summary>
 public sealed class Puzzle
 {
     /// <summary>Die einzige derzeit unterstützte Version des Speicherformats.</summary>
@@ -26,7 +28,13 @@ public sealed class Puzzle
 
     public IList<Group> Groups { get; } = new List<Group>();
 
-    /// <summary>Alle Kanten und Gruppen als Constraints (erst Kanten, dann Gruppen).</summary>
+    /// <summary>Vergleiche zweier Gruppensummen (eigene Id-Folge, unabhängig von den Gruppen-Ids).</summary>
+    public IList<GroupComparison> GroupComparisons { get; } = new List<GroupComparison>();
+
+    /// <summary>
+    /// Alle Kanten und Gruppen als Constraints (erst Kanten, dann Gruppen). Gruppenvergleiche gehören nicht dazu, weil sie
+    /// keine Regel der Registry haben (siehe <see cref="GroupComparisons"/>).
+    /// </summary>
     public IEnumerable<IConstraint> Constraints => Edges.Cast<IConstraint>().Concat(Groups);
 
     public Node? FindNode(int id) => Nodes.FirstOrDefault(n => n.Id == id);
@@ -35,9 +43,19 @@ public sealed class Puzzle
 
     public Group? FindGroup(int id) => Groups.FirstOrDefault(g => g.Id == id);
 
-    public IConstraint? FindConstraint(ConstraintRef reference) => reference.Kind == ConstraintKind.Edge
-        ? FindEdge(reference.Id)
-        : FindGroup(reference.Id);
+    public GroupComparison? FindGroupComparison(int id) => GroupComparisons.FirstOrDefault(c => c.Id == id);
+
+    /// <summary>
+    /// Sucht die Kante oder Gruppe zum Verweis. Für <see cref="ConstraintKind.GroupComparison"/> ist das Ergebnis immer
+    /// <c>null</c>, weil Gruppenvergleiche keine <see cref="IConstraint"/> sind; dafür gibt es
+    /// <see cref="FindGroupComparison"/>.
+    /// </summary>
+    public IConstraint? FindConstraint(ConstraintRef reference) => reference.Kind switch
+    {
+        ConstraintKind.Edge => FindEdge(reference.Id),
+        ConstraintKind.Group => FindGroup(reference.Id),
+        _ => null,
+    };
 
     /// <summary>Wertebereich des Knotens: eigener Bereich, sonst der globale.</summary>
     public ValueDomain GetEffectiveDomain(Node node)
@@ -51,6 +69,8 @@ public sealed class Puzzle
     public int NextEdgeId() => Edges.Count == 0 ? 1 : Edges.Max(e => e.Id) + 1;
 
     public int NextGroupId() => Groups.Count == 0 ? 1 : Groups.Max(g => g.Id) + 1;
+
+    public int NextGroupComparisonId() => GroupComparisons.Count == 0 ? 1 : GroupComparisons.Max(c => c.Id) + 1;
 
     /// <summary>Tiefe Kopie des Rätsels.</summary>
     public Puzzle Clone()
@@ -69,6 +89,11 @@ public sealed class Puzzle
         foreach (var group in Groups)
         {
             copy.Groups.Add(group.Clone());
+        }
+
+        foreach (var comparison in GroupComparisons)
+        {
+            copy.GroupComparisons.Add(comparison.Clone());
         }
 
         return copy;

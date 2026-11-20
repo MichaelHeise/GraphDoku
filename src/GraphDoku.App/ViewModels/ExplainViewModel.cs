@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using GraphDoku.App.Explaining;
 using GraphDoku.App.Solving;
 using GraphDoku.Core.Model;
+using GraphDoku.Core.Rules;
 using GraphDoku.Explainer;
 using GraphDoku.Solver;
 
@@ -453,7 +454,19 @@ public sealed partial class ExplainViewModel : ViewModelBase
 
     private string DescribeConstraint(Puzzle puzzle, ConstraintRef constraint)
     {
-        IConstraint? target = constraint.Kind == ConstraintKind.Edge ? puzzle.FindEdge(constraint.Id) : puzzle.FindGroup(constraint.Id);
+        if (constraint.Kind == ConstraintKind.GroupComparison)
+        {
+            return puzzle.FindGroupComparison(constraint.Id) is { } comparison
+                ? GroupComparisonLogic.Describe(puzzle, comparison)
+                : constraint.ToString();
+        }
+
+        IConstraint? target = constraint.Kind switch
+        {
+            ConstraintKind.Edge => puzzle.FindEdge(constraint.Id),
+            ConstraintKind.Group => puzzle.FindGroup(constraint.Id),
+            _ => null,
+        };
         if (target is null)
         {
             return constraint.ToString();
